@@ -18,15 +18,6 @@ namespace
 constexpr float PI = 3.14159265358979323846f;
 constexpr VkFormat skyboxFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
-constexpr std::array<const char *, 6> skyboxFaces = {
-    "../textures/skybox/right.jpg",
-    "../textures/skybox/left.jpg",
-    "../textures/skybox/top.jpg",
-    "../textures/skybox/bottom.jpg",
-    "../textures/skybox/front.jpg",
-    "../textures/skybox/back.jpg",
-};
-
 constexpr std::array<std::array<unsigned char, 4>, 6> fallbackSkyboxColors = {
     std::array<unsigned char, 4>{70, 110, 180, 255},
     std::array<unsigned char, 4>{65, 100, 165, 255},
@@ -205,12 +196,12 @@ SkyboxPixels loadLdrFaceSkybox()
     std::array<stbi_uc *, 6> loadedPixels{};
     bool useFallback = false;
 
-    for (size_t i = 0; i < skyboxFaces.size(); i++)
+    for (size_t i = 0; i < SKYBOX_FACE_PATHS.size(); i++)
     {
         int faceWidth = 0;
         int faceHeight = 0;
         int channels = 0;
-        loadedPixels[i] = stbi_load(skyboxFaces[i], &faceWidth, &faceHeight, &channels, STBI_rgb_alpha);
+        loadedPixels[i] = stbi_load(SKYBOX_FACE_PATHS[i].c_str(), &faceWidth, &faceHeight, &channels, STBI_rgb_alpha);
         if (loadedPixels[i] == nullptr || faceWidth != faceHeight)
         {
             useFallback = true;
@@ -244,7 +235,7 @@ SkyboxPixels loadLdrFaceSkybox()
     skybox.height = static_cast<uint32_t>(height);
     skybox.pixels.resize(static_cast<size_t>(skybox.width) * skybox.height * 6 * 4);
 
-    for (size_t face = 0; face < skyboxFaces.size(); face++)
+    for (size_t face = 0; face < SKYBOX_FACE_PATHS.size(); face++)
     {
         for (uint32_t y = 0; y < skybox.height; y++)
         {

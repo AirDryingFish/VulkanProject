@@ -218,8 +218,8 @@ void TriangleApplication::createDescriptorSetLayout()
 void TriangleApplication::createGraphicsPipeline()
 {
     GraphicsPipelineConfig config{};
-    config.vertShaderPath = "../shaders/vert.spv";
-    config.fragShaderPath = "../shaders/frag.spv";
+    config.vertShaderPath = MAIN_VERTEX_SHADER_PATH;
+    config.fragShaderPath = MAIN_FRAGMENT_SHADER_PATH;
     config.useVertexInput = true;
     config.cullMode = VK_CULL_MODE_BACK_BIT;
     config.depthTest = true;
@@ -235,8 +235,8 @@ void TriangleApplication::createGraphicsPipeline()
 void TriangleApplication::createSkyboxPipeline()
 {
     GraphicsPipelineConfig config{};
-    config.vertShaderPath = "../shaders/skybox.vert.spv";
-    config.fragShaderPath = "../shaders/skybox.frag.spv";
+    config.vertShaderPath = SKYBOX_VERTEX_SHADER_PATH;
+    config.fragShaderPath = SKYBOX_FRAGMENT_SHADER_PATH;
     config.useVertexInput = false;
     config.cullMode = VK_CULL_MODE_NONE;
     config.depthTest = true;

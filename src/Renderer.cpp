@@ -11,7 +11,7 @@
 void TriangleApplication::createSyncObjects()
 {
     imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(swapChainImages.size());
     inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
     VkSemaphoreCreateInfo semaphoreInfo{};
@@ -24,7 +24,6 @@ void TriangleApplication::createSyncObjects()
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create semaphores!");
@@ -34,12 +33,21 @@ void TriangleApplication::createSyncObjects()
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         VkSemaphore imageAvailable = imageAvailableSemaphores[i];
-        VkSemaphore renderFinished = renderFinishedSemaphores[i];
         VkFence fence = inFlightFences[i];
-        mainDeletionQueue.pushFunction([this, imageAvailable, renderFinished, fence]() {
+        mainDeletionQueue.pushFunction([this, imageAvailable, fence]() {
             vkDestroySemaphore(device, imageAvailable, nullptr);
-            vkDestroySemaphore(device, renderFinished, nullptr);
             vkDestroyFence(device, fence, nullptr);
+        });
+    }
+
+    for (VkSemaphore &renderFinished : renderFinishedSemaphores)
+    {
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinished) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create render-finished semaphore!");
+        }
+        mainDeletionQueue.pushFunction([this, renderFinished]() {
+            vkDestroySemaphore(device, renderFinished, nullptr);
         });
     }
 }
@@ -122,7 +130,10 @@ void TriangleApplication::drawFrame()
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
+    // Presentation completion is not covered by the per-frame submit fence.
+    // Indexing this semaphore by acquired image makes reuse safe: reacquiring
+    // that image guarantees the previous presentation wait has completed.
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[imageIndex]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 

@@ -29,6 +29,11 @@ void TriangleApplication::CreateInstance()
     std::vector<const char *> extensions = getRequiredExtensions();
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
+#if VULKAN_PROJECT_PLATFORM_MACOS
+    // MoltenVK is a Vulkan portability implementation. The Vulkan loader hides
+    // portability devices unless the application explicitly opts into them.
+    createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
     uint32_t glfwExtensionCount = 0;
     const char **glfwExtensions;
     glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -131,6 +136,11 @@ std::vector<const char *> TriangleApplication::getRequiredExtensions()
     {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
+
+#if VULKAN_PROJECT_PLATFORM_MACOS
+    extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+#endif
 
     return extensions;
 }

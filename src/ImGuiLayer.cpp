@@ -1,6 +1,7 @@
 #include "TriangleApplication.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <stdexcept>
 
@@ -191,15 +192,17 @@ void TriangleApplication::initImGui()
     // 为什么Imgui需要descriptor？
     // descriptor是渲染的时候需要渲染UI，渲染一个Image或者Text的时候
     // 每张纹理用一个descriptor，Imgui内部维护VkImageView->VkDescriptorSet的映射
-    VkDescriptorPoolSize poolSize{
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        1000};
+    const std::array<VkDescriptorPoolSize, 3> poolSizes{{
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+    }};
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.maxSets = 1000;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool) != VK_SUCCESS)
     {
@@ -224,18 +227,14 @@ void TriangleApplication::initImGui()
     initInfo.QueueFamily = indices.graphicsFamily.value();
     initInfo.Queue = graphicsQueue;
     initInfo.DescriptorPool = imguiDescriptorPool;
-    initInfo.RenderPass = renderPass;
+    initInfo.PipelineInfoMain.RenderPass = renderPass;
     initInfo.MinImageCount = MAX_FRAMES_IN_FLIGHT;
     initInfo.ImageCount = static_cast<uint32_t>(swapChainImages.size());
-    initInfo.MSAASamples = msaaSamples;
+    initInfo.PipelineInfoMain.MSAASamples = msaaSamples;
 
     if (!ImGui_ImplVulkan_Init(&initInfo))
     {
         throw std::runtime_error("failed to init imgui vulkan backend!");
-    }
-    if (!ImGui_ImplVulkan_CreateFontsTexture())
-    {
-        throw std::runtime_error("failed to create imgui font texture!");
     }
     mainDeletionQueue.pushFunction([]()
                                    {

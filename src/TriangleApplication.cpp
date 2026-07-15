@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -13,6 +14,7 @@
 #include <unordered_map>
 void TriangleApplication::run()
 {
+    std::snprintf(importModelPath, sizeof(importModelPath), "%s", MODEL_PATH.c_str());
     InitWindow();
     InitVulkan();
     MainLoop();

@@ -267,8 +267,8 @@ void TriangleApplication::createIrradianceResources()
     mainDeletionQueue.pushFunction([this, layout = irradiancePipelineLayout]()
                                    { vkDestroyPipelineLayout(device, layout, nullptr); });
 
-    auto vertShaderCode = readFile("../shaders/irradiance.vert.spv");
-    auto fragShaderCode = readFile("../shaders/irradiance.frag.spv");
+    auto vertShaderCode = readFile(IRRADIANCE_VERTEX_SHADER_PATH);
+    auto fragShaderCode = readFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -656,8 +656,8 @@ void TriangleApplication::createPrefilterResources()
     mainDeletionQueue.pushFunction([this, layout = prefilterPipelineLayout]()
                                    { vkDestroyPipelineLayout(device, layout, nullptr); });
 
-    auto vertShaderCode = readFile("../shaders/prefilter.vert.spv");
-    auto fragShaderCode = readFile("../shaders/prefilter.frag.spv");
+    auto vertShaderCode = readFile(PREFILTER_VERTEX_SHADER_PATH);
+    auto fragShaderCode = readFile(PREFILTER_FRAGMENT_SHADER_PATH);
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);

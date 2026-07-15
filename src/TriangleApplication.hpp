@@ -252,7 +252,7 @@ private:
     std::vector<uint32_t> indices;
     std::vector<SceneObject> sceneObjects;
     int selectedSceneObjectIndex = -1;
-    char importModelPath[260] = "../models/viking_room.obj";
+    char importModelPath[1024]{};
     std::string sceneStatusMessage;
     glm::vec3 modelLocalBoundsMin = {0.0f, 0.0f, 0.0f};
     glm::vec3 modelLocalBoundsMax = {0.0f, 0.0f, 0.0f};

@@ -1,2 +1,41 @@
-/build/
-/build-mingw/
+# CMake build trees and generated metadata
+/build*/
+/out/
+/cmake-build-*/
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+build.ninja
+.ninja_deps
+.ninja_log
+
+# vcpkg manifest-mode dependencies
+/vcpkg_installed/
+
+# Runtime-generated state and logs
+imgui.ini
+*.log
+
+# Editors and operating systems
+/.vscode/
+/.idea/
+.DS_Store
+Thumbs.db
+
+# Compiler artifacts
+*.o
+*.a
+*.lib
+*.dylib
+*.dll
+*.so
+*.exe
+*.pdb
+*.dSYM/
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
