@@ -140,6 +140,8 @@ void TriangleApplication::createSwapChain()
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
+
+    createPresentSemaphores();
 }
 
 void TriangleApplication::recreateSwapChain()

@@ -55,7 +55,10 @@ void TriangleApplication::InitVulkan()
     createGraphicsPipeline();
     createSkyboxPipeline();
 
-    createCommandPool();
+    // createCommandPool();
+    createUploadContext();
+    createFrameContexts();
+
     createColorResources();
     createDepthResources();
 
@@ -78,9 +81,6 @@ void TriangleApplication::InitVulkan()
     createDescriptorPool();
     createDescriptorSets();
     createSkyboxDescriptorSets();
-
-    createCommandBuffers();
-    createSyncObjects();
 
     rendererReady = true;
 }

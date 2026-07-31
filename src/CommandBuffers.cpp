@@ -6,40 +6,6 @@
 #include <array>
 #include <stdexcept>
 
-void TriangleApplication::createCommandPool()
-{
-    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
-
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create command pool!");
-    }
-
-    mainDeletionQueue.pushFunction([this, pool = commandPool]() mutable {
-        vkDestroyCommandPool(device, pool, nullptr);
-    });
-}
-
-void TriangleApplication::createCommandBuffers()
-{
-    commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-
-    if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate command buffers!");
-    }
-}
 
 void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
@@ -116,30 +82,188 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
 
 void TriangleApplication::immediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function)
 {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = commandPool;
-    allocInfo.commandBufferCount = 1;
+    // VkCommandBufferAllocateInfo allocInfo{};
+    // allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    // allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    // allocInfo.commandPool = commandPool;
+    // allocInfo.commandBufferCount = 1;
 
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    // VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    // vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+    // VkCommandBufferBeginInfo beginInfo{};
+    // beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    // function(commandBuffer);
+    // vkEndCommandBuffer(commandBuffer);
+
+    // VkSubmitInfo submitInfo{};
+    // submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    // submitInfo.commandBufferCount = 1;
+    // submitInfo.pCommandBuffers = &commandBuffer;
+
+    // vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    // vkQueueWaitIdle(graphicsQueue);
+
+    // vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+
+
+    // 确认上一次使用的UploadContext已经完成
+    if (vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to wait for upload fence!");
+    }
+
+    // Fence必须回到 unsignaled 才能交给下一次 submit
+    if (vkResetFences(device, 1, &uploadContext.fence) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to reset upload fence!");
+    }
+
+    // Fence 已经证明上一轮 command buffer 不再 pending，因此可以安全reset command pool
+    if (vkResetCommandPool(device, uploadContext.commandPool, 0) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to reset upload command pool!");
+    }
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    function(commandBuffer);
-    vkEndCommandBuffer(commandBuffer);
+    if (vkBeginCommandBuffer(uploadContext.commandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to begin upload command buffer!");
+    }
+
+    function(uploadContext.commandBuffer);
+
+    if (vkEndCommandBuffer(uploadContext.commandBuffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to end upload command buffer!");
+    }
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.pCommandBuffers = &uploadContext.commandBuffer;
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(graphicsQueue);
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, uploadContext.fence) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to submit upload command buffer!");
+    }
 
-    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    if (vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to finish upload commands!");
+    }
+
+}
+
+void TriangleApplication::createUploadContext()
+{
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
+
+    if(vkCreateCommandPool(device, &poolInfo, nullptr, &uploadContext.commandPool) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create upload command pool!");
+    }
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = uploadContext.commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    if (vkAllocateCommandBuffers(device, &allocInfo, &uploadContext.commandBuffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate upload command buffer!");
+    }
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    if(vkCreateFence(device, &fenceInfo, nullptr, &uploadContext.fence) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create upload fence!");
+    }
+
+    mainDeletionQueue.pushFunction([this]() {
+        vkDestroyFence(device, uploadContext.fence, nullptr);
+
+        vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
+    });
+}
+
+void TriangleApplication::createFrameContexts()
+{
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    
+    for (FrameContext& frame : frames)
+    {
+        // 创建 frame.commandPool
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        // TRANSIENT_BIT 表示该 command pool 中的 command buffer 会频繁分配和释放
+        // 而不是 RESET_COMMAND_BUFFER_BIT 表示该 command pool 中的 command buffer 可以单独 reset
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+        poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
+
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &frame.commandPool) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create frame command pool!");
+        }
+
+        // 从 frame.commandPool 分配 frame.commandBuffer
+
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = frame.commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
+
+        if (vkAllocateCommandBuffers(device, &allocInfo, &frame.commandBuffer) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to allocate frame command buffer!");
+        }
+
+        // 创建 frame.imageAvailable 信号量
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create frame image available semaphore!");
+        }
+
+        // 创建带 SIGNALED_BIT 的 frame.renderFence
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        if (vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create frame render fence!");
+        }
+
+        const VkCommandPool commandPool = frame.commandPool;
+        // const VkCommandBuffer commandBuffer = frame.commandBuffer;
+        const VkFence renderFence = frame.renderFence;
+        const VkSemaphore imageAvailable = frame.imageAvailable;
+
+        mainDeletionQueue.pushFunction([this, commandPool, renderFence, imageAvailable]() {
+
+            vkDestroyFence(device, renderFence, nullptr);
+            vkDestroySemaphore(device, imageAvailable, nullptr);
+            vkDestroyCommandPool(device, commandPool, nullptr);
+        });
+    }
 }

@@ -8,37 +8,13 @@
 #include <array>
 #include <stdexcept>
 
-void TriangleApplication::createSyncObjects()
+void TriangleApplication::createPresentSemaphores()
 {
-    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     renderFinishedSemaphores.resize(swapChainImages.size());
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-    {
-        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create semaphores!");
-        }
-    }
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-    {
-        VkSemaphore imageAvailable = imageAvailableSemaphores[i];
-        VkFence fence = inFlightFences[i];
-        mainDeletionQueue.pushFunction([this, imageAvailable, fence]() {
-            vkDestroySemaphore(device, imageAvailable, nullptr);
-            vkDestroyFence(device, fence, nullptr);
-        });
-    }
 
     for (VkSemaphore &renderFinished : renderFinishedSemaphores)
     {
@@ -46,7 +22,7 @@ void TriangleApplication::createSyncObjects()
         {
             throw std::runtime_error("failed to create render-finished semaphore!");
         }
-        mainDeletionQueue.pushFunction([this, renderFinished]() {
+        swapChainDeletionQueue.pushFunction([this, renderFinished]() {
             vkDestroySemaphore(device, renderFinished, nullptr);
         });
     }
@@ -59,6 +35,8 @@ void TriangleApplication::drawFrame()
         return;
     }
 
+    FrameContext& frame = frames[currentFrame];
+
     frameInProgress = true;
     auto finishFrame = [this]() {
         frameInProgress = false;
@@ -69,7 +47,17 @@ void TriangleApplication::drawFrame()
     lastFrameTime = now;
     deltaTime = std::min(deltaTime, 0.05f);
 
-    vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    if (vkWaitForFences(
+        device,
+        1,
+        &frame.renderFence,
+        VK_TRUE,
+        UINT64_MAX) != VK_SUCCESS)
+    {
+        finishFrame();
+        throw std::runtime_error(
+            "failed to wait for frame fence!");
+    }
 
     int width = 0;
     int height = 0;
@@ -88,8 +76,8 @@ void TriangleApplication::drawFrame()
         return;
     }
 
-    uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+    uint32_t imageIndex = 0;
+    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         framebufferResized = false;
@@ -103,12 +91,15 @@ void TriangleApplication::drawFrame()
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
     processCameraInput(deltaTime);
     updateUniformBuffer(currentFrame, deltaTime);
 
-    vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+    if (vkResetCommandPool(device, frame.commandPool, 0) != VK_SUCCESS)
+    {
+        finishFrame();
+        throw std::runtime_error("failed to reset command pool!");
+    }
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -117,18 +108,18 @@ void TriangleApplication::drawFrame()
     processModelPicking();
     ImGui::Render();
 
-    recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+    recordCommandBuffer(frame.commandBuffer, imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+    VkSemaphore waitSemaphores[] = {frame.imageAvailable};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+    submitInfo.pCommandBuffers = &frame.commandBuffer;
 
     // Presentation completion is not covered by the per-frame submit fence.
     // Indexing this semaphore by acquired image makes reuse safe: reacquiring
@@ -137,7 +128,14 @@ void TriangleApplication::drawFrame()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
+    if (vkResetFences(device, 1, &frame.renderFence) != VK_SUCCESS)
+    {
+        finishFrame();
+        throw std::runtime_error("failed to reset frame fence!");
+    }
+
+
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, frame.renderFence) != VK_SUCCESS)
     {
         finishFrame();
         throw std::runtime_error("failed to submit draw command buffer!");
