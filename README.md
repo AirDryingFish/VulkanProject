@@ -1,8 +1,8 @@
 # VulkanProject
 
 一个使用 C++17、Vulkan、GLFW 和 ImGui 编写的跨平台实时 PBR 渲染器。
-项目最初运行于 Windows/MinGW，现在同时支持 Apple Silicon macOS；macOS
-通过 MoltenVK 将 Vulkan 指令映射到 Metal。
+项目最初运行于 Windows/MinGW，现在同时支持 x86_64 Linux 和 Apple Silicon
+macOS；macOS 通过 MoltenVK 将 Vulkan 指令映射到 Metal。
 
 ## 当前能力
 
@@ -53,6 +53,85 @@ VulkanProject/
 
 构建目录统一位于 `build/<preset>/`，不会提交到 Git。CMake 每次链接后会把
 `assets/` 复制到当前构建目录，程序因此不依赖终端的当前工作目录。
+
+## 从零开始：Linux（Ubuntu/Debian x86_64）
+
+以下命令以 Ubuntu 24.04 / Debian 系发行版为例。其他发行版需要安装名称相应的
+C++ 工具链、Vulkan loader/driver、Validation Layers 和 X11 开发包。
+
+### 1. 安装系统依赖
+
+```sh
+sudo apt update
+sudo apt install -y \
+  build-essential cmake ninja-build pkg-config git git-lfs curl zip unzip tar \
+  libvulkan-dev vulkan-tools vulkan-validationlayers glslc \
+  xorg-dev libglu1-mesa-dev
+git lfs install
+```
+
+其中 X11 开发包用于 vcpkg 编译 GLFW，`glslc` 只在修改 GLSL shader 后需要。
+还需要安装与显卡匹配的 Vulkan 驱动：
+
+- Intel/AMD（Mesa）：通常安装 `mesa-vulkan-drivers`；
+- NVIDIA：安装发行版推荐的专有驱动，避免混用不匹配版本的 Vulkan 库；
+- 虚拟机、容器和 WSL：必须另外配置 GPU/Vulkan 转发，普通无 GPU 容器不能直接
+  创建 Vulkan 窗口。
+
+先确认 loader 能找到物理设备：
+
+```sh
+vulkaninfo --summary
+```
+
+输出中应能看到至少一个 `GPU`。若该命令失败，应先修复显卡驱动，再编译项目。
+
+### 2. 从零安装 vcpkg
+
+项目使用 vcpkg manifest mode；必须保留完整的 vcpkg 仓库：
+
+```sh
+git clone https://github.com/microsoft/vcpkg.git "$HOME/vcpkg"
+"$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+export VCPKG_ROOT="$HOME/vcpkg"
+export PATH="$VCPKG_ROOT:$PATH"
+```
+
+如需永久生效，把最后两条 `export` 加入 `~/.bashrc`（使用其他 shell 时加入其
+对应配置文件），然后重新打开终端。
+
+### 3. Clone 项目与下载资源
+
+```sh
+git clone https://github.com/AirDryingFish/VulkanProject.git
+cd VulkanProject
+git lfs install
+git lfs pull
+```
+
+确认 `git lfs pull` 成功完成，否则纹理仍是 LFS pointer，程序会在加载资源时失败。
+
+### 4. 配置、编译与运行 Debug
+
+```sh
+cmake --preset linux-debug
+cmake --build --preset linux-debug --parallel
+./build/linux-debug/vulkan
+```
+
+首次配置会根据 `vcpkg.json` 为 `x64-linux` 编译依赖，耗时通常比后续增量构建长。
+Debug 默认开启 Vulkan Validation Layers。
+
+### 5. Release 构建
+
+```sh
+cmake --preset linux-release
+cmake --build --preset linux-release --parallel
+./build/linux-release/vulkan
+```
+
+Release 默认关闭 Validation Layers。程序可从任意工作目录启动，因为资源路径在
+配置时生成，构建后 `assets/` 会复制到相应的构建目录。
 
 ## 从零开始：macOS（Apple Silicon）
 
@@ -181,7 +260,7 @@ MinGW 必须与 `x64-mingw-dynamic` triplet 匹配，且 `g++` 应当在 `PATH` 
 
 仓库保留 GLSL 源码和程序直接加载的 SPIR-V。修改 shader 后重新生成 SPIR-V：
 
-macOS：
+Linux / macOS：
 
 ```sh
 ./scripts/compile-shaders.sh
@@ -233,6 +312,23 @@ Windows PowerShell 对应检查：
 ```powershell
 echo $env:VCPKG_ROOT
 Test-Path "$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
+```
+
+### Linux 下 `vulkaninfo` 找不到设备或程序报 `failed to find GPUs`
+
+这通常是显卡 Vulkan 驱动问题，而非 vcpkg 依赖问题。先运行
+`vulkaninfo --summary`；Intel/AMD 检查 `mesa-vulkan-drivers`，NVIDIA 检查当前
+内核模块与用户态驱动版本是否一致。多 GPU 机器还可用
+`VK_LOADER_DEBUG=error,warn,driver vulkaninfo --summary` 检查实际加载的 ICD。
+
+### Linux 配置时 GLFW 报缺少 X11 库
+
+安装 `xorg-dev libglu1-mesa-dev pkg-config` 后，删除失败的 Linux 构建目录并重新
+执行 preset：
+
+```sh
+rm -rf build/linux-debug
+cmake --preset linux-debug
 ```
 
 ### macOS 报 `failed to find GPUs with Vulkan support`

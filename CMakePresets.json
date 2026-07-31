@@ -42,6 +42,36 @@
       }
     },
     {
+      "name": "linux-debug",
+      "displayName": "Linux x64 - Debug",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "VULKAN_PROJECT_ENABLE_VALIDATION": "ON"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux x64 - Release",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "VULKAN_PROJECT_ENABLE_VALIDATION": "OFF"
+      }
+    },
+    {
       "name": "windows-mingw-debug",
       "displayName": "Windows MinGW x64 - Debug",
       "inherits": "base",
@@ -82,6 +112,14 @@
     {
       "name": "macos-release",
       "configurePreset": "macos-release"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
     },
     {
       "name": "windows-mingw-debug",

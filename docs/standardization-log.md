@@ -88,3 +88,18 @@ verified. New normalization work should add an entry here in the same change.
 - **Verification:** Commands are replayed from a fresh build tree; manifest
   dependencies resolve at the pinned baseline and both Debug and Release
   presets configure without personal absolute paths.
+
+## STD-007 — Reproducible Linux build workflow
+
+- **Problem:** Linux was not represented in the CMake presets or bootstrap
+  guide, so contributors had to infer the vcpkg triplet, native GLFW packages,
+  Vulkan driver checks, executable location, and validation behavior.
+- **Change:** Added x64 Linux Debug/Release configure and build presets, an
+  Ubuntu/Debian setup and troubleshooting guide, and a platform-neutral
+  `glslc` installation hint.
+- **Why:** Linux should use the same repository-owned, repeatable workflow as
+  macOS and Windows, with system driver failures clearly separated from C++
+  package resolution.
+- **Verification:** `cmake --list-presets` exposes both host-valid Linux
+  configure presets, `CMakePresets.json` parses successfully, the shader script
+  passes `sh -n`, and `git diff --check` reports no whitespace errors.

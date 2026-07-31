@@ -5,7 +5,7 @@ PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 SHADER_DIR="$PROJECT_DIR/assets/shaders"
 
 if ! command -v glslc >/dev/null 2>&1; then
-    echo "glslc was not found. Install it with: brew install shaderc" >&2
+    echo "glslc was not found. Install glslc (Linux) or shaderc (Homebrew), then add it to PATH." >&2
     exit 1
 fi
 
