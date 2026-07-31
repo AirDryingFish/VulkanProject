@@ -71,7 +71,9 @@ git lfs install
 ```
 
 其中 X11 开发包用于 vcpkg 编译 GLFW，`glslc` 只在修改 GLSL shader 后需要。
-还需要安装与显卡匹配的 Vulkan 驱动：
+项目在 Linux 上固定链接 `libvulkan-dev` 提供的系统 Vulkan loader，以匹配主机
+显卡驱动；vcpkg 仍负责 GLFW、GLM、ImGui 等 C++ 依赖。还需要安装与显卡匹配的
+Vulkan 驱动：
 
 - Intel/AMD（Mesa）：通常安装 `mesa-vulkan-drivers`；
 - NVIDIA：安装发行版推荐的专有驱动，避免混用不匹配版本的 Vulkan 库；

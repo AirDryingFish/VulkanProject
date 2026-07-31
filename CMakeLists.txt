@@ -33,6 +33,29 @@ configure_file(
     @ONLY
 )
 
+# The Vulkan loader is part of the Linux graphics-driver stack. Keep using the
+# system loader even though vcpkg installs another copy as an ImGui dependency;
+# mixing a newer vcpkg loader with the host ICD can make surface creation fail.
+if(UNIX AND NOT APPLE)
+    find_library(
+        VULKAN_PROJECT_SYSTEM_VULKAN_LOADER
+        NAMES vulkan
+        PATHS
+            "/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}"
+            /usr/lib64
+            /usr/lib
+        NO_DEFAULT_PATH
+        REQUIRED
+    )
+    set(
+        Vulkan_LIBRARY
+        "${VULKAN_PROJECT_SYSTEM_VULKAN_LOADER}"
+        CACHE FILEPATH
+        "System Vulkan loader used by the host graphics driver"
+        FORCE
+    )
+endif()
+
 find_package(Vulkan REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)

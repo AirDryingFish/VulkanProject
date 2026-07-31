@@ -95,11 +95,13 @@ verified. New normalization work should add an entry here in the same change.
   guide, so contributors had to infer the vcpkg triplet, native GLFW packages,
   Vulkan driver checks, executable location, and validation behavior.
 - **Change:** Added x64 Linux Debug/Release configure and build presets, an
-  Ubuntu/Debian setup and troubleshooting guide, and a platform-neutral
-  `glslc` installation hint.
+  Ubuntu/Debian setup and troubleshooting guide, a platform-neutral `glslc`
+  installation hint, and explicit selection of the host Vulkan loader.
 - **Why:** Linux should use the same repository-owned, repeatable workflow as
   macOS and Windows, with system driver failures clearly separated from C++
-  package resolution.
+  package resolution. The Vulkan loader must remain paired with the host ICD;
+  vcpkg may install a newer loader transitively through ImGui.
 - **Verification:** `cmake --list-presets` exposes both host-valid Linux
   configure presets, `CMakePresets.json` parses successfully, the shader script
-  passes `sh -n`, and `git diff --check` reports no whitespace errors.
+  passes `sh -n`, and both Linux builds resolve `Vulkan::Vulkan` to the system
+  loader and launch successfully with the installed NVIDIA ICD.
