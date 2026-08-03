@@ -59,10 +59,7 @@ void TriangleApplication::CreateInstance()
         createInfo.pNext = nullptr;
     }
 
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create instance");
-    }
+    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance));
     // 总结：vk中创建Instance的步骤：
     // 1. creation info 指针
     // 2. allocator callbacks，通常为nullptr
@@ -79,10 +76,7 @@ void TriangleApplication::setupDebugMessenger()
     VkDebugUtilsMessengerCreateInfoEXT createInfo;
     populateDebugMessengerCreateInfo(createInfo);
 
-    if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to set up debug messenger!");
-    }
+    VK_CHECK(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger));
 }
 
 void TriangleApplication::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
@@ -97,9 +91,9 @@ void TriangleApplication::populateDebugMessengerCreateInfo(VkDebugUtilsMessenger
 bool TriangleApplication::checkValidationLayerSupport()
 {
     uint32_t layerCount;
-    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&layerCount, nullptr));
     std::vector<VkLayerProperties> availableLayers(layerCount);
-    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()));
 
     for (const char *layerName : validationLayers)
     {
@@ -157,8 +151,5 @@ VKAPI_ATTR VkBool32 VKAPI_CALL TriangleApplication::debugCallback(
 
 void TriangleApplication::createSurface()
 {
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create window surface!");
-    }
+    VK_CHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface));
 }

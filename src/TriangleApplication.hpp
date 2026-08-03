@@ -2,6 +2,7 @@
 
 #include "AppConfig.hpp"
 #include "DeletionQueue.hpp"
+#include "VulkanCheck.hpp"
 #include "VulkanTypes.hpp"
 
 #include <array>
@@ -10,6 +11,23 @@
 #include <vector>
 
 #include <vk_mem_alloc.h>
+
+struct UploadContext
+{
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkFence fence = VK_NULL_HANDLE;
+};
+
+struct FrameContext
+{
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+
+    VkSemaphore imageAvailable = VK_NULL_HANDLE;
+    VkFence renderFence = VK_NULL_HANDLE;
+};
+
 
 class TriangleApplication
 {
@@ -118,8 +136,6 @@ private:
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
     void createFramebuffers();
 
-    void createCommandPool();
-    void createCommandBuffers();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
     VkCommandBuffer beginSingleTimeCommands();
@@ -211,13 +227,17 @@ private:
 
     bool hasStencilComponent(VkFormat format);
 
-    void createSyncObjects();
+    void createPresentSemaphores();
     void drawFrame();
     void MainLoop();
     void Cleanup();
 
     void destroyBuffer(AllocatedBuffer &buffer);
     void destroyImage(AllocatedImage &image);
+
+    void createUploadContext();
+    void createFrameContexts();
+    void waitForAllFrames();
 
     GLFWwindow *window = nullptr;
     VkInstance instance = VK_NULL_HANDLE;
@@ -244,9 +264,6 @@ private:
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
-
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    std::vector<VkCommandBuffer> commandBuffers;
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -294,9 +311,8 @@ private:
     DeletionQueue mainDeletionQueue;
     DeletionQueue swapChainDeletionQueue;
 
-    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames;
     std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
 
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -377,4 +393,7 @@ private:
     float materialMetallic = 1.0f;
     float materialRoughness = 1.0f;
     float materialAo = 1.0f;
+
+    // upload context for immediate submit
+    UploadContext uploadContext;
 };

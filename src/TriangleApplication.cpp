@@ -55,7 +55,10 @@ void TriangleApplication::InitVulkan()
     createGraphicsPipeline();
     createSkyboxPipeline();
 
-    createCommandPool();
+    // createCommandPool();
+    createUploadContext();
+    createFrameContexts();
+
     createColorResources();
     createDepthResources();
 
@@ -79,9 +82,6 @@ void TriangleApplication::InitVulkan()
     createDescriptorSets();
     createSkyboxDescriptorSets();
 
-    createCommandBuffers();
-    createSyncObjects();
-
     rendererReady = true;
 }
 
@@ -92,7 +92,7 @@ void TriangleApplication::MainLoop()
         glfwPollEvents();
         drawFrame();
     }
-    vkDeviceWaitIdle(device);
+    VK_CHECK(vkDeviceWaitIdle(device));
 }
 
 void TriangleApplication::Cleanup()

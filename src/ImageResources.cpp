@@ -55,10 +55,7 @@ AllocatedImage TriangleApplication::createImage(
         allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     }
 
-    if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &allocatedImage.image, &allocatedImage.allocation, nullptr) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create image!");
-    }
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &allocatedImage.image, &allocatedImage.allocation, nullptr));
     allocatedImage.mipLevels = mipLevels;
 
     return allocatedImage;
@@ -89,7 +86,7 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
     AllocatedBuffer stagingBuffer = createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data;
-    vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+    VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
     memcpy(data, pixels, static_cast<size_t>(imageSize));
     vmaUnmapMemory(allocator, stagingBuffer.allocation);
 
@@ -246,10 +243,7 @@ VkImageView TriangleApplication::createImageView(VkImage image, VkFormat format,
     viewInfo.subresourceRange.layerCount = layerCount;
 
     VkImageView imageView;
-    if (vkCreateImageView(device, &viewInfo, nullptr, &imageView))
-    {
-        throw std::runtime_error("failed to create texture image view!");
-    }
+    VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
 
     return imageView;
 }
@@ -298,10 +292,7 @@ void TriangleApplication::createTextureSampler()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
 
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create texture sampler!");
-    }
+    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler));
 
     mainDeletionQueue.pushFunction([this, sampler = textureSampler]()
                                    { vkDestroySampler(device, sampler, nullptr); });

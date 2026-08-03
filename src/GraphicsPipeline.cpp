@@ -131,10 +131,7 @@ void TriangleApplication::createRenderPass()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create render pass!");
-    }
+    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
     mainDeletionQueue.pushFunction([this, capturedRenderPass = renderPass]() mutable{
         vkDestroyRenderPass(device, capturedRenderPass, nullptr);
     });
@@ -173,10 +170,7 @@ VkShaderModule TriangleApplication::createShaderModule(const std::vector<char> &
     createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
 
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create shader module!");
-    }
+    VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
     return shaderModule;
 }
 
@@ -206,10 +200,7 @@ void TriangleApplication::createDescriptorSetLayout()
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create descriptor set layout!");
-    }
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
     mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable {
         vkDestroyDescriptorSetLayout(device, layout, nullptr);
     });
@@ -343,10 +334,7 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &modelPushConstant;
 
-        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create pipeline layout!");
-        }
+        VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
         mainDeletionQueue.pushFunction([this, layout = pipelineLayout]() mutable {
             vkDestroyPipelineLayout(device, layout, nullptr);
@@ -380,15 +368,10 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     pipelineInfo.basePipelineIndex = -1;
 
     VkPipeline pipeline = VK_NULL_HANDLE;
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
-    {
-        vkDestroyShaderModule(device, fragShaderModule, nullptr);
-        vkDestroyShaderModule(device, vertShaderModule, nullptr);
-        throw std::runtime_error("failed to create graphics pipeline!");
-    }
-
+    const VkResult pipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines");
 
     return pipeline;
 }
@@ -418,10 +401,7 @@ void TriangleApplication::createFramebuffers()
         framebufferInfo.height = swapChainExtent.height;   // framebuffer的宽高必须和render pass里定义的视口大小一致
         framebufferInfo.layers = 1;                        // 只有一层
 
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
+        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
 
         swapChainDeletionQueue.pushFunction([this, frameBuffer = swapChainFramebuffers[i]]() {
             vkDestroyFramebuffer(device, frameBuffer, nullptr);

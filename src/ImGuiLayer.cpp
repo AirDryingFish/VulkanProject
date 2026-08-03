@@ -204,10 +204,7 @@ void TriangleApplication::initImGui()
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
 
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create imgui descriptor pool!");
-    }
+    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool));
     mainDeletionQueue.pushFunction([this, pool = imguiDescriptorPool]() mutable
                                    { vkDestroyDescriptorPool(device, pool, nullptr); });
 

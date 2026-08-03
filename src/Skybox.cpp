@@ -281,7 +281,7 @@ void TriangleApplication::createSkyboxImage()
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
-    vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+    VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
     std::memcpy(data, pixels.pixels.data(), static_cast<size_t>(pixels.imageSize()));
     vmaUnmapMemory(allocator, stagingBuffer.allocation);
 
@@ -384,10 +384,7 @@ void TriangleApplication::createSkyboxSampler()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = static_cast<float>(skyboxImage.mipLevels - 1);
 
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &skyboxSampler) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create skybox sampler!");
-    }
+    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &skyboxSampler));
 
     mainDeletionQueue.pushFunction([this, sampler = skyboxSampler]() {
         vkDestroySampler(device, sampler, nullptr);

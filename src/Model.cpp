@@ -267,7 +267,7 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
 
 void TriangleApplication::rebuildMesh(MeshSource source)
 {
-    vkDeviceWaitIdle(device);
+    VK_CHECK(vkDeviceWaitIdle(device));
 
     for (SceneObject &object : sceneObjects)
     {
