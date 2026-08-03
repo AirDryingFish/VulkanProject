@@ -313,6 +313,8 @@ void TriangleApplication::drawImGui()
         ImGui::PopID();
     }
 
+
+
     SceneObject *selectedSceneObject = getSelectedSceneObject();
 
     ImGui::SeparatorText("Object Transform");
@@ -331,6 +333,19 @@ void TriangleApplication::drawImGui()
             selectedSceneObject->rotation = glm::vec3(0.0f);
             selectedSceneObject->scale = glm::vec3(1.0f);
             selectedSceneObject->autoRotation = 0.0f;
+        }
+        if (ImGui::Button("Delete Selected"))
+        {
+            SceneObject& object = sceneObjects[selectedSceneObjectIndex];
+            destroyBufferDeferred(object.indexBuffer);
+            destroyBufferDeferred(object.vertexBuffer);
+
+            sceneObjects.erase(sceneObjects.begin() + selectedSceneObjectIndex);
+            selectedSceneObjectIndex = -1;
+            selectedObject = SceneSelection::None;
+            selectedModel = false;
+            modelPickDistance = 0.0f;
+            sceneClickConsumed = true;
         }
     }
 

@@ -108,6 +108,11 @@ void TriangleApplication::Cleanup()
     destroyBuffer(indexBuffer);
     destroyBuffer(vertexBuffer);
     mainDeletionQueue.flush();
+    for (FrameContext& frame : frames)
+    {
+        frame.deletionQueue.flush();
+    }
+
     vmaDestroyAllocator(allocator);
     vkDestroyDevice(device, nullptr);
     if (enableValidationLayers)
