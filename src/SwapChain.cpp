@@ -15,24 +15,24 @@ SwapChainSupportDetails TriangleApplication::querySwapChainSupport(VkPhysicalDev
 {
     SwapChainSupportDetails details;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities));
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr));
 
     if (formatCount != 0)
     {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data()));
     }
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+    VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr));
 
     if (presentModeCount != 0)
     {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+        VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data()));
     }
 
     return details;
@@ -129,14 +129,11 @@ void TriangleApplication::createSwapChain()
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create swap chain!");
-    }
+    VK_CHECK(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain));
 
-    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+    VK_CHECK(vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr));
     swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+    VK_CHECK(vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data()));
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
@@ -152,10 +149,7 @@ void TriangleApplication::waitForAllFrames()
         fences[i] = frames[i].renderFence;
     }
 
-    if (vkWaitForFences(device, static_cast<uint32_t>(fences.size()),. fences.data(), VK_TRUE, UINT64_MAX) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to wait for all frame fences!");
-    }
+    VK_CHECK(vkWaitForFences(device, static_cast<uint32_t>(fences.size()), fences.data(), VK_TRUE, UINT64_MAX));
 }
 
 void TriangleApplication::recreateSwapChain()
@@ -172,10 +166,7 @@ void TriangleApplication::recreateSwapChain()
     waitForAllFrames();
     // Frame Fence 只能证明 Graphics Submission完成
     // Present Queue 可能还在使用旧的 SwapChain Image，必须等待 Present Queue 空闲后才能销毁旧的 SwapChain
-    if (vkQueueWaitIdle(presentQueue) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to wait for present queue idle!");
-    }
+    VK_CHECK(vkQueueWaitIdle(presentQueue));
 
     cleanupSwapChain();
     createSwapChain();

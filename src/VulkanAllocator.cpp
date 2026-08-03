@@ -11,8 +11,5 @@ void TriangleApplication::createAllocator()
     allocatorInfo.device = device;
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_0;
     
-    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create VMA allocator!");
-    }
+    VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator));
 }

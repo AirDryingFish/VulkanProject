@@ -92,7 +92,7 @@ void TriangleApplication::MainLoop()
         glfwPollEvents();
         drawFrame();
     }
-    vkDeviceWaitIdle(device);
+    VK_CHECK(vkDeviceWaitIdle(device));
 }
 
 void TriangleApplication::Cleanup()

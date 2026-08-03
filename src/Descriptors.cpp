@@ -23,10 +23,7 @@ void TriangleApplication::createDescriptorPool()
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * descriptorSetGroupCount;
 
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create descriptor pool!");
-    }
+    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
 
     mainDeletionQueue.pushFunction([this, pool = descriptorPool]() mutable {
         vkDestroyDescriptorPool(device, pool, nullptr);
@@ -46,10 +43,7 @@ void TriangleApplication::createTextureDescriptorSets(
     allocInfo.pSetLayouts = layouts.data();
 
     targetDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(device, &allocInfo, targetDescriptorSets.data()) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, targetDescriptorSets.data()));
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {

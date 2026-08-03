@@ -36,10 +36,7 @@ namespace
         viewInfo.subresourceRange.layerCount = 1;
 
         VkImageView imageView = VK_NULL_HANDLE;
-        if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create irradiance face image view!");
-        }
+        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
         return imageView;
     }
 
@@ -61,10 +58,7 @@ namespace
         viewInfo.subresourceRange.layerCount = 1;
 
         VkImageView imageView = VK_NULL_HANDLE;
-        if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create irradiance face image view!");
-        }
+        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
         return imageView;
     }
 }
@@ -118,10 +112,7 @@ void TriangleApplication::createIrradianceResources()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;
 
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &irradianceSampler) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance sampler!");
-    }
+    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &irradianceSampler));
     mainDeletionQueue.pushFunction([this, sampler = irradianceSampler]()
                                    { vkDestroySampler(device, sampler, nullptr); });
 
@@ -161,10 +152,7 @@ void TriangleApplication::createIrradianceResources()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &irradianceRenderPass) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance render pass!");
-    }
+    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &irradianceRenderPass));
     mainDeletionQueue.pushFunction([this, renderPass = irradianceRenderPass]()
                                    { vkDestroyRenderPass(device, renderPass, nullptr); });
 
@@ -180,10 +168,7 @@ void TriangleApplication::createIrradianceResources()
         framebufferInfo.height = irradianceDimension;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &irradianceFramebuffers[face]) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create irradiance framebuffer!");
-        }
+        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &irradianceFramebuffers[face]));
         mainDeletionQueue.pushFunction([this, framebuffer = irradianceFramebuffers[face]]()
                                        { vkDestroyFramebuffer(device, framebuffer, nullptr); });
     }
@@ -199,10 +184,7 @@ void TriangleApplication::createIrradianceResources()
     descriptorLayoutInfo.bindingCount = 1;
     descriptorLayoutInfo.pBindings = &environmentMapBinding;
 
-    if (vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &irradianceDescriptorSetLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance descriptor set layout!");
-    }
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &irradianceDescriptorSetLayout));
     mainDeletionQueue.pushFunction([this, layout = irradianceDescriptorSetLayout]()
                                    { vkDestroyDescriptorSetLayout(device, layout, nullptr); });
 
@@ -216,10 +198,7 @@ void TriangleApplication::createIrradianceResources()
     descriptorPoolInfo.pPoolSizes = &poolSize;
     descriptorPoolInfo.maxSets = 1;
 
-    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &irradianceDescriptorPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance descriptor pool!");
-    }
+    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &irradianceDescriptorPool));
     mainDeletionQueue.pushFunction([this, pool = irradianceDescriptorPool]()
                                    { vkDestroyDescriptorPool(device, pool, nullptr); });
 
@@ -229,10 +208,7 @@ void TriangleApplication::createIrradianceResources()
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &irradianceDescriptorSetLayout;
 
-    if (vkAllocateDescriptorSets(device, &allocInfo, &irradianceDescriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate irradiance descriptor set!");
-    }
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &irradianceDescriptorSet));
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = skyboxSampler;
@@ -260,10 +236,7 @@ void TriangleApplication::createIrradianceResources()
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &irradiancePipelineLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance pipeline layout!");
-    }
+    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &irradiancePipelineLayout));
     mainDeletionQueue.pushFunction([this, layout = irradiancePipelineLayout]()
                                    { vkDestroyPipelineLayout(device, layout, nullptr); });
 
@@ -350,15 +323,10 @@ void TriangleApplication::createIrradianceResources()
     pipelineInfo.renderPass = irradianceRenderPass;
     pipelineInfo.subpass = 0;
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &irradiancePipeline) != VK_SUCCESS)
-    {
-        vkDestroyShaderModule(device, fragShaderModule, nullptr);
-        vkDestroyShaderModule(device, vertShaderModule, nullptr);
-        throw std::runtime_error("failed to create irradiance pipeline!");
-    }
-
+    const VkResult irradiancePipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &irradiancePipeline);
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    VK_CHECK_RESULT(irradiancePipelineResult, "vkCreateGraphicsPipelines(irradiance)");
 
     mainDeletionQueue.pushFunction([this, pipeline = irradiancePipeline]()
                                    { vkDestroyPipeline(device, pipeline, nullptr); });
@@ -504,10 +472,7 @@ void TriangleApplication::createPrefilterResources()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = float(prefilterMipLevels - 1);
 
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &prefilterSampler) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance sampler!");
-    }
+    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &prefilterSampler));
     mainDeletionQueue.pushFunction([this, sampler = prefilterSampler]()
                                    { vkDestroySampler(device, sampler, nullptr); });
 
@@ -547,10 +512,7 @@ void TriangleApplication::createPrefilterResources()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &prefilterRenderpass) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance render pass!");
-    }
+    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &prefilterRenderpass));
     mainDeletionQueue.pushFunction([this, renderPass = prefilterRenderpass]()
                                    { vkDestroyRenderPass(device, renderPass, nullptr); });
 
@@ -568,10 +530,7 @@ void TriangleApplication::createPrefilterResources()
             framebufferInfo.height = prefilterDimension >> mip;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &prefilterFramebuffers[mip][face]) != VK_SUCCESS)
-            {
-                throw std::runtime_error("failed to create irradiance framebuffer!");
-            }
+            VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &prefilterFramebuffers[mip][face]));
             mainDeletionQueue.pushFunction([this, framebuffer = prefilterFramebuffers[mip][face]]()
                                            { vkDestroyFramebuffer(device, framebuffer, nullptr); });
         }
@@ -588,10 +547,7 @@ void TriangleApplication::createPrefilterResources()
     descriptorLayoutInfo.bindingCount = 1;
     descriptorLayoutInfo.pBindings = &environmentMapBinding;
 
-    if (vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &prefilterDescriptorSetLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance descriptor set layout!");
-    }
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &prefilterDescriptorSetLayout));
     mainDeletionQueue.pushFunction([this, layout = prefilterDescriptorSetLayout]()
                                    { vkDestroyDescriptorSetLayout(device, layout, nullptr); });
 
@@ -605,10 +561,7 @@ void TriangleApplication::createPrefilterResources()
     descriptorPoolInfo.pPoolSizes = &poolSize;
     descriptorPoolInfo.maxSets = 1;
 
-    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &prefilterDescriptorPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance descriptor pool!");
-    }
+    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &prefilterDescriptorPool));
     mainDeletionQueue.pushFunction([this, pool = prefilterDescriptorPool]()
                                    { vkDestroyDescriptorPool(device, pool, nullptr); });
 
@@ -618,10 +571,7 @@ void TriangleApplication::createPrefilterResources()
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &prefilterDescriptorSetLayout;
 
-    if (vkAllocateDescriptorSets(device, &allocInfo, &prefilterDescriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate irradiance descriptor set!");
-    }
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &prefilterDescriptorSet));
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = skyboxSampler;
@@ -649,10 +599,7 @@ void TriangleApplication::createPrefilterResources()
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &prefilterPipelineLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create irradiance pipeline layout!");
-    }
+    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &prefilterPipelineLayout));
     mainDeletionQueue.pushFunction([this, layout = prefilterPipelineLayout]()
                                    { vkDestroyPipelineLayout(device, layout, nullptr); });
 
@@ -739,15 +686,10 @@ void TriangleApplication::createPrefilterResources()
     pipelineInfo.renderPass = prefilterRenderpass;
     pipelineInfo.subpass = 0;
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &prefilterPipeline) != VK_SUCCESS)
-    {
-        vkDestroyShaderModule(device, fragShaderModule, nullptr);
-        vkDestroyShaderModule(device, vertShaderModule, nullptr);
-        throw std::runtime_error("failed to create irradiance pipeline!");
-    }
-
+    const VkResult prefilterPipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &prefilterPipeline);
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    VK_CHECK_RESULT(prefilterPipelineResult, "vkCreateGraphicsPipelines(prefilter)");
 
     mainDeletionQueue.pushFunction([this, pipeline = prefilterPipeline]()
                                    { vkDestroyPipeline(device, pipeline, nullptr); });

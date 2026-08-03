@@ -12,10 +12,7 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{clearColor.r, clearColor.g, clearColor.b, clearColor.a}};
@@ -74,10 +71,7 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
 
     vkCmdEndRenderPass(commandBuffer);
 
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to record command buffer!");
-    }
+    VK_CHECK(vkEndCommandBuffer(commandBuffer));
 }
 
 void TriangleApplication::immediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function)
@@ -111,53 +105,32 @@ void TriangleApplication::immediateSubmit(std::function<void(VkCommandBuffer cmd
 
 
     // 确认上一次使用的UploadContext已经完成
-    if (vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to wait for upload fence!");
-    }
+    VK_CHECK(vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX));
 
     // Fence必须回到 unsignaled 才能交给下一次 submit
-    if (vkResetFences(device, 1, &uploadContext.fence) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to reset upload fence!");
-    }
+    VK_CHECK(vkResetFences(device, 1, &uploadContext.fence));
 
     // Fence 已经证明上一轮 command buffer 不再 pending，因此可以安全reset command pool
-    if (vkResetCommandPool(device, uploadContext.commandPool, 0) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to reset upload command pool!");
-    }
+    VK_CHECK(vkResetCommandPool(device, uploadContext.commandPool, 0));
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    if (vkBeginCommandBuffer(uploadContext.commandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to begin upload command buffer!");
-    }
+    VK_CHECK(vkBeginCommandBuffer(uploadContext.commandBuffer, &beginInfo));
 
     function(uploadContext.commandBuffer);
 
-    if (vkEndCommandBuffer(uploadContext.commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to end upload command buffer!");
-    }
+    VK_CHECK(vkEndCommandBuffer(uploadContext.commandBuffer));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &uploadContext.commandBuffer;
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, uploadContext.fence) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to submit upload command buffer!");
-    }
+    VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, uploadContext.fence));
 
-    if (vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to finish upload commands!");
-    }
+    VK_CHECK(vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX));
 
 }
 
@@ -170,10 +143,7 @@ void TriangleApplication::createUploadContext()
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
     poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
 
-    if(vkCreateCommandPool(device, &poolInfo, nullptr, &uploadContext.commandPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create upload command pool!");
-    }
+    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &uploadContext.commandPool));
 
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -181,19 +151,13 @@ void TriangleApplication::createUploadContext()
     allocInfo.commandPool = uploadContext.commandPool;
     allocInfo.commandBufferCount = 1;
 
-    if (vkAllocateCommandBuffers(device, &allocInfo, &uploadContext.commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate upload command buffer!");
-    }
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &uploadContext.commandBuffer));
 
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    if(vkCreateFence(device, &fenceInfo, nullptr, &uploadContext.fence) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create upload fence!");
-    }
+    VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &uploadContext.fence));
 
     mainDeletionQueue.pushFunction([this]() {
         vkDestroyFence(device, uploadContext.fence, nullptr);
@@ -217,10 +181,7 @@ void TriangleApplication::createFrameContexts()
         poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
         poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
 
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &frame.commandPool) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create frame command pool!");
-        }
+        VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &frame.commandPool));
 
         // 从 frame.commandPool 分配 frame.commandBuffer
 
@@ -230,29 +191,20 @@ void TriangleApplication::createFrameContexts()
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = 1;
 
-        if (vkAllocateCommandBuffers(device, &allocInfo, &frame.commandBuffer) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to allocate frame command buffer!");
-        }
+        VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &frame.commandBuffer));
 
         // 创建 frame.imageAvailable 信号量
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create frame image available semaphore!");
-        }
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable));
 
         // 创建带 SIGNALED_BIT 的 frame.renderFence
         VkFenceCreateInfo fenceInfo{};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        if (vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create frame render fence!");
-        }
+        VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence));
 
         const VkCommandPool commandPool = frame.commandPool;
         // const VkCommandBuffer commandBuffer = frame.commandBuffer;

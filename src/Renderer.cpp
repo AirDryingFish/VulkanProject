@@ -18,10 +18,7 @@ void TriangleApplication::createPresentSemaphores()
 
     for (VkSemaphore &renderFinished : renderFinishedSemaphores)
     {
-        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinished) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create render-finished semaphore!");
-        }
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinished));
         swapChainDeletionQueue.pushFunction([this, renderFinished]() {
             vkDestroySemaphore(device, renderFinished, nullptr);
         });
@@ -47,17 +44,7 @@ void TriangleApplication::drawFrame()
     lastFrameTime = now;
     deltaTime = std::min(deltaTime, 0.05f);
 
-    if (vkWaitForFences(
-        device,
-        1,
-        &frame.renderFence,
-        VK_TRUE,
-        UINT64_MAX) != VK_SUCCESS)
-    {
-        finishFrame();
-        throw std::runtime_error(
-            "failed to wait for frame fence!");
-    }
+    VK_CHECK(vkWaitForFences(device, 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
 
     int width = 0;
     int height = 0;
@@ -88,18 +75,14 @@ void TriangleApplication::drawFrame()
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
     {
         finishFrame();
-        throw std::runtime_error("failed to acquire swap chain image!");
+        VK_CHECK_RESULT(result, "vkAcquireNextImageKHR");
     }
 
 
     processCameraInput(deltaTime);
     updateUniformBuffer(currentFrame, deltaTime);
 
-    if (vkResetCommandPool(device, frame.commandPool, 0) != VK_SUCCESS)
-    {
-        finishFrame();
-        throw std::runtime_error("failed to reset command pool!");
-    }
+    VK_CHECK(vkResetCommandPool(device, frame.commandPool, 0));
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -128,18 +111,10 @@ void TriangleApplication::drawFrame()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkResetFences(device, 1, &frame.renderFence) != VK_SUCCESS)
-    {
-        finishFrame();
-        throw std::runtime_error("failed to reset frame fence!");
-    }
+    VK_CHECK(vkResetFences(device, 1, &frame.renderFence));
 
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, frame.renderFence) != VK_SUCCESS)
-    {
-        finishFrame();
-        throw std::runtime_error("failed to submit draw command buffer!");
-    }
+    VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, frame.renderFence));
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -160,7 +135,7 @@ void TriangleApplication::drawFrame()
     else if (result != VK_SUCCESS)
     {
         finishFrame();
-        throw std::runtime_error("failed to present swap chain image!");
+        VK_CHECK_RESULT(result, "vkQueuePresentKHR");
     }
 
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;

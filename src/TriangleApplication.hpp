@@ -2,6 +2,7 @@
 
 #include "AppConfig.hpp"
 #include "DeletionQueue.hpp"
+#include "VulkanCheck.hpp"
 #include "VulkanTypes.hpp"
 
 #include <array>

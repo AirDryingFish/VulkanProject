@@ -45,10 +45,7 @@ void TriangleApplication::createLogicalDevice()
     createInfo.enabledLayerCount = 0;
 
     // Step 5: 创建逻辑设备：调用 vkCreateDevice 创建逻辑设备，并把得到的设备句柄存储在 device 变量中。
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device));
 
     // Step 6: 获取队列句柄：调用 vkGetDeviceQueue 获取图形队列的句柄，并存储在 graphicsQueue 变量中，以便后续使用。
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
@@ -58,13 +55,13 @@ void TriangleApplication::createLogicalDevice()
 void TriangleApplication::pickPhysicalDevice()
 {
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+    VK_CHECK(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr));
     if (deviceCount == 0)
     {
         throw std::runtime_error("failed to find GPUs with Vulkan support!");
     }
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+    VK_CHECK(vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data()));
 
     for (const VkPhysicalDevice &device : devices)
     {
@@ -108,9 +105,9 @@ bool TriangleApplication::checkDeviceExtensionSupport(VkPhysicalDevice device)
     // return true;
     // step 1: 查询显卡支持哪些拓展，存到 availableExtensions 中。
     uint32_t extensionCount;
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    VK_CHECK(vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr));
     std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+    VK_CHECK(vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data()));
 
     // step 2: 把需要的拓展，比如这里的Swap Chain的拓展 "VK_KHR_swapchain"，放入一个set中
     std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
@@ -142,7 +139,7 @@ QueueFamilyIndices TriangleApplication::findQueueFamilies(VkPhysicalDevice devic
         }
 
         VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+        VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport));
 
         if (presentSupport)
         {
