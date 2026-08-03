@@ -266,3 +266,16 @@ void TriangleApplication::destroyBuffer(AllocatedBuffer &buffer)
         buffer.allocation = nullptr;
     }
 }
+
+void TriangleApplication::destroyBufferDeferred(AllocatedBuffer& buffer)
+{
+    if (buffer.buffer == VK_NULL_HANDLE)
+    {
+        return;
+    }
+    AllocatedBuffer oldBuffer = buffer;
+    buffer = {};
+    frames[currentFrame].deletionQueue.pushFunction([this, oldBuffer] () {
+        vmaDestroyBuffer(allocator, oldBuffer.buffer, oldBuffer.allocation);
+    });
+}

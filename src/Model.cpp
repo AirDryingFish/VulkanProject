@@ -267,11 +267,10 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
 
 void TriangleApplication::rebuildMesh(MeshSource source)
 {
-    VK_CHECK(vkDeviceWaitIdle(device));
-
     for (SceneObject &object : sceneObjects)
     {
-        destroySceneObject(object);
+        destroyBufferDeferred(object.indexBuffer);
+        destroyBufferDeferred(object.vertexBuffer);
     }
     sceneObjects.clear();
 

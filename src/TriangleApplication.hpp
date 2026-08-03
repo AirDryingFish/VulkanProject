@@ -26,6 +26,8 @@ struct FrameContext
 
     VkSemaphore imageAvailable = VK_NULL_HANDLE;
     VkFence renderFence = VK_NULL_HANDLE;
+
+    DeletionQueue deletionQueue;
 };
 
 
@@ -238,6 +240,8 @@ private:
     void createUploadContext();
     void createFrameContexts();
     void waitForAllFrames();
+
+    void destroyBufferDeferred(AllocatedBuffer& buffer);
 
     GLFWwindow *window = nullptr;
     VkInstance instance = VK_NULL_HANDLE;
