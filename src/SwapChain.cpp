@@ -144,6 +144,20 @@ void TriangleApplication::createSwapChain()
     createPresentSemaphores();
 }
 
+void TriangleApplication::waitForAllFrames()
+{
+    std::array<VkFence, MAX_FRAMES_IN_FLIGHT> fences{};
+    for (size_t i = 0; i < frames.size(); i++)
+    {
+        fences[i] = frames[i].renderFence;
+    }
+
+    if (vkWaitForFences(device, static_cast<uint32_t>(fences.size()),. fences.data(), VK_TRUE, UINT64_MAX) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to wait for all frame fences!");
+    }
+}
+
 void TriangleApplication::recreateSwapChain()
 {
     int width = 0, height = 0;
@@ -155,7 +169,13 @@ void TriangleApplication::recreateSwapChain()
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(device);
+    waitForAllFrames();
+    // Frame Fence 只能证明 Graphics Submission完成
+    // Present Queue 可能还在使用旧的 SwapChain Image，必须等待 Present Queue 空闲后才能销毁旧的 SwapChain
+    if (vkQueueWaitIdle(presentQueue) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to wait for present queue idle!");
+    }
 
     cleanupSwapChain();
     createSwapChain();

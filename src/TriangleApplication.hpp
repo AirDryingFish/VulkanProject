@@ -236,6 +236,7 @@ private:
 
     void createUploadContext();
     void createFrameContexts();
+    void waitForAllFrames();
 
     GLFWwindow *window = nullptr;
     VkInstance instance = VK_NULL_HANDLE;
