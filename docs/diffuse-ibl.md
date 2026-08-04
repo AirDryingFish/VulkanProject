@@ -1,6 +1,6 @@
-# Diffuse IBL Implementation
+# IBL Implementation
 
-本文说明当前工程中 diffuse image-based lighting 的实现方式。目标是把 HDR skybox 预计算成一张低频的 irradiance cubemap，让模型在没有手动点光源时也能被环境光照亮。
+本文说明当前工程中 image-based lighting 的实现方式。HDR skybox 会预计算为一张低频 irradiance cubemap 和一张带 mip 链的 prefiltered environment cubemap，分别为漫反射和镜面反射提供环境光照。
 
 ## 资源流
 
@@ -9,11 +9,11 @@
 ```text
 textures/pbr/newport_loft.hdr
     -> skybox HDR cubemap
-    -> irradiance cubemap
-    -> PBR fragment shader
+        |-> irradiance cubemap（漫反射 IBL）-----------|
+        |-> prefiltered environment cubemap（镜面 IBL）--|-> PBR fragment shader
 ```
 
-`newport_loft.hdr` 是等距柱状投影 HDR 图。工程启动时先在 `Skybox.cpp` 中用 `stbi_loadf` 读取 HDR 像素，并在 CPU 端转换成 `VK_FORMAT_R16G16B16A16_SFLOAT` 的 skybox cubemap。这个 cubemap 既用于显示天空盒，也作为后续 IBL 预计算的输入环境图。
+`newport_loft.hdr` 是等距柱状投影 HDR 图。工程启动时先在 `Skybox.cpp` 中用 `stbi_loadf` 读取 HDR 像素，并在 CPU 端转换成 `VK_FORMAT_R16G16B16A16_SFLOAT` 的 skybox cubemap。这个 cubemap 既用于显示天空盒，也作为 irradiance 和 prefiltered environment 两项 IBL 预计算的输入环境图。
 
 ## 为什么需要 irradiance cubemap
 
@@ -49,9 +49,10 @@ TriangleApplication::InitVulkan()
 createSkyboxImage();
 createSkyboxSampler();
 createIrradianceResources();
+createPrefilterResources();
 ```
 
-`createIrradianceResources()` 位于 `src/IBL.cpp`。它只在 Vulkan 初始化阶段执行一次，不在每帧 command buffer 中执行。
+`createIrradianceResources()` 和 `createPrefilterResources()` 都位于 `src/IBL.cpp`。两项预计算只在 Vulkan 初始化阶段执行一次，不在每帧 command buffer 中执行。
 
 ## Irradiance 资源
 
@@ -193,9 +194,27 @@ float sampleDelta = 0.05;
 
 值越小，预计算越慢但结果更平滑；值越大，启动更快但误差更明显。
 
+## Prefiltered environment 资源
+
+镜面 IBL 需要让材质 roughness 影响环境反射的模糊程度。当前实现创建了一张 128x128、包含 5 个 mip level 的 cubemap：
+
+```cpp
+constexpr uint32_t prefilterDimension = 128;
+constexpr VkFormat prefilterFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+static constexpr uint32_t prefilterMipLevels = 5;
+```
+
+每个 mip level 对应一个 roughness 值：
+
+```cpp
+roughness = float(mip) / float(prefilterMipLevels - 1);
+```
+
+`renderPrefilterCubemap()` 会遍历 5 个 mip level 和 6 个 cubemap face，共执行 30 次离屏渲染。`prefilter.frag` 使用 Hammersley 序列和 GGX importance sampling，每个 texel 采样 1024 次原始环境图，并根据采样立体角选择输入环境图的 mip level。生成完成后，整张 cubemap 转换为 `VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL`，供 PBR shader 采样。
+
 ## Descriptor 绑定
 
-模型材质 descriptor 现在绑定 7 个 image sampler：
+模型材质 descriptor 现在绑定 8 个 image sampler：
 
 ```text
 binding 1: albedoMap
@@ -205,11 +224,14 @@ binding 4: roughnessMap
 binding 5: aoMap
 binding 6: environmentMap
 binding 7: irradianceMap
+binding 8: prefilterMap
 ```
 
-`binding 6` 是原始 HDR environment cubemap，当前仍用于镜面反射近似。
+`binding 6` 是原始 HDR environment cubemap。irradiance 和 prefilter 两条预计算管线会通过各自 descriptor 的 `binding 0` 读取同一张 cubemap。
 
 `binding 7` 是启动时生成的 irradiance cubemap，用于 diffuse IBL。
+
+`binding 8` 是启动时生成的 prefiltered environment cubemap，用于 roughness-dependent specular IBL。
 
 ## PBR Shader 中的使用
 
@@ -228,6 +250,17 @@ vec3 kS = F;
 vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 ```
 
+镜面 IBL 根据 roughness 选择 prefiltered cubemap 的 mip level：
+
+```glsl
+vec3 reflectionDir = reflect(-viewDir, normal);
+vec3 prefilteredColor = textureLod(
+    prefilterMap,
+    environmentDirection(reflectionDir),
+    roughness * MAX_REFLECTION_LOD).rgb;
+vec3 specular = prefilteredColor * F;
+```
+
 最终环境光贡献是：
 
 ```glsl
@@ -238,19 +271,19 @@ vec3 ibl = (kD * diffuse + specular) * ao * iblIntensity;
 
 ## 当前限制
 
-当前实现完成的是 diffuse IBL 的 irradiance cubemap。镜面 IBL 仍然是基础近似：
+当前实现已经完成 diffuse IBL 的 irradiance cubemap，以及 roughness-dependent specular IBL 使用的 prefiltered environment cubemap。
+
+镜面项目前直接使用 `prefilteredColor * F`，还没有乘上 split-sum 近似中的 BRDF 积分结果。后续需要生成一张以 `NdotV` 和 roughness 为坐标的 2D BRDF LUT，并在运行时组合为类似下面的形式：
 
 ```glsl
-vec3 reflection = sampleEnvironment(reflectionDir);
+vec2 brdf = texture(brdfLut, vec2(NdotV, roughness)).rg;
+vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 ```
 
-它还没有使用 prefiltered environment cubemap 和 BRDF LUT。因此 roughness 对镜面反射的影响还不完全物理正确。
-
-完整 PBR IBL 后续还需要：
+完整 PBR IBL 的当前进度是：
 
 ```text
 1. irradiance cubemap       已完成，用于 diffuse IBL
-2. prefiltered cubemap      待实现，用于 roughness-dependent specular IBL
+2. prefiltered cubemap      已完成，用于 roughness-dependent specular IBL
 3. BRDF LUT                 待实现，用于 split-sum specular BRDF
 ```
-
