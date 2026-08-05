@@ -40,7 +40,10 @@ VulkanProject/
 ├── docs/
 │   ├── configuration.md
 │   ├── diffuse-ibl.md
-│   └── standardization-log.md
+│   ├── standardization-log.md
+│   └── todo-phase-1/
+│       ├── overview.md
+│       └── stage-1-resource-lifetime.md
 ├── scripts/
 │   ├── compile-shaders.bat
 │   ├── compile-shaders.sh

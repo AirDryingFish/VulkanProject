@@ -1,5 +1,7 @@
 # VulkanProject 开发路线图
 
+> 阶段 1 学习与实施指南：[资源生命周期与异常安全](stage-1-resource-lifetime.md)
+
 本文档记录 VulkanProject 从当前 PBR Renderer 继续演进为可扩展 Vulkan
 渲染引擎的开发计划。任务按依赖关系和风险排序，而不是单纯按照视觉效果排序。
 
@@ -518,7 +520,7 @@ Dynamic Rendering / Bindless / Render Graph
 1. 检查 GLFW 初始化和窗口创建结果。
 2. 让 `Cleanup()` 支持部分初始化、重复调用和异常路径。
 3. 完善 DeletionQueue 的移动语义、使用约定与测试。
-4. 修复 SceneObject 删除时的 GPU Buffer 生命周期。
+4. 明确并验证 SceneObject 删除时的 GPU Buffer 延迟销毁约束。
 5. 完成 Swapchain 重建、模型导入和对象删除压力测试。
 
 阶段 1 的 P0 项完成之前，暂缓抽取 VulkanContext 或加入新的大型视觉效果。这样
