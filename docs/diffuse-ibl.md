@@ -11,6 +11,9 @@ textures/pbr/newport_loft.hdr
     -> skybox HDR cubemap
         |-> irradiance cubemap（漫反射 IBL）-----------|
         |-> prefiltered environment cubemap（镜面 IBL）--|-> PBR fragment shader
+
+fullscreen triangle
+    -> BRDF integration LUT（与环境贴图无关）------------|
 ```
 
 `newport_loft.hdr` 是等距柱状投影 HDR 图。工程启动时先在 `Skybox.cpp` 中用 `stbi_loadf` 读取 HDR 像素，并在 CPU 端转换成 `VK_FORMAT_R16G16B16A16_SFLOAT` 的 skybox cubemap。这个 cubemap 既用于显示天空盒，也作为 irradiance 和 prefiltered environment 两项 IBL 预计算的输入环境图。
@@ -50,9 +53,12 @@ createSkyboxImage();
 createSkyboxSampler();
 createIrradianceResources();
 createPrefilterResources();
+createBRDFLUTResources();
 ```
 
-`createIrradianceResources()` 和 `createPrefilterResources()` 都位于 `src/IBL.cpp`。两项预计算只在 Vulkan 初始化阶段执行一次，不在每帧 command buffer 中执行。
+`createIrradianceResources()`、`createPrefilterResources()` 和
+`createBRDFLUTResources()` 都位于 `src/IBL.cpp`。三项预计算只在 Vulkan
+初始化阶段执行一次，不在每帧 command buffer 中执行。
 
 ## Irradiance 资源
 
@@ -212,9 +218,39 @@ roughness = float(mip) / float(prefilterMipLevels - 1);
 
 `renderPrefilterCubemap()` 会遍历 5 个 mip level 和 6 个 cubemap face，共执行 30 次离屏渲染。`prefilter.frag` 使用 Hammersley 序列和 GGX importance sampling，每个 texel 采样 1024 次原始环境图，并根据采样立体角选择输入环境图的 mip level。生成完成后，整张 cubemap 转换为 `VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL`，供 PBR shader 采样。
 
+## BRDF integration LUT
+
+Split-sum 镜面 IBL 把环境预过滤和 BRDF 积分拆成两个可预计算部分。前者由
+prefiltered environment cubemap 提供；后者由一张二维 LUT 提供。当前 LUT 的
+资源规格为：
+
+```cpp
+constexpr uint32_t brdfLUTDimension = 512;
+constexpr VkFormat brdfLUTFormat = VK_FORMAT_R16G16_SFLOAT;
+```
+
+LUT 使用全屏三角形离屏生成，不需要 vertex buffer。每个 texel 使用 1024 个
+Hammersley/GGX importance samples。纹理坐标含义是：
+
+```text
+x = NdotV = max(dot(N, V), 0)
+y = roughness
+```
+
+`R16G16` 的两个通道保存对 Schlick Fresnel 项积分后的两个系数：
+
+```text
+R = Fresnel scale（A）
+G = Fresnel bias（B）
+```
+
+运行时以 `F * A + B` 恢复视角和粗糙度相关的 BRDF 响应。LUT 本身不采样
+HDR cubemap，也不包含特定环境的光照信息，因此可以在不同环境贴图之间复用；
+只有 irradiance 和 prefiltered environment cubemap 需要随环境变化重新生成。
+
 ## Descriptor 绑定
 
-模型材质 descriptor 现在绑定 8 个 image sampler：
+模型材质 descriptor 现在绑定 9 个 image sampler：
 
 ```text
 binding 1: albedoMap
@@ -225,6 +261,7 @@ binding 5: aoMap
 binding 6: environmentMap
 binding 7: irradianceMap
 binding 8: prefilterMap
+binding 9: brdfLUT
 ```
 
 `binding 6` 是原始 HDR environment cubemap。irradiance 和 prefilter 两条预计算管线会通过各自 descriptor 的 `binding 0` 读取同一张 cubemap。
@@ -232,6 +269,9 @@ binding 8: prefilterMap
 `binding 7` 是启动时生成的 irradiance cubemap，用于 diffuse IBL。
 
 `binding 8` 是启动时生成的 prefiltered environment cubemap，用于 roughness-dependent specular IBL。
+
+`binding 9` 是与环境无关的二维 BRDF integration LUT，用于完成 split-sum
+specular BRDF。
 
 ## PBR Shader 中的使用
 
@@ -258,7 +298,9 @@ vec3 prefilteredColor = textureLod(
     prefilterMap,
     environmentDirection(reflectionDir),
     roughness * MAX_REFLECTION_LOD).rgb;
-vec3 specular = prefilteredColor * F;
+float NdotV = max(dot(normal, viewDir), 0.0);
+vec2 brdf = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 ```
 
 最终环境光贡献是：
@@ -269,21 +311,15 @@ vec3 ibl = (kD * diffuse + specular) * ao * iblIntensity;
 
 其中 `iblIntensity` 通过 `materialParams.w` 从 CPU 传入，可在 ImGui 的 `IBL Intensity` 调整。
 
-## 当前限制
-
-当前实现已经完成 diffuse IBL 的 irradiance cubemap，以及 roughness-dependent specular IBL 使用的 prefiltered environment cubemap。
-
-镜面项目前直接使用 `prefilteredColor * F`，还没有乘上 split-sum 近似中的 BRDF 积分结果。后续需要生成一张以 `NdotV` 和 roughness 为坐标的 2D BRDF LUT，并在运行时组合为类似下面的形式：
-
-```glsl
-vec2 brdf = texture(brdfLut, vec2(NdotV, roughness)).rg;
-vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
-```
+## 当前状态与后续调试能力
 
 完整 PBR IBL 的当前进度是：
 
 ```text
 1. irradiance cubemap       已完成，用于 diffuse IBL
 2. prefiltered cubemap      已完成，用于 roughness-dependent specular IBL
-3. BRDF LUT                 待实现，用于 split-sum specular BRDF
+3. BRDF LUT                 已完成，用于 split-sum specular BRDF
 ```
+
+当前里程碑已经完成功能与视觉验证。BRDF LUT 的 ImGui 预览和截图不影响运行时
+计算，作为通用渲染调试视图留在路线图阶段 7 中继续实现。

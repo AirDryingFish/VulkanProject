@@ -32,37 +32,40 @@
 
 ---
 
-## 阶段 0：完成当前 IBL 里程碑
+## 阶段 0：完成当前 IBL 里程碑（已完成）
 
 目标：保证 BRDF LUT 提交不仅能够运行，而且代码、文档和验证结果彼此一致。
 
 ### 文档
 
-- [ ] `[P0]` 更新 `docs/diffuse-ibl.md`
+- [x] `[P0]` 更新 `docs/diffuse-ibl.md`
   - 将 BRDF LUT 从“待实现”改为“已完成”
   - 记录 LUT 尺寸与格式
   - 记录 LUT 的两个通道含义：Fresnel scale 和 bias
   - 记录 LUT 坐标：`x = NdotV`、`y = roughness`
   - 记录最终镜面 IBL 公式
   - 说明 BRDF LUT 不包含 HDR 环境信息，可以被不同环境贴图复用
-- [ ] `[P1]` 为 BRDF LUT 增加一张调试截图或可视化说明
+
+BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，在阶段 7 统一跟踪。
 
 ### 验证
 
-- [ ] `[P0]` Debug 构建无编译错误
-- [ ] `[P0]` Validation Layers 下启动和退出无错误
-- [ ] `[P0]` 关闭所有点光源，只保留 IBL 进行视觉验证
-- [ ] `[P0]` 测试 roughness 从 `0.04` 到 `1.0`
-- [ ] `[P0]` 测试 metallic 为 `0.0` 和 `1.0`
-- [ ] `[P0]` 检查球体掠射角处的 Fresnel 响应
-- [ ] `[P1]` 添加 ImGui BRDF LUT 预览窗口
+- [x] `[P0]` Debug 构建无编译错误
+- [x] `[P0]` Release 构建无编译错误
+- [x] `[P0]` Validation Layers 下启动和退出无错误
+- [x] `[P0]` 关闭所有点光源，只保留 IBL 进行视觉验证
+- [x] `[P0]` 测试 roughness 从 `0.04` 到 `1.0`
+- [x] `[P0]` 测试 metallic 为 `0.0` 和 `1.0`
+- [x] `[P0]` 检查球体掠射角处的 Fresnel 响应
+
+验证记录：2026-08-05 完成 Debug/Release、Validation Layers 和上述材质视觉测试。
 
 ### 完成标准
 
 - 文档不再把 BRDF LUT 标记为未完成。
 - Debug 和 Release 都能正常启动。
 - Validation Layers 没有 descriptor、image layout 或资源销毁错误。
-- 开关 BRDF LUT 前后能观察到合理、可解释的镜面 IBL 差异。
+- 与未接入 BRDF LUT 的版本相比，能观察到合理、可解释的镜面 IBL 差异。
 
 ---
 
@@ -396,6 +399,8 @@
 - [ ] `[P1]` Irradiance
 - [ ] `[P1]` Prefilter mip
 - [ ] `[P1]` BRDF LUT
+  - ImGui 预览窗口
+  - 调试截图或可视化说明
 - [ ] `[P1]` Shadow map
 - [ ] `[P2]` HDR luminance
 
@@ -485,7 +490,7 @@
 严格建议按照以下顺序推进：
 
 ```text
-当前 IBL 文档与验证
+当前 IBL 文档与验证（已完成）
     ↓
 资源生命周期与异常安全
     ↓
@@ -510,11 +515,11 @@ Dynamic Rendering / Bindless / Render Graph
 
 下一批提交建议控制在以下范围：
 
-1. 更新 BRDF LUT 文档状态。
-2. 完成 BRDF LUT 的 Debug/Release 和 Validation 验证。
-3. 让初始化异常时也能安全清理资源。
-4. 完善 DeletionQueue 的移动语义与测试。
-5. 开始抽取 VulkanContext，但暂时不要同时重写 Renderer。
+1. 检查 GLFW 初始化和窗口创建结果。
+2. 让 `Cleanup()` 支持部分初始化、重复调用和异常路径。
+3. 完善 DeletionQueue 的移动语义、使用约定与测试。
+4. 修复 SceneObject 删除时的 GPU Buffer 生命周期。
+5. 完成 Swapchain 重建、模型导入和对象删除压力测试。
 
-在这五项完成之前，暂缓加入新的大型视觉效果。这样后续 Material、glTF 和 Shadow
-Map 都能建立在更可靠的资源所有权和模块边界之上。
+阶段 1 的 P0 项完成之前，暂缓抽取 VulkanContext 或加入新的大型视觉效果。这样
+后续 Material、glTF 和 Shadow Map 都能建立在可靠的资源所有权之上。
