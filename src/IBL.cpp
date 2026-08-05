@@ -13,6 +13,9 @@ namespace
     constexpr uint32_t prefilterDimension = 128;
     constexpr VkFormat prefilterFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
+    constexpr uint32_t brdfLUTDimension = 512;
+    constexpr VkFormat brdfLUTFormat = VK_FORMAT_R16G16_SFLOAT;
+
     struct PrefilterPushConstants
     {
         glm::mat4 viewProjection;
@@ -792,4 +795,321 @@ void TriangleApplication::renderPrefilterCubemap()
                                 vkCmdEndRenderPass(commandBuffer);
                             }
                         } });
+}
+
+void TriangleApplication::createBRDFLUTResources()
+{
+    // 创建BRDF LUT纹理
+    brdfLUTImage = createImage(
+        brdfLUTDimension,
+        brdfLUTDimension,
+        1,
+        VK_SAMPLE_COUNT_1_BIT,
+        brdfLUTFormat,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    brdfLUTImage.imageView = createImageView(
+        brdfLUTImage.image,
+        brdfLUTFormat,
+        1
+    );
+
+    mainDeletionQueue.pushFunction([this, image = brdfLUTImage]() mutable{
+        destroyImage(image);
+    });
+
+    // 创建纹理采样器
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+    samplerInfo.maxAnisotropy = 1.0f;
+
+    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &brdfLUTSampler));
+    mainDeletionQueue.pushFunction([this, sampler = brdfLUTSampler]()
+    {
+        vkDestroySampler(device, sampler, nullptr);
+    });
+    
+    // 创建颜色附件描述: 这张附件是什么，渲染前后怎么处理
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = brdfLUTFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // 子通道通过哪个索引用这个附件，使用时采用什么布局
+    VkAttachmentReference colorReference{};
+    colorReference.attachment = 0;
+    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // 创建子通道描述：这个子通道会使用哪些附件、走哪些管线
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorReference;
+
+    // 创建子通道依赖：这个子通道的执行依赖于哪些阶段、访问权限
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    // 创建子渲染通道：这个渲染通道包含哪些附件、子通道、依赖
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+
+    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &brdfLUTRenderPass));
+    mainDeletionQueue.pushFunction([this, renderPass = brdfLUTRenderPass](){
+        vkDestroyRenderPass(device, renderPass, nullptr);
+    });
+
+    // 创建帧缓冲：这个帧缓冲会使用哪些附件、渲染通道、尺寸
+    VkImageView attachment = brdfLUTImage.imageView;
+    VkFramebufferCreateInfo framebufferInfo{};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = brdfLUTRenderPass;
+    framebufferInfo.attachmentCount = 1;
+    framebufferInfo.pAttachments = &attachment;
+    framebufferInfo.width = brdfLUTDimension;
+    framebufferInfo.height = brdfLUTDimension;
+    framebufferInfo.layers = 1;
+
+    VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &brdfLUTFramebuffer));
+    mainDeletionQueue.pushFunction([this, framebuffer = brdfLUTFramebuffer](){
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    });
+
+    // 创建管线布局：这个管线布局会使用哪些描述符集、推送常量
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &brdfLUTPipelineLayout));
+    mainDeletionQueue.pushFunction([this, layout = brdfLUTPipelineLayout](){
+        vkDestroyPipelineLayout(device, layout, nullptr);
+    });
+    
+
+    // 创建着色器
+    const auto vertexCode = readFile(BRDF_LUT_VERTEX_SHADER_PATH);
+    const auto fragmentCode = readFile(BRDF_LUT_FRAGMENT_SHADER_PATH);
+    VkShaderModule vertexShaderModule = createShaderModule(vertexCode);
+    VkShaderModule fragmentShaderModule = createShaderModule(fragmentCode);
+
+    // 创建着色器阶段信息：这个阶段使用哪个着色器模块、入口函数
+    VkPipelineShaderStageCreateInfo vertexStage{};
+    vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertexStage.module = vertexShaderModule;
+    vertexStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragmentStage{};
+    fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragmentStage.module = fragmentShaderModule;
+    fragmentStage.pName = "main";
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertexStage, fragmentStage};
+
+    // 创建顶点输入状态信息：这个状态描述顶点数据从哪来、顶点步长
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    // Vertex Shader 处理完的一串顶点，如何组合成图元。
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    // 表示每三个顶点组成一个独立三角形
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    // 设置视口和裁剪矩形的状态信息
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    // 设置光栅化状态信息：这个状态描述如何将图元转换为片段
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    // 设置多重采样状态信息：这个状态描述如何对片段进行多重采样
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // 设置颜色混合状态信息：这个状态描述如何将片段颜色与帧缓冲颜色混合
+    VkPipelineColorBlendAttachmentState blendAttachment{};
+    blendAttachment.colorWriteMask = 
+        VK_COLOR_COMPONENT_R_BIT | 
+        VK_COLOR_COMPONENT_G_BIT | 
+        VK_COLOR_COMPONENT_B_BIT | 
+        VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &blendAttachment;
+
+    // 设置深度模板状态信息：这个状态描述如何进行深度测试和模板测试
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_FALSE;
+    depthStencil.depthWriteEnable = VK_FALSE;
+
+    // 设置动态状态信息：这个状态描述哪些状态可以在命令缓冲中动态设置
+    std::array<VkDynamicState, 2> dynamicStates = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    // 创建图形管线信息：这个信息描述了整个图形管线的状态
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineInfo.pStages = shaderStages.data();
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = brdfLUTPipelineLayout;
+    pipelineInfo.renderPass = brdfLUTRenderPass;
+    pipelineInfo.subpass = 0;
+
+    VkResult pipelineResult = vkCreateGraphicsPipelines(
+        device,
+        VK_NULL_HANDLE,
+        1,
+        &pipelineInfo,
+        nullptr,
+        &brdfLUTPipeline
+    );
+    vkDestroyShaderModule(device, vertexShaderModule, nullptr);
+    vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
+
+    VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines(brdf LUT)");
+    mainDeletionQueue.pushFunction([this, pipeline = brdfLUTPipeline](){
+        vkDestroyPipeline(device, pipeline, nullptr);
+    });
+
+    // 上面创建好了pipeline，接下来把fragment的结果写入附件，先设置image的格式可以作为颜色附件写入
+    transitionImageLayout(
+        brdfLUTImage.image,
+        brdfLUTFormat,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        1
+    );
+    renderBRDFLUT();
+
+    // 切换成 Shader 只读布局，方便后续 PBR Shader 采样 LUT
+    transitionImageLayout(
+        brdfLUTImage.image,
+        brdfLUTFormat,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        1
+    );
+
+}
+
+void TriangleApplication::renderBRDFLUT()
+{
+    immediateSubmit(
+        [&](VkCommandBuffer commandBuffer)
+        {
+            VkViewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(brdfLUTDimension);
+            viewport.height = static_cast<float>(brdfLUTDimension);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+
+            VkRect2D scissor{};
+            scissor.offset = {0, 0};
+            scissor.extent = {
+                brdfLUTDimension,
+                brdfLUTDimension,
+            };
+
+            VkClearValue clearValue{};
+            clearValue.color = {
+                {0.0f, 0.0f, 0.0f, 1.0f}
+            };
+
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = brdfLUTRenderPass;
+            renderPassInfo.framebuffer = brdfLUTFramebuffer;
+            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.extent = {
+                brdfLUTDimension,
+                brdfLUTDimension,
+            };
+            renderPassInfo.clearValueCount = 1;
+            renderPassInfo.pClearValues = &clearValue;
+
+            vkCmdBeginRenderPass(
+                commandBuffer,
+                &renderPassInfo,
+                VK_SUBPASS_CONTENTS_INLINE
+            );
+            
+            vkCmdSetViewport(
+                commandBuffer,
+                0,
+                1,
+                &viewport
+            );
+
+            vkCmdSetScissor(
+                commandBuffer,
+                0,
+                1,
+                &scissor
+            );
+
+            vkCmdBindPipeline(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                brdfLUTPipeline
+            );
+            
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            vkCmdEndRenderPass(commandBuffer);
+
+        }
+
+    );
 }

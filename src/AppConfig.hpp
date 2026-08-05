@@ -42,6 +42,8 @@ inline const std::string IRRADIANCE_VERTEX_SHADER_PATH = assetPath("shaders/irra
 inline const std::string IRRADIANCE_FRAGMENT_SHADER_PATH = assetPath("shaders/irradiance.frag.spv");
 inline const std::string PREFILTER_VERTEX_SHADER_PATH = assetPath("shaders/prefilter.vert.spv");
 inline const std::string PREFILTER_FRAGMENT_SHADER_PATH = assetPath("shaders/prefilter.frag.spv");
+inline const std::string BRDF_LUT_VERTEX_SHADER_PATH = assetPath("shaders/brdf_lut.vert.spv");
+inline const std::string BRDF_LUT_FRAGMENT_SHADER_PATH = assetPath("shaders/brdf_lut.frag.spv");
 
 inline constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 

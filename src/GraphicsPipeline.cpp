@@ -184,7 +184,7 @@ void TriangleApplication::createDescriptorSetLayout()
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     uboLayoutBinding.pImmutableSamplers = nullptr;
 
-    std::array<VkDescriptorSetLayoutBinding, 9> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> bindings{};
     bindings[0] = uboLayoutBinding;
     for (uint32_t binding = 1; binding < static_cast<uint32_t>(bindings.size()); binding++)
     {

@@ -30,6 +30,7 @@ struct FrameContext
     DeletionQueue deletionQueue;
 };
 
+static constexpr uint32_t pbrImageDescriptorCount = 9;
 
 class TriangleApplication
 {
@@ -172,7 +173,7 @@ private:
     void createDescriptorPool();
     void createDescriptorSets();
     void createTextureDescriptorSets(
-        const std::array<VkDescriptorImageInfo, 8> &imageInfos,
+        const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
         std::vector<VkDescriptorSet> &targetDescriptorSets);
 
     AllocatedImage createTextureImageFromFile(
@@ -192,6 +193,8 @@ private:
     void renderIrradianceCubemap();
     void createPrefilterResources();
     void renderPrefilterCubemap();
+    void createBRDFLUTResources();
+    void renderBRDFLUT();
 
     AllocatedImage createImage(
         uint32_t width,
@@ -391,6 +394,14 @@ private:
     static constexpr uint32_t prefilterMipLevels = 5;
     std::array<std::array<VkImageView, 6>, prefilterMipLevels> prefilterFaceImageViews{};
     std::array<std::array<VkFramebuffer, 6>, prefilterMipLevels> prefilterFramebuffers;
+
+    // Split-sum BRDF Integration LUT
+    AllocatedImage brdfLUTImage;
+    VkSampler brdfLUTSampler = VK_NULL_HANDLE;
+    VkRenderPass brdfLUTRenderPass = VK_NULL_HANDLE;
+    VkPipeline brdfLUTPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout brdfLUTPipelineLayout = VK_NULL_HANDLE;
+    VkFramebuffer brdfLUTFramebuffer = VK_NULL_HANDLE;
 
     // pbr params
     glm::vec3 materialAlbedo = {1.0f, 1.0f, 1.0f};

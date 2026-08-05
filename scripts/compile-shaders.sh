@@ -21,5 +21,7 @@ compile irradiance.vert irradiance.vert.spv
 compile irradiance.frag irradiance.frag.spv
 compile prefilter.vert prefilter.vert.spv
 compile prefilter.frag prefilter.frag.spv
+compile brdf_lut.vert brdf_lut.vert.spv
+compile brdf_lut.frag brdf_lut.frag.spv
 
 echo "Shader compilation complete."

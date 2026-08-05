@@ -40,6 +40,7 @@ layout(binding = 5) uniform sampler2D aoMap;
 layout(binding = 6) uniform samplerCube environmentMap;
 layout(binding = 7) uniform samplerCube irradianceMap;
 layout(binding = 8) uniform samplerCube prefilterMap;
+layout(binding = 9) uniform sampler2D brdfLUT;
 
 vec3 getNormalFromNormalMap()
 {
@@ -178,7 +179,9 @@ void main()
     // vec3 reflection = sampleEnvironment(reflectionDir);
     vec3 prefilteredColor = textureLod(prefilterMap, environmentDirection(reflectionDir), roughness * MAX_REFLECTION_LOD).rgb;
     // float specularRoughness = mix(1.0, 0.2, roughness);
-    vec3 specular = prefilteredColor * F;
+    float NdotV = max(dot(normal, viewDir), 0.0);
+    vec2 brdf = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
     vec3 ibl = (kD * diffuse + specular) * ao * iblIntensity;
     vec3 color = ambient + ibl + Lo;
