@@ -246,6 +246,8 @@ private:
 
     void destroyBufferDeferred(AllocatedBuffer& buffer);
 
+    bool glfwInitialized = false;
+
     GLFWwindow *window = nullptr;
     VkInstance instance = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;

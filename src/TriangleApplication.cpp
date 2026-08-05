@@ -23,13 +23,23 @@ void TriangleApplication::run()
 
 void TriangleApplication::InitWindow()
 {
-    glfwInit();
+    // glfwInit();
+    if (glfwInit() != GLFW_TRUE)
+    {
+        throw std::runtime_error("failed to initialize GLFW");
+    }
+    glfwInitialized = true;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     // GLFW_TRUE：代表可以调整窗口大小
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
     window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+    if (window == nullptr)
+    {
+        throw std::runtime_error("failed to create GLFW window");
+    }
+
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferRizeCallback);
     glfwSetWindowRefreshCallback(window, windowRefreshCallback);
