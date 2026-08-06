@@ -36,6 +36,7 @@ class TriangleApplication
 {
 public:
     void run();
+    ~TriangleApplication() noexcept;
 
 private:
     void InitWindow();
@@ -235,7 +236,7 @@ private:
     void createPresentSemaphores();
     void drawFrame();
     void MainLoop();
-    void Cleanup();
+    void Cleanup() noexcept;
 
     void destroyBuffer(AllocatedBuffer &buffer);
     void destroyImage(AllocatedImage &image);
@@ -247,6 +248,8 @@ private:
     void destroyBufferDeferred(AllocatedBuffer& buffer);
 
     bool glfwInitialized = false;
+
+    bool cleanedUp = false;
 
     GLFWwindow *window = nullptr;
     VkInstance instance = VK_NULL_HANDLE;

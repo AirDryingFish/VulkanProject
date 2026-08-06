@@ -102,12 +102,27 @@ void TriangleApplication::MainLoop()
         glfwPollEvents();
         drawFrame();
     }
-    VK_CHECK(vkDeviceWaitIdle(device));
 }
 
 void TriangleApplication::Cleanup()
 {
+    if (cleanedUp)
+    {
+        return;
+    }
+    cleanedUp = true;
     rendererReady = false;
+
+    if (device != VK_NULL_HANDLE)
+    {
+        const VkResult result = vkDeviceWaitIdle(device);
+        if (result != VK_NULL_HANDLE && result != VK_ERROR_DEVICE_LOST)
+        {
+            std::fprintf(stderr, "vkDeviceWaitIdle failed during cleanup!");
+            vkResultToString(result);
+            static_cast<int>(result);
+        }
+    }
 
     cleanupSwapChain();
     for (SceneObject &object : sceneObjects)
