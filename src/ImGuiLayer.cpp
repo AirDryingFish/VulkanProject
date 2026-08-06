@@ -210,9 +210,19 @@ void TriangleApplication::initImGui()
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    mainDeletionQueue.pushFunction([](){
+        ImGui::DestroyContext();
+    });
+
     ImGui::StyleColorsDark();
 
-    ImGui_ImplGlfw_InitForVulkan(window, true);
+    if (!ImGui_ImplGlfw_InitForVulkan(window, true))
+    {
+        throw std::runtime_error("failed to init imgui glfw backend!");
+    }
+    mainDeletionQueue.pushFunction([](){
+        ImGui_ImplGlfw_Shutdown();
+    });
 
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
@@ -233,11 +243,9 @@ void TriangleApplication::initImGui()
     {
         throw std::runtime_error("failed to init imgui vulkan backend!");
     }
-    mainDeletionQueue.pushFunction([]()
-                                   {
+    mainDeletionQueue.pushFunction([](){
         ImGui_ImplVulkan_Shutdown();
-        ImGui_ImplGlfw_Shutdown();
-        ImGui::DestroyContext(); });
+    });
 }
 
 void TriangleApplication::drawImGui()

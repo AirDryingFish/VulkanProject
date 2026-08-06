@@ -22,4 +22,12 @@ struct DeletionQueue
         }
         callbacks.clear();
     }
+    bool empty() const noexcept
+    {
+        return callbacks.empty();
+    }
+    std::size_t size() const noexcept
+    {
+        return callbacks.size();
+    }
 };

@@ -159,6 +159,10 @@ void TriangleApplication::recreateSwapChain()
 
     while (width == 0 || height == 0)
     {
+        if (glfwWindowShouldClose(window))
+        {
+            return;
+        }
         glfwGetFramebufferSize(window, &width, &height);
         glfwWaitEvents();
     }
@@ -194,8 +198,11 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
 void TriangleApplication::cleanupSwapChain()
 {
     swapChainDeletionQueue.flush();
-    vkDestroySwapchainKHR(device, swapChain, nullptr);
-    swapChain = VK_NULL_HANDLE;
+    if (swapChain != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        swapChain = VK_NULL_HANDLE;
+    }
 }
 
 void TriangleApplication::createImageViews()

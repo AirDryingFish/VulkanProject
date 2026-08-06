@@ -118,6 +118,10 @@ void TriangleApplication::createUploadContext()
 
     VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &uploadContext.commandPool));
 
+    mainDeletionQueue.pushFunction([this]() {
+        vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
+    });
+
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -134,8 +138,6 @@ void TriangleApplication::createUploadContext()
 
     mainDeletionQueue.pushFunction([this]() {
         vkDestroyFence(device, uploadContext.fence, nullptr);
-
-        vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
     });
 }
 
@@ -156,6 +158,11 @@ void TriangleApplication::createFrameContexts()
 
         VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &frame.commandPool));
 
+        const auto commandPool = frame.commandPool;
+        mainDeletionQueue.pushFunction([this, commandPool]() {
+            vkDestroyCommandPool(device, commandPool, nullptr);
+        });
+
         // 从 frame.commandPool 分配 frame.commandBuffer
 
         VkCommandBufferAllocateInfo allocInfo{};
@@ -172,6 +179,11 @@ void TriangleApplication::createFrameContexts()
 
         VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable));
 
+        const auto imageAvailable = frame.imageAvailable;
+        mainDeletionQueue.pushFunction([this, imageAvailable]() {
+            vkDestroySemaphore(device, imageAvailable, nullptr);
+        });
+
         // 创建带 SIGNALED_BIT 的 frame.renderFence
         VkFenceCreateInfo fenceInfo{};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -179,16 +191,9 @@ void TriangleApplication::createFrameContexts()
 
         VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence));
 
-        const VkCommandPool commandPool = frame.commandPool;
-        // const VkCommandBuffer commandBuffer = frame.commandBuffer;
         const VkFence renderFence = frame.renderFence;
-        const VkSemaphore imageAvailable = frame.imageAvailable;
-
-        mainDeletionQueue.pushFunction([this, commandPool, renderFence, imageAvailable]() {
-
+        mainDeletionQueue.pushFunction([this, renderFence]() {
             vkDestroyFence(device, renderFence, nullptr);
-            vkDestroySemaphore(device, imageAvailable, nullptr);
-            vkDestroyCommandPool(device, commandPool, nullptr);
         });
     }
 }

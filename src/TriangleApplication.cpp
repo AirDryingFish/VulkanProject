@@ -95,6 +95,11 @@ void TriangleApplication::InitVulkan()
     rendererReady = true;
 }
 
+TriangleApplication::~TriangleApplication() noexcept
+{
+    Cleanup();
+}
+
 void TriangleApplication::MainLoop()
 {
     while (!glfwWindowShouldClose(window))
@@ -104,7 +109,7 @@ void TriangleApplication::MainLoop()
     }
 }
 
-void TriangleApplication::Cleanup()
+void TriangleApplication::Cleanup() noexcept
 {
     if (cleanedUp)
     {
@@ -116,11 +121,15 @@ void TriangleApplication::Cleanup()
     if (device != VK_NULL_HANDLE)
     {
         const VkResult result = vkDeviceWaitIdle(device);
-        if (result != VK_NULL_HANDLE && result != VK_ERROR_DEVICE_LOST)
+        if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
         {
-            std::fprintf(stderr, "vkDeviceWaitIdle failed during cleanup!");
-            vkResultToString(result);
-            static_cast<int>(result);
+            std::fprintf(
+                stderr, 
+                "vkDeviceWaitIdle failed during cleanup!",             
+                static_cast<int>(result),
+                vkResultToString(result)
+            );
+;
         }
     }
 
@@ -132,21 +141,52 @@ void TriangleApplication::Cleanup()
     sceneObjects.clear();
     destroyBuffer(indexBuffer);
     destroyBuffer(vertexBuffer);
-    mainDeletionQueue.flush();
+    
     for (FrameContext& frame : frames)
     {
         frame.deletionQueue.flush();
     }
+    mainDeletionQueue.flush();
 
-    vmaDestroyAllocator(allocator);
-    vkDestroyDevice(device, nullptr);
-    if (enableValidationLayers)
+    if (allocator != nullptr)
+    {
+        vmaDestroyAllocator(allocator);
+        allocator = nullptr;
+    }
+
+    if (device != VK_NULL_HANDLE)
+    {
+        vkDestroyDevice(device, nullptr);
+        device = VK_NULL_HANDLE;
+    }
+
+    if (instance != VK_NULL_HANDLE && debugMessenger != VK_NULL_HANDLE)
     {
         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+        debugMessenger = VK_NULL_HANDLE;
     }
-    vkDestroySurfaceKHR(instance, surface, nullptr);
-    vkDestroyInstance(instance, nullptr);
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    if (instance != VK_NULL_HANDLE && surface != VK_NULL_HANDLE)
+    {
+        vkDestroySurfaceKHR(instance, surface, nullptr);
+        surface = VK_NULL_HANDLE;
+    }
+    
+    if (instance != VK_NULL_HANDLE)
+    {
+        vkDestroyInstance(instance, nullptr);
+        instance = VK_NULL_HANDLE;
+    }
+
+    if (window != nullptr)
+    {
+        glfwDestroyWindow(window);
+        window = nullptr;
+    }
+
+    if (glfwInitialized)
+    {
+        glfwTerminate();
+        glfwInitialized = false;
+    }
 }
