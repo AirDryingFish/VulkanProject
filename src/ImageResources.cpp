@@ -1,5 +1,5 @@
 #include "TriangleApplication.hpp"
-
+#include "VulkanResources.hpp"
 #include <stb_image.h>
 
 #include <algorithm>
