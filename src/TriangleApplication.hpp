@@ -5,6 +5,7 @@
 #include "VulkanCheck.hpp"
 #include "VulkanTypes.hpp"
 #include "VulkanResources.hpp"
+#include "Render.hpp"
 
 #include <array>
 #include <functional>
@@ -20,16 +21,6 @@ struct UploadContext
     VkFence fence = VK_NULL_HANDLE;
 };
 
-struct FrameContext
-{
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-
-    VkSemaphore imageAvailable = VK_NULL_HANDLE;
-    VkFence renderFence = VK_NULL_HANDLE;
-
-    std::vector<AllocatedBuffer> retiredBuffers;
-};
 
 static constexpr uint32_t pbrImageDescriptorCount = 9;
 

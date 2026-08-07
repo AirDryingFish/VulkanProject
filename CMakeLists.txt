@@ -78,8 +78,8 @@ add_executable(vulkan
     src/ImageResources.cpp
     src/Model.cpp
     src/Picking.cpp
-    src/Renderer.cpp
-    src/SwapChain.cpp
+    src/RendererLegacy.cpp
+    src/SwapChainLegacy.cpp
     src/TriangleApplication.cpp
     src/VulkanDevice.cpp
     src/VulkanInstance.cpp
