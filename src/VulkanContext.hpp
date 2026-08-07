@@ -11,6 +11,15 @@
 //     MSAA sample count
 
 #pragma once
+
+#include "VulkanHeaders.hpp"
+#include "VulkanTypes.hpp"
+
+#include <cstdint>
+#include <vector>
+
+#include <vk_mem_alloc.h>
+
 struct VulkanContextConfig
 {
     const char* applicationName = "VulkanProject";
