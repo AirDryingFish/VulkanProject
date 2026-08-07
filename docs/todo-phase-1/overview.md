@@ -133,6 +133,8 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 
 目标：让 `TriangleApplication` 只负责程序流程，不再直接拥有全部 Vulkan 和场景细节。
 
+具体实施路径见[阶段 2：拆分 TriangleApplication 实施指南](stage-2-application-split.md)。
+
 ### 2.1 VulkanContext
 
 - [ ] `[P1]` 创建 `VulkanContext` 类型
