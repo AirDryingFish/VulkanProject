@@ -44,6 +44,7 @@ void TriangleApplication::drawFrame()
     lastFrameTime = now;
     deltaTime = std::min(deltaTime, 0.05f);
 
+    // fence等待gpu返回，保证gpu不再使用buffer
     VK_CHECK(vkWaitForFences(device, 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
     frame.retiredBuffers.clear();
 
