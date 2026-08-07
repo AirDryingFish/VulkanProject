@@ -421,7 +421,7 @@ void TriangleApplication::drawImGui()
         ImGui::Text("AABB Max: %.2f %.2f %.2f", selectedSceneObject->localBoundsMax.x, selectedSceneObject->localBoundsMax.y, selectedSceneObject->localBoundsMax.z);
     }
     ImGui::Text("Mip Levels: %u", mipLevels);
-    ImGui::Text("Texture Image: 0x%p", (void *)textureImage.image);
+    ImGui::Text("Texture Image: 0x%p", (void *)textureImage.get());
 
     ImGui::SeparatorText("PBR Material");
     ImGui::ColorEdit3("Albedo Tint", &materialAlbedo.x);

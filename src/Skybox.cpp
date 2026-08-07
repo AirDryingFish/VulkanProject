@@ -281,9 +281,11 @@ void TriangleApplication::createSkyboxImage()
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
-    VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
+    // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
+    VK_CHECK(stagingBuffer.map(&data));
     std::memcpy(data, pixels.pixels.data(), static_cast<size_t>(pixels.imageSize()));
-    vmaUnmapMemory(allocator, stagingBuffer.allocation);
+    // vmaUnmapMemory(allocator, stagingBuffer.allocation);
+    stagingBuffer.unmap();
 
     skyboxImage = createImage(
         pixels.width,
@@ -298,7 +300,7 @@ void TriangleApplication::createSkyboxImage()
         VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
 
     transitionImageLayout(
-        skyboxImage.image,
+        skyboxImage.get(),
         skyboxFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -322,8 +324,8 @@ void TriangleApplication::createSkyboxImage()
 
         vkCmdCopyBufferToImage(
             commandBuffer,
-            stagingBuffer.buffer,
-            skyboxImage.image,
+            stagingBuffer.get(),
+            skyboxImage.get(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             static_cast<uint32_t>(regions.size()),
             regions.data());
@@ -337,7 +339,7 @@ void TriangleApplication::createSkyboxImage()
     //     skyboxMipLevels,
     //     6);
     generateMipmaps(
-        skyboxImage.image,
+        skyboxImage.get(),
         skyboxFormat,
         pixels.width,
         pixels.height,
@@ -345,19 +347,13 @@ void TriangleApplication::createSkyboxImage()
         6
     );
 
-    skyboxImage.imageView = createImageView(
-        skyboxImage.image,
+    skyboxImage.setView(createImageView(
+        skyboxImage.get(),
         skyboxFormat,
         skyboxMipLevels,
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_VIEW_TYPE_CUBE,
-        6);
-
-    destroyBuffer(stagingBuffer);
-
-    mainDeletionQueue.pushFunction([this, image = skyboxImage]() mutable {
-        destroyImage(image);
-    });
+        6));
 }
 
 void TriangleApplication::createSkyboxSampler()
@@ -382,7 +378,7 @@ void TriangleApplication::createSkyboxSampler()
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = static_cast<float>(skyboxImage.mipLevels - 1);
+    samplerInfo.maxLod = static_cast<float>(skyboxImage.mipLevels() - 1);
 
     VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &skyboxSampler));
 

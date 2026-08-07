@@ -5,6 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 namespace
 {
@@ -257,7 +258,7 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     object.indexCount = static_cast<uint32_t>(meshData.indices.size());
 
     createObjectBuffers(object, meshData);
-    sceneObjects.push_back(object);
+    sceneObjects.push_back(std::move(object));
 
     selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;
     selectedObject = SceneSelection::Model;
@@ -273,9 +274,6 @@ void TriangleApplication::rebuildMesh(MeshSource source)
         destroyBufferDeferred(object.vertexBuffer);
     }
     sceneObjects.clear();
-
-    destroyBuffer(indexBuffer);
-    destroyBuffer(vertexBuffer);
 
     meshSource = source;
     addMeshObject(source);

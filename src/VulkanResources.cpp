@@ -1,4 +1,6 @@
 #include "VulkanResources.hpp"
+#include <cassert>
+#include <utility>
 
 
 AllocatedBuffer::AllocatedBuffer(VmaAllocator allocator, VkBuffer buffer, VmaAllocation allocation) noexcept: 
@@ -48,7 +50,7 @@ VkResult AllocatedBuffer::map(void **data) noexcept
     const VkResult result = vmaMapMemory(allocator_, allocation_, data);
     if (result == VK_SUCCESS)
     {
-        mappedData_ = data;
+        mappedData_ = *data;
     }
     return result;
 }
@@ -90,7 +92,7 @@ AllocatedImage::AllocatedImage(VmaAllocator allocator, VkDevice device, VkImage 
     device_(device),
     image_(image),
     allocation_(allocation),
-    mipLevels_(mipLevels_)
+    mipLevels_(mipLevels)
 {
 }
 
@@ -137,7 +139,7 @@ uint32_t AllocatedImage::mipLevels() const noexcept
 void AllocatedImage::setView(VkImageView imageView) noexcept
 {
     assert(image_ != VK_NULL_HANDLE);
-    assert(imageView_ != VK_NULL_HANDLE);
+    assert(imageView != VK_NULL_HANDLE);
     if (imageView_ != VK_NULL_HANDLE)
     {
         vkDestroyImageView(
@@ -171,6 +173,7 @@ void AllocatedImage::moveFrom(AllocatedImage &other) noexcept
 {
     allocator_ = std::exchange(other.allocator_, nullptr);
     allocation_ = std::exchange(other.allocation_, nullptr);
+    device_ = std::exchange(other.device_, VK_NULL_HANDLE);
     image_ = std::exchange(other.image_, VK_NULL_HANDLE);
     imageView_ = std::exchange(other.imageView_, VK_NULL_HANDLE);
     mipLevels_ = std::exchange(other.mipLevels_, 1);

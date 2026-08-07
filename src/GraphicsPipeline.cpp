@@ -389,8 +389,8 @@ void TriangleApplication::createFramebuffers()
         //     depthImageView,
         //     colorImageView};
         std::array<VkImageView, 3> attachments = {
-            colorImage.imageView,
-            depthImage.imageView,
+            colorImage.view(),
+            depthImage.view(),
             swapChainImageViews[i]};
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;

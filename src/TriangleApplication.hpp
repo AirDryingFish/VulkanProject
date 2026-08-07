@@ -4,6 +4,7 @@
 #include "DeletionQueue.hpp"
 #include "VulkanCheck.hpp"
 #include "VulkanTypes.hpp"
+#include "VulkanResources.hpp"
 
 #include <array>
 #include <functional>
@@ -27,7 +28,7 @@ struct FrameContext
     VkSemaphore imageAvailable = VK_NULL_HANDLE;
     VkFence renderFence = VK_NULL_HANDLE;
 
-    DeletionQueue deletionQueue;
+    std::vector<AllocatedBuffer> retiredBuffers;
 };
 
 static constexpr uint32_t pbrImageDescriptorCount = 9;
@@ -76,7 +77,7 @@ private:
     static void framebufferRizeCallback(GLFWwindow *window, int width, int height);
     static void windowRefreshCallback(GLFWwindow *window);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
-    void cleanupSwapChain();
+    void cleanupSwapChain() noexcept;
     void createImageViews();
 
     void createRenderPass();
@@ -237,9 +238,6 @@ private:
     void drawFrame();
     void MainLoop();
     void Cleanup() noexcept;
-
-    void destroyBuffer(AllocatedBuffer &buffer);
-    void destroyImage(AllocatedImage &image);
 
     void createUploadContext();
     void createFrameContexts();

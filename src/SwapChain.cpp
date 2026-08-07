@@ -195,9 +195,13 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
     }
 }
 
-void TriangleApplication::cleanupSwapChain()
+void TriangleApplication::cleanupSwapChain() noexcept
 {
     swapChainDeletionQueue.flush();
+
+    depthImage.reset();
+    colorImage.reset();
+
     if (swapChain != VK_NULL_HANDLE)
     {
         vkDestroySwapchainKHR(device, swapChain, nullptr);

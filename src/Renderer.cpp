@@ -45,7 +45,7 @@ void TriangleApplication::drawFrame()
     deltaTime = std::min(deltaTime, 0.05f);
 
     VK_CHECK(vkWaitForFences(device, 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
-    frame.deletionQueue.flush();
+    frame.retiredBuffers.clear();
 
     int width = 0;
     int height = 0;

@@ -139,12 +139,12 @@ void TriangleApplication::Cleanup() noexcept
         destroySceneObject(object);
     }
     sceneObjects.clear();
-    destroyBuffer(indexBuffer);
-    destroyBuffer(vertexBuffer);
-    
+    indexBuffer.reset();
+    vertexBuffer.reset();
+
     for (FrameContext& frame : frames)
     {
-        frame.deletionQueue.flush();
+        frame.retiredBuffers.clear();
     }
     mainDeletionQueue.flush();
 

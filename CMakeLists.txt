@@ -85,6 +85,7 @@ add_executable(vulkan
     src/VulkanAllocator.cpp
     src/ImGuiLayer.cpp
     src/Skybox.cpp
+    src/VulkanResources.cpp
 )
 
 target_include_directories(vulkan PRIVATE

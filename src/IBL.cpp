@@ -80,20 +80,17 @@ void TriangleApplication::createIrradianceResources()
         6,
         VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
 
-    irradianceImage.imageView = createImageView(
-        irradianceImage.image,
+    irradianceImage.setView(createImageView(
+        irradianceImage.get(),
         irradianceFormat,
         1,
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_VIEW_TYPE_CUBE,
-        6);
-
-    mainDeletionQueue.pushFunction([this, image = irradianceImage]() mutable
-                                   { destroyImage(image); });
+        6));
 
     for (uint32_t face = 0; face < irradianceFaceImageViews.size(); face++)
     {
-        irradianceFaceImageViews[face] = createIrradianceFaceImageView(device, irradianceImage.image, face);
+        irradianceFaceImageViews[face] = createIrradianceFaceImageView(device, irradianceImage.get(), face);
         mainDeletionQueue.pushFunction([this, imageView = irradianceFaceImageViews[face]]()
                                        { vkDestroyImageView(device, imageView, nullptr); });
     }
@@ -215,7 +212,7 @@ void TriangleApplication::createIrradianceResources()
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = skyboxSampler;
-    imageInfo.imageView = skyboxImage.imageView;
+    imageInfo.imageView = skyboxImage.view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet descriptorWrite{};
@@ -335,7 +332,7 @@ void TriangleApplication::createIrradianceResources()
                                    { vkDestroyPipeline(device, pipeline, nullptr); });
 
     transitionImageLayout(
-        irradianceImage.image,
+        irradianceImage.get(),
         irradianceFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -345,7 +342,7 @@ void TriangleApplication::createIrradianceResources()
     renderIrradianceCubemap();
 
     transitionImageLayout(
-        irradianceImage.image,
+        irradianceImage.get(),
         irradianceFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -437,22 +434,19 @@ void TriangleApplication::createPrefilterResources()
         6,
         VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
 
-    prefilterImage.imageView = createImageView(
-        prefilterImage.image,
+    prefilterImage.setView(createImageView(
+        prefilterImage.get(),
         prefilterFormat,
         prefilterMipLevels,
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_VIEW_TYPE_CUBE,
-        6);
-
-    mainDeletionQueue.pushFunction([this, image = prefilterImage]() mutable
-                                   { destroyImage(image); });
+        6));
 
     for (uint32_t mip = 0; mip < prefilterMipLevels; mip++)
     {
         for (uint32_t face = 0; face < prefilterFaceImageViews[mip].size(); face++)
         {
-            prefilterFaceImageViews[mip][face] = createPrefilterFaceImageView(device, prefilterImage.image, mip, face);
+            prefilterFaceImageViews[mip][face] = createPrefilterFaceImageView(device, prefilterImage.get(), mip, face);
             mainDeletionQueue.pushFunction([this, imageView = prefilterFaceImageViews[mip][face]]()
                                            { vkDestroyImageView(device, imageView, nullptr); });
         }
@@ -578,7 +572,7 @@ void TriangleApplication::createPrefilterResources()
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = skyboxSampler;
-    imageInfo.imageView = skyboxImage.imageView;
+    imageInfo.imageView = skyboxImage.view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet descriptorWrite{};
@@ -698,7 +692,7 @@ void TriangleApplication::createPrefilterResources()
                                    { vkDestroyPipeline(device, pipeline, nullptr); });
 
     transitionImageLayout(
-        prefilterImage.image,
+        prefilterImage.get(),
         prefilterFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -708,7 +702,7 @@ void TriangleApplication::createPrefilterResources()
     renderPrefilterCubemap();
 
     transitionImageLayout(
-        prefilterImage.image,
+        prefilterImage.get(),
         prefilterFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -810,15 +804,11 @@ void TriangleApplication::createBRDFLUTResources()
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    brdfLUTImage.imageView = createImageView(
-        brdfLUTImage.image,
+    brdfLUTImage.setView(createImageView(
+        brdfLUTImage.get(),
         brdfLUTFormat,
         1
-    );
-
-    mainDeletionQueue.pushFunction([this, image = brdfLUTImage]() mutable{
-        destroyImage(image);
-    });
+    ));
 
     // 创建纹理采样器
     VkSamplerCreateInfo samplerInfo{};
@@ -886,7 +876,7 @@ void TriangleApplication::createBRDFLUTResources()
     });
 
     // 创建帧缓冲：这个帧缓冲会使用哪些附件、渲染通道、尺寸
-    VkImageView attachment = brdfLUTImage.imageView;
+    VkImageView attachment = brdfLUTImage.view();
     VkFramebufferCreateInfo framebufferInfo{};
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     framebufferInfo.renderPass = brdfLUTRenderPass;
@@ -1024,7 +1014,7 @@ void TriangleApplication::createBRDFLUTResources()
 
     // 上面创建好了pipeline，接下来把fragment的结果写入附件，先设置image的格式可以作为颜色附件写入
     transitionImageLayout(
-        brdfLUTImage.image,
+        brdfLUTImage.get(),
         brdfLUTFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -1034,7 +1024,7 @@ void TriangleApplication::createBRDFLUTResources()
 
     // 切换成 Shader 只读布局，方便后续 PBR Shader 采样 LUT
     transitionImageLayout(
-        brdfLUTImage.image,
+        brdfLUTImage.get(),
         brdfLUTFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,

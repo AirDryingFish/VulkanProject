@@ -26,7 +26,9 @@ AllocatedImage TriangleApplication::createImage(
     VkImageCreateFlags flags
 )
 {
-    AllocatedImage allocatedImage{};
+    // AllocatedImage allocatedImage{};
+    VkImage image = VK_NULL_HANDLE;
+    VmaAllocation allocation = nullptr;
 
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -55,10 +57,16 @@ AllocatedImage TriangleApplication::createImage(
         allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     }
 
-    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &allocatedImage.image, &allocatedImage.allocation, nullptr));
-    allocatedImage.mipLevels = mipLevels;
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr));
+    // allocatedImage.mipLevels = mipLevels;
 
-    return allocatedImage;
+    return AllocatedImage(
+        allocator,
+        device, 
+        image, 
+        allocation,
+        mipLevels
+    );
 }
 
 AllocatedImage TriangleApplication::createTextureImageFromFile(
@@ -69,7 +77,11 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
     int texWidth = 0;
     int texHeight = 0;
     int texChannels = 0;
-    stbi_uc *pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> loadedPixels(
+        stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha),
+        &stbi_image_free
+    );
+    const stbi_uc* pixels = loadedPixels.get();
 
     std::vector<unsigned char> fallbackPixels;
     if (!pixels)
@@ -85,15 +97,11 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
 
     AllocatedBuffer stagingBuffer = createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    void *data;
-    VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
+    void *data = nullptr;
+    VK_CHECK(stagingBuffer.map(&data));
     memcpy(data, pixels, static_cast<size_t>(imageSize));
-    vmaUnmapMemory(allocator, stagingBuffer.allocation);
+    stagingBuffer.unmap();
 
-    if (fallbackPixels.empty())
-    {
-        stbi_image_free(pixels);
-    }
 
     AllocatedImage image = createImage(
         static_cast<uint32_t>(texWidth),
@@ -105,11 +113,9 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    transitionImageLayout(image.image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageMipLevels);
-    copyBufferToImage(stagingBuffer.buffer, image.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    generateMipmaps(image.image, format, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), imageMipLevels);
-
-    destroyBuffer(stagingBuffer);
+    transitionImageLayout(image.get(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageMipLevels);
+    copyBufferToImage(stagingBuffer.get(), image.get(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    generateMipmaps(image.get(), format, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), imageMipLevels);
     return image;
 }
 
@@ -120,7 +126,7 @@ void TriangleApplication::createTextureImage()
     metallicImage = createTextureImageFromFile(PBR_METALLIC_PATH, VK_FORMAT_R8G8B8A8_UNORM, {0, 0, 0, 255});
     roughnessImage = createTextureImageFromFile(PBR_ROUGHNESS_PATH, VK_FORMAT_R8G8B8A8_UNORM, {128, 128, 128, 255});
     aoImage = createTextureImageFromFile(PBR_AO_PATH, VK_FORMAT_R8G8B8A8_UNORM, {255, 255, 255, 255});
-    mipLevels = textureImage.mipLevels;
+    mipLevels = textureImage.mipLevels();
 }
 
 void TriangleApplication::generateMipmaps(VkImage image, VkFormat imageFormat, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, uint32_t layerCount)
@@ -250,22 +256,27 @@ VkImageView TriangleApplication::createImageView(VkImage image, VkFormat format,
 
 void TriangleApplication::createTextureImageView()
 {
-    textureImage.imageView = createImageView(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels);
-    normalImage.imageView = createImageView(normalImage.image, VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels);
-    metallicImage.imageView = createImageView(metallicImage.image, VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels);
-    roughnessImage.imageView = createImageView(roughnessImage.image, VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels);
-    aoImage.imageView = createImageView(aoImage.image, VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels);
+    // textureImage.imageView = createImageView(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels);
+    // normalImage.imageView = createImageView(normalImage.image, VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels);
+    // metallicImage.imageView = createImageView(metallicImage.image, VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels);
+    // roughnessImage.imageView = createImageView(roughnessImage.image, VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels);
+    // aoImage.imageView = createImageView(aoImage.image, VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels);
 
-    mainDeletionQueue.pushFunction([this, image = textureImage]() mutable
-                                   { destroyImage(image); });
-    mainDeletionQueue.pushFunction([this, image = normalImage]() mutable
-                                   { destroyImage(image); });
-    mainDeletionQueue.pushFunction([this, image = metallicImage]() mutable
-                                   { destroyImage(image); });
-    mainDeletionQueue.pushFunction([this, image = roughnessImage]() mutable
-                                   { destroyImage(image); });
-    mainDeletionQueue.pushFunction([this, image = aoImage]() mutable
-                                   { destroyImage(image); });
+    // mainDeletionQueue.pushFunction([this, image = textureImage]() mutable
+    //                                { destroyImage(image); });
+    // mainDeletionQueue.pushFunction([this, image = normalImage]() mutable
+    //                                { destroyImage(image); });
+    // mainDeletionQueue.pushFunction([this, image = metallicImage]() mutable
+    //                                { destroyImage(image); });
+    // mainDeletionQueue.pushFunction([this, image = roughnessImage]() mutable
+    //                                { destroyImage(image); });
+    // mainDeletionQueue.pushFunction([this, image = aoImage]() mutable
+    //                                { destroyImage(image); });
+    textureImage.setView(createImageView(textureImage.get(), VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels()));
+    normalImage.setView(createImageView(normalImage.get(), VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels()));
+    metallicImage.setView(createImageView(metallicImage.get(), VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels()));
+    roughnessImage.setView(createImageView(roughnessImage.get(), VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels()));
+    aoImage.setView(createImageView(aoImage.get(), VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels()));
 }
 
 void TriangleApplication::createTextureSampler()
@@ -390,9 +401,11 @@ void TriangleApplication::createDepthResources()
     depthImage = createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL,
                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    depthImage.imageView = createImageView(depthImage.image, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
-    swapChainDeletionQueue.pushFunction([this, image = depthImage]() mutable
-                                        { destroyImage(image); });
+    depthImage.setView(createImageView(depthImage.get(), depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT));
+    
+    // depthImage.imageView = createImageView(depthImage.image, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
+    // swapChainDeletionQueue.pushFunction([this, image = depthImage]() mutable
+    //                                     { destroyImage(image); });
 }
 
 VkFormat TriangleApplication::findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
@@ -474,10 +487,9 @@ void TriangleApplication::createColorResources()
         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    colorImage.imageView = createImageView(colorImage.image, colorFormat, 1);
 
-    swapChainDeletionQueue.pushFunction([this, image = colorImage]() mutable
-                                        { destroyImage(image); });
+    colorImage.setView(createImageView(colorImage.get(), colorFormat, 1));
+
 }
 
 bool TriangleApplication::hasStencilComponent(VkFormat format)
@@ -485,18 +497,18 @@ bool TriangleApplication::hasStencilComponent(VkFormat format)
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-void TriangleApplication::destroyImage(AllocatedImage &image)
-{
-    if (image.imageView != VK_NULL_HANDLE)
-    {
-        vkDestroyImageView(device, image.imageView, nullptr);
-        image.imageView = VK_NULL_HANDLE;
-    }
+// void TriangleApplication::destroyImage(AllocatedImage &image)
+// {
+//     if (image.imageView != VK_NULL_HANDLE)
+//     {
+//         vkDestroyImageView(device, image.imageView, nullptr);
+//         image.imageView = VK_NULL_HANDLE;
+//     }
 
-    if (image.image != VK_NULL_HANDLE)
-    {
-        vmaDestroyImage(allocator, image.image, image.allocation);
-        image.image = VK_NULL_HANDLE;
-        image.allocation = nullptr;
-    }
-}
+//     if (image.image != VK_NULL_HANDLE)
+//     {
+//         vmaDestroyImage(allocator, image.image, image.allocation);
+//         image.image = VK_NULL_HANDLE;
+//         image.allocation = nullptr;
+//     }
+// }

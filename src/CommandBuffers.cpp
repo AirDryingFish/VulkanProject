@@ -53,7 +53,7 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
     VkDeviceSize offsets[] = {0};
     for (const SceneObject &object : sceneObjects)
     {
-        if (object.indexCount == 0 || object.vertexBuffer.buffer == VK_NULL_HANDLE || object.indexBuffer.buffer == VK_NULL_HANDLE)
+        if (object.indexCount == 0 || object.vertexBuffer.get() == VK_NULL_HANDLE || object.indexBuffer.get() == VK_NULL_HANDLE)
         {
             continue;
         }
@@ -61,9 +61,9 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
         const glm::mat4 model = getObjectMatrix(object);
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
-        VkBuffer vertexBuffers[] = {object.vertexBuffer.buffer};
+        VkBuffer vertexBuffers[] = {object.vertexBuffer.get()};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, object.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(commandBuffer, object.indexBuffer.get(), 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(commandBuffer, object.indexCount, 1, 0, 0, 0);
     }
 
