@@ -82,7 +82,7 @@ private:
 
     void createRenderPass();
     static std::vector<char> readFile(const std::string &filename);
-    VkShaderModule createShaderModule(const std::vector<char> &code);
+    UniqueShaderModule createShaderModule(const std::vector<char> &code);
     void createDescriptorSetLayout();
     void createGraphicsPipeline();
     enum class MeshSource
@@ -159,7 +159,6 @@ private:
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
     void addMeshObject(MeshSource source, const std::string &path = std::string());
     void createObjectBuffers(SceneObject &object, const MeshBuildData &meshData);
-    void destroySceneObject(SceneObject &object);
     SceneObject *getSelectedSceneObject();
     const SceneObject *getSelectedSceneObject() const;
     void computeModelBounds();

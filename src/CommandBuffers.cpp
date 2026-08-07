@@ -118,8 +118,9 @@ void TriangleApplication::createUploadContext()
 
     VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &uploadContext.commandPool));
 
-    mainDeletionQueue.pushFunction([this]() {
-        vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
+    const VkCommandPool commandPool = uploadContext.commandPool;
+    mainDeletionQueue.pushFunction([this, commandPool]() noexcept {
+        vkDestroyCommandPool(device, commandPool, nullptr);
     });
 
     VkCommandBufferAllocateInfo allocInfo{};
@@ -136,8 +137,9 @@ void TriangleApplication::createUploadContext()
 
     VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &uploadContext.fence));
 
-    mainDeletionQueue.pushFunction([this]() {
-        vkDestroyFence(device, uploadContext.fence, nullptr);
+    const VkFence fence = uploadContext.fence;
+    mainDeletionQueue.pushFunction([this, fence]() noexcept {
+        vkDestroyFence(device, fence, nullptr);
     });
 }
 

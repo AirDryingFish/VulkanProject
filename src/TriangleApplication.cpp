@@ -124,29 +124,39 @@ void TriangleApplication::Cleanup() noexcept
         if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
         {
             std::fprintf(
-                stderr, 
-                "vkDeviceWaitIdle failed during cleanup!",             
-                static_cast<int>(result),
-                vkResultToString(result)
-            );
-;
+                stderr,
+                "vkDeviceWaitIdle failed during cleanup: %s (%d)\n",
+                vkResultToString(result),
+                static_cast<int>(result));
         }
     }
 
     cleanupSwapChain();
-    for (SceneObject &object : sceneObjects)
-    {
-        destroySceneObject(object);
-    }
-    sceneObjects.clear();
-    indexBuffer.reset();
-    vertexBuffer.reset();
 
     for (FrameContext& frame : frames)
     {
         frame.retiredBuffers.clear();
     }
+
+    // Destroy raw Vulkan objects which may reference the RAII buffers/images
+    // before releasing the VMA-owned resources themselves.
     mainDeletionQueue.flush();
+
+    uniformBufferMapped.clear();
+    uniformBuffers.clear();
+    sceneObjects.clear();
+    indexBuffer.reset();
+    vertexBuffer.reset();
+
+    textureImage.reset();
+    normalImage.reset();
+    metallicImage.reset();
+    roughnessImage.reset();
+    aoImage.reset();
+    skyboxImage.reset();
+    irradianceImage.reset();
+    prefilterImage.reset();
+    brdfLUTImage.reset();
 
     if (allocator != nullptr)
     {

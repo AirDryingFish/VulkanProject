@@ -71,6 +71,8 @@ void AllocatedBuffer::reset() noexcept
     {
         return;
     }
+
+    assert(allocator_ != nullptr);
     unmap();
     vmaDestroyBuffer(allocator_, buffer_, allocation_);
     allocator_ = nullptr;
@@ -139,6 +141,7 @@ uint32_t AllocatedImage::mipLevels() const noexcept
 void AllocatedImage::setView(VkImageView imageView) noexcept
 {
     assert(image_ != VK_NULL_HANDLE);
+    assert(device_ != VK_NULL_HANDLE);
     assert(imageView != VK_NULL_HANDLE);
     if (imageView_ != VK_NULL_HANDLE)
     {
@@ -177,4 +180,57 @@ void AllocatedImage::moveFrom(AllocatedImage &other) noexcept
     image_ = std::exchange(other.image_, VK_NULL_HANDLE);
     imageView_ = std::exchange(other.imageView_, VK_NULL_HANDLE);
     mipLevels_ = std::exchange(other.mipLevels_, 1);
+}
+
+UniqueShaderModule::UniqueShaderModule(
+    VkDevice device,
+    VkShaderModule shaderModule) noexcept
+    : device_(device),
+      shaderModule_(shaderModule)
+{
+}
+
+UniqueShaderModule::~UniqueShaderModule() noexcept
+{
+    reset();
+}
+
+UniqueShaderModule::UniqueShaderModule(UniqueShaderModule&& other) noexcept
+    : device_(std::exchange(other.device_, VK_NULL_HANDLE)),
+      shaderModule_(std::exchange(other.shaderModule_, VK_NULL_HANDLE))
+{
+}
+
+UniqueShaderModule& UniqueShaderModule::operator=(UniqueShaderModule&& other) noexcept
+{
+    if (this != &other)
+    {
+        reset();
+        device_ = std::exchange(other.device_, VK_NULL_HANDLE);
+        shaderModule_ = std::exchange(other.shaderModule_, VK_NULL_HANDLE);
+    }
+
+    return *this;
+}
+
+UniqueShaderModule::operator bool() const noexcept
+{
+    return shaderModule_ != VK_NULL_HANDLE;
+}
+
+VkShaderModule UniqueShaderModule::get() const noexcept
+{
+    return shaderModule_;
+}
+
+void UniqueShaderModule::reset() noexcept
+{
+    if (shaderModule_ != VK_NULL_HANDLE)
+    {
+        assert(device_ != VK_NULL_HANDLE);
+        vkDestroyShaderModule(device_, shaderModule_, nullptr);
+        shaderModule_ = VK_NULL_HANDLE;
+    }
+
+    device_ = VK_NULL_HANDLE;
 }

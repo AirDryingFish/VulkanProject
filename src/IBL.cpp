@@ -243,19 +243,19 @@ void TriangleApplication::createIrradianceResources()
     auto vertShaderCode = readFile(IRRADIANCE_VERTEX_SHADER_PATH);
     auto fragShaderCode = readFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
 
-    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.module = vertShaderModule.get();
     vertShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.module = fragShaderModule.get();
     fragShaderStageInfo.pName = "main";
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
@@ -324,8 +324,6 @@ void TriangleApplication::createIrradianceResources()
     pipelineInfo.subpass = 0;
 
     const VkResult irradiancePipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &irradiancePipeline);
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
     VK_CHECK_RESULT(irradiancePipelineResult, "vkCreateGraphicsPipelines(irradiance)");
 
     mainDeletionQueue.pushFunction([this, pipeline = irradiancePipeline]()
@@ -603,19 +601,19 @@ void TriangleApplication::createPrefilterResources()
     auto vertShaderCode = readFile(PREFILTER_VERTEX_SHADER_PATH);
     auto fragShaderCode = readFile(PREFILTER_FRAGMENT_SHADER_PATH);
 
-    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.module = vertShaderModule.get();
     vertShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.module = fragShaderModule.get();
     fragShaderStageInfo.pName = "main";
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
@@ -684,8 +682,6 @@ void TriangleApplication::createPrefilterResources()
     pipelineInfo.subpass = 0;
 
     const VkResult prefilterPipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &prefilterPipeline);
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
     VK_CHECK_RESULT(prefilterPipelineResult, "vkCreateGraphicsPipelines(prefilter)");
 
     mainDeletionQueue.pushFunction([this, pipeline = prefilterPipeline]()
@@ -903,20 +899,20 @@ void TriangleApplication::createBRDFLUTResources()
     // 创建着色器
     const auto vertexCode = readFile(BRDF_LUT_VERTEX_SHADER_PATH);
     const auto fragmentCode = readFile(BRDF_LUT_FRAGMENT_SHADER_PATH);
-    VkShaderModule vertexShaderModule = createShaderModule(vertexCode);
-    VkShaderModule fragmentShaderModule = createShaderModule(fragmentCode);
+    UniqueShaderModule vertexShaderModule = createShaderModule(vertexCode);
+    UniqueShaderModule fragmentShaderModule = createShaderModule(fragmentCode);
 
     // 创建着色器阶段信息：这个阶段使用哪个着色器模块、入口函数
     VkPipelineShaderStageCreateInfo vertexStage{};
     vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexStage.module = vertexShaderModule;
+    vertexStage.module = vertexShaderModule.get();
     vertexStage.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragmentStage{};
     fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentStage.module = fragmentShaderModule;
+    fragmentStage.module = fragmentShaderModule.get();
     fragmentStage.pName = "main";
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertexStage, fragmentStage};
@@ -1004,8 +1000,6 @@ void TriangleApplication::createBRDFLUTResources()
         nullptr,
         &brdfLUTPipeline
     );
-    vkDestroyShaderModule(device, vertexShaderModule, nullptr);
-    vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
 
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines(brdf LUT)");
     mainDeletionQueue.pushFunction([this, pipeline = brdfLUTPipeline](){

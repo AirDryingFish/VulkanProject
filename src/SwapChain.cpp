@@ -197,6 +197,11 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
 
 void TriangleApplication::cleanupSwapChain() noexcept
 {
+    if (device == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
     swapChainDeletionQueue.flush();
 
     depthImage.reset();

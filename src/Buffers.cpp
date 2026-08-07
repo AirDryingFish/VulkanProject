@@ -201,12 +201,6 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     object.indexCount = static_cast<uint32_t>(meshData.indices.size());
 }
 
-void TriangleApplication::destroySceneObject(SceneObject &object)
-{
-    object.vertexCount = 0;
-    object.indexCount = 0;
-}
-
 void TriangleApplication::createUniformBuffer()
 {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);

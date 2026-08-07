@@ -1,5 +1,7 @@
 #pragma once
 #include "VulkanHeaders.hpp"
+
+#include <cstdint>
 #include <vk_mem_alloc.h>
 
 class AllocatedBuffer
@@ -40,9 +42,9 @@ public:
 class AllocatedImage
 {
 private:
-    VkImage image_ = VK_NULL_HANDLE;
+    VmaAllocator allocator_ = nullptr;
     VkDevice device_ = VK_NULL_HANDLE;
-    VmaAllocator allocator_ = nullptr;;
+    VkImage image_ = VK_NULL_HANDLE;
     VkImageView imageView_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
     uint32_t mipLevels_ = 1;
@@ -71,5 +73,26 @@ public:
     uint32_t mipLevels() const noexcept;
 
     void setView(VkImageView imageView) noexcept;
+    void reset() noexcept;
+};
+
+class UniqueShaderModule
+{
+private:
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkShaderModule shaderModule_ = VK_NULL_HANDLE;
+
+public:
+    UniqueShaderModule() noexcept = default;
+    UniqueShaderModule(VkDevice device, VkShaderModule shaderModule) noexcept;
+    ~UniqueShaderModule() noexcept;
+
+    UniqueShaderModule(const UniqueShaderModule&) = delete;
+    UniqueShaderModule& operator=(const UniqueShaderModule&) = delete;
+    UniqueShaderModule(UniqueShaderModule&& other) noexcept;
+    UniqueShaderModule& operator=(UniqueShaderModule&& other) noexcept;
+
+    explicit operator bool() const noexcept;
+    VkShaderModule get() const noexcept;
     void reset() noexcept;
 };

@@ -159,7 +159,7 @@ std::vector<char> TriangleApplication::readFile(const std::string &filename)
     return buffer;
 }
 
-VkShaderModule TriangleApplication::createShaderModule(const std::vector<char> &code)
+UniqueShaderModule TriangleApplication::createShaderModule(const std::vector<char> &code)
 {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -171,7 +171,7 @@ VkShaderModule TriangleApplication::createShaderModule(const std::vector<char> &
 
     VkShaderModule shaderModule;
     VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
-    return shaderModule;
+    return UniqueShaderModule(device, shaderModule);
 }
 
 void TriangleApplication::createDescriptorSetLayout()
@@ -245,19 +245,19 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     auto vertShaderCode = readFile(config.vertShaderPath);
     auto fragShaderCode = readFile(config.fragShaderPath);
 
-    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.module = vertShaderModule.get();
     vertShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.module = fragShaderModule.get();
     fragShaderStageInfo.pName = "main";
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
@@ -369,8 +369,6 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
 
     VkPipeline pipeline = VK_NULL_HANDLE;
     const VkResult pipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines");
 
     return pipeline;

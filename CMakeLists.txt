@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(VulkanProject VERSION 0.1.0 LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -108,6 +110,18 @@ target_link_libraries(vulkan PRIVATE
     GPUOpen::VulkanMemoryAllocator
     imgui::imgui
 )
+
+if(BUILD_TESTING)
+    add_executable(deletion_queue_tests
+        tests/DeletionQueueTests.cpp
+    )
+    target_include_directories(deletion_queue_tests PRIVATE src)
+    target_link_libraries(deletion_queue_tests PRIVATE
+        Vulkan::Vulkan
+        GPUOpen::VulkanMemoryAllocator
+    )
+    add_test(NAME deletion_queue_tests COMMAND deletion_queue_tests)
+endif()
 
 add_custom_command(
     TARGET vulkan POST_BUILD
