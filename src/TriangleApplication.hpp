@@ -5,6 +5,7 @@
 #include "VulkanCheck.hpp"
 #include "VulkanTypes.hpp"
 #include "VulkanResources.hpp"
+#include "VulkanContext.hpp"
 #include "Render.hpp"
 
 #include <array>

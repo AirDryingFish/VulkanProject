@@ -11,33 +11,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-SwapChainSupportDetails TriangleApplication::querySwapChainSupport(VkPhysicalDevice device)
-{
-    SwapChainSupportDetails details;
-
-    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities));
-
-    uint32_t formatCount;
-    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr));
-
-    if (formatCount != 0)
-    {
-        details.formats.resize(formatCount);
-        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data()));
-    }
-
-    uint32_t presentModeCount;
-    VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr));
-
-    if (presentModeCount != 0)
-    {
-        details.presentModes.resize(presentModeCount);
-        VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data()));
-    }
-
-    return details;
-}
-
 VkSurfaceFormatKHR TriangleApplication::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats)
 {
     for (const auto &availableForat : availableFormats)

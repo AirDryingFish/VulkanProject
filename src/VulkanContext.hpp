@@ -26,3 +26,96 @@ struct VulkanContextConfig
     uint32_t apiVersion = VK_API_VERSION_1_0;
     bool enableValidation = false;
 };
+
+class VulkanContext final
+{
+private:
+    void createInstance(const VulkanContextConfig& config);
+    
+    void setupDebugMessenger();
+    void createSurface(GLFWwindow* window);
+    void pickPhysicalDevice();
+    void createLogicalDevice();
+    void createAllocator();
+    
+    bool checkValidationLayerSupport() const;
+
+    std::vector<const char*> getRequiredExtentions() const;
+
+    bool isDeviceSuitable(VkPhysicalDevice candidate) const;
+    bool checkDeviceExtensionSupport(VkPhysicalDevice candidate) const;
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice candidate) const;
+
+    SwapChainSupportDetails querySwapchainSupport(VkPhysicalDevice candidate) const;
+    
+    VkSampleCountFlagBits getMaxUsableSampleCount() const;
+
+    void populateDebugMeseengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) const noexcept;
+
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+        void* userData
+    );
+
+    bool validationEnabled_ = false;
+    uint32_t apiVersion_ = VK_API_VERSION_1_0;
+
+    VkInstance instance_ = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT debugMessenger_ = VK_NULL_HANDLE;
+    VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkQueue graphicsQueue_ = VK_NULL_HANDLE;
+    VkQueue presentQueue_ = VK_NULL_HANDLE;
+    QueueFamilyIndices queueFamilies_{};
+
+    VmaAllocator allocator_ = nullptr;
+
+    VkSampleCountFlagBits msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
+
+public:
+    VulkanContext() noexcept = default;
+    ~VulkanContext() noexcept;
+
+    VulkanContext(const VulkanContext&) = delete;
+    VulkanContext& operator=(const VulkanContext&) = delete;
+
+    VulkanContext(VulkanContext&&) = delete;
+    VulkanContext& operator=(VulkanContext&&) = delete;
+
+    void initialize(GLFWwindow* window, const VulkanContextConfig& config);
+
+    void shutdown() noexcept;
+
+    VkResult waitIdle() const noexcept;
+
+    VkInstance instance() const noexcept;
+    VkDebugUtilsMessengerEXT debugMessenger() const noexcept;
+    VkSurfaceKHR surface() const noexcept;
+    VkPhysicalDevice physicalDevice() const noexcept;
+    VkDevice device() const noexcept;
+    VkQueue graphicsQueue() const noexcept;
+    VkQueue presentQueue() const noexcept;
+    VmaAllocator allocator() const noexcept;
+
+    const QueueFamilyIndices& queueFamilies() const noexcept;
+
+    VkSampleCountFlagBits msaaSamples() const noexcept;
+
+    SwapChainSupportDetails querySwapchainSupport() const;
+
+    VkFormat findSupportedFormat(
+        const std::vector<VkFormat>& candidate,
+        VkImageTiling tiling,
+        VkFormatFeatureFlags feature
+    ) const;
+    VkFormat findDepthFormat() const;
+
+    void SetDebugName(
+        VkObjectType objectType,
+        uint64_t handle,
+        const char* name
+    ) const noexcept;
+};
