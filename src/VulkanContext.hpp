@@ -40,7 +40,7 @@ private:
     
     bool checkValidationLayerSupport() const;
 
-    std::vector<const char*> getRequiredExtentions() const;
+    std::vector<const char*> getRequiredExtensions() const;
 
     bool isDeviceSuitable(VkPhysicalDevice candidate) const;
     bool checkDeviceExtensionSupport(VkPhysicalDevice candidate) const;
@@ -50,7 +50,7 @@ private:
     
     VkSampleCountFlagBits getMaxUsableSampleCount() const;
 
-    void populateDebugMeseengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) const noexcept;
+    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) const noexcept;
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -113,7 +113,7 @@ public:
     ) const;
     VkFormat findDepthFormat() const;
 
-    void SetDebugName(
+    void setDebugName(
         VkObjectType objectType,
         uint64_t handle,
         const char* name

@@ -225,8 +225,6 @@ private:
 
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-
     VkSwapchainKHR swapChain = VK_NULL_HANDLE;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat{};
@@ -287,8 +285,6 @@ private:
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames;
     std::vector<VkSemaphore> renderFinishedSemaphores;
-
-    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
     bool rendererReady = false;
     bool frameInProgress = false;

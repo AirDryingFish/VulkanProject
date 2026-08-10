@@ -132,7 +132,7 @@ void TriangleApplication::createTextureImage()
 void TriangleApplication::generateMipmaps(VkImage image, VkFormat imageFormat, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, uint32_t layerCount)
 {
     VkFormatProperties formatProperties;
-    vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
+    vkGetPhysicalDeviceFormatProperties(context.physicalDevice(), imageFormat, &formatProperties);
 
     if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
     {
@@ -291,7 +291,7 @@ void TriangleApplication::createTextureSampler()
 
     samplerInfo.anisotropyEnable = VK_TRUE;
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+    vkGetPhysicalDeviceProperties(context.physicalDevice(), &properties);
     samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
 
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -398,7 +398,7 @@ void TriangleApplication::createDepthResources()
 {
     VkFormat depthFormat = context.findDepthFormat();
 
-    depthImage = createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL,
+    depthImage = createImage(swapChainExtent.width, swapChainExtent.height, 1, context.msaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     depthImage.setView(createImageView(depthImage.get(), depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT));
@@ -416,7 +416,7 @@ void TriangleApplication::createColorResources()
         swapChainExtent.width,
         swapChainExtent.height,
         1,
-        msaaSamples,
+        context.msaaSamples(),
         colorFormat,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,

@@ -15,7 +15,7 @@ void TriangleApplication::createRenderPass()
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChainImageFormat; // swap chain图像的格式
     // colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // 不使用多重采样
-    colorAttachment.samples = msaaSamples;
+    colorAttachment.samples = context.msaaSamples();
 
     // LoadOp和storeOp决定如何处理attachment中的数据
     // LoadOp:
@@ -48,7 +48,7 @@ void TriangleApplication::createRenderPass()
     VkAttachmentDescription depthAttachment{};
     depthAttachment.format = context.findDepthFormat();
     // depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.samples = msaaSamples;
+    depthAttachment.samples = context.msaaSamples();
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -308,7 +308,7 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = msaaSamples;
+    multisampling.rasterizationSamples = context.msaaSamples();
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;

@@ -116,8 +116,6 @@ void TriangleApplication::Cleanup() noexcept
     cleanedUp = true;
     rendererReady = false;
 
-
-
     const VkResult result = context.waitIdle();
     if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
     {
@@ -154,6 +152,8 @@ void TriangleApplication::Cleanup() noexcept
     irradianceImage.reset();
     prefilterImage.reset();
     brdfLUTImage.reset();
+
+    context.shutdown();
 
     if (window != nullptr)
     {

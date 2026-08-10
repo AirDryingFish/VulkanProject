@@ -50,7 +50,70 @@ void VulkanContext::initialize(GLFWwindow *window, const VulkanContextConfig &co
 
 void VulkanContext::shutdown() noexcept
 {
+    if (device_ != VK_NULL_HANDLE)
+    {
+        const VkResult result =
+            vkDeviceWaitIdle(device_);
 
+        if (result != VK_SUCCESS &&
+            result != VK_ERROR_DEVICE_LOST)
+        {
+            std::fprintf(
+                stderr,
+                "VulkanContext waitIdle failed: %d\n",
+                static_cast<int>(result));
+        }
+    }
+
+    if (allocator_ != nullptr)
+    {
+        vmaDestroyAllocator(allocator_);
+        allocator_ = nullptr;
+    }
+
+    if (device_ != VK_NULL_HANDLE)
+    {
+        vkDestroyDevice(device_, nullptr);
+        device_ = VK_NULL_HANDLE;
+    }
+
+    graphicsQueue_ = VK_NULL_HANDLE;
+    presentQueue_ = VK_NULL_HANDLE;
+    queueFamilies_ = {};
+
+    if (instance_ != VK_NULL_HANDLE &&
+        debugMessenger_ != VK_NULL_HANDLE)
+    {
+        DestroyDebugUtilsMessengerEXT(
+            instance_,
+            debugMessenger_,
+            nullptr);
+
+        debugMessenger_ = VK_NULL_HANDLE;
+    }
+
+    if (instance_ != VK_NULL_HANDLE &&
+        surface_ != VK_NULL_HANDLE)
+    {
+        vkDestroySurfaceKHR(
+            instance_,
+            surface_,
+            nullptr);
+
+        surface_ = VK_NULL_HANDLE;
+    }
+
+    physicalDevice_ = VK_NULL_HANDLE;
+    msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
+
+    if (instance_ != VK_NULL_HANDLE)
+    {
+        vkDestroyInstance(instance_, nullptr);
+        instance_ = VK_NULL_HANDLE;
+    }
+
+    validationEnabled_ = false;
+    apiVersion_ = VK_API_VERSION_1_0;
 }
 
 VkResult VulkanContext::waitIdle() const noexcept
@@ -150,14 +213,51 @@ VkFormat VulkanContext::findDepthFormat() const
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-void VulkanContext::SetDebugName(VkObjectType objectType, uint64_t handle, const char *name) const noexcept
+void VulkanContext::setDebugName(VkObjectType objectType, uint64_t handle, const char *name) const noexcept
 {
+    if (!validationEnabled_ ||
+        device_ == VK_NULL_HANDLE ||
+        handle == 0 ||
+        name == nullptr)
+    {
+        return;
+    }
+
+    const auto function =
+        reinterpret_cast<
+            PFN_vkSetDebugUtilsObjectNameEXT>(
+            vkGetDeviceProcAddr(
+                device_,
+                "vkSetDebugUtilsObjectNameEXT"));
+
+    if (function == nullptr)
+    {
+        return;
+    }
+
+    VkDebugUtilsObjectNameInfoEXT info{};
+    info.sType =
+        VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+    info.objectType = objectType;
+    info.objectHandle = handle;
+    info.pObjectName = name;
+
+    const VkResult result =
+        function(device_, &info);
+
+    if (result != VK_SUCCESS)
+    {
+        std::fprintf(
+            stderr,
+            "setDebugName failed: %d\n",
+            static_cast<int>(result));
+    }
 }
 
 void VulkanContext::createInstance(const VulkanContextConfig &config)
 
 {
-    if (enableValidationLayers && !checkValidationLayerSupport())
+    if (validationEnabled_ && !checkValidationLayerSupport())
     {
         throw std::runtime_error("validation layers requested, but not available!");
     }
@@ -170,7 +270,7 @@ void VulkanContext::createInstance(const VulkanContextConfig &config)
     appInfo.apiVersion = config.apiVersion;
 
     VkInstanceCreateInfo createInfo{};
-    std::vector<const char *> extensions = getRequiredExtentions();
+    std::vector<const char *> extensions = getRequiredExtensions();
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 #if VULKAN_PROJECT_PLATFORM_MACOS
@@ -188,12 +288,12 @@ void VulkanContext::createInstance(const VulkanContextConfig &config)
 
     // createInfo.enabledLayerCount = 0;
 
-    if (enableValidationLayers)
+    if (validationEnabled_)
     {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
 
-        populateDebugMeseengerCreateInfo(debugCreateInfo);
+        populateDebugMessengerCreateInfo(debugCreateInfo);
         createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
     }
     else
@@ -212,13 +312,13 @@ void VulkanContext::createInstance(const VulkanContextConfig &config)
 
 void VulkanContext::setupDebugMessenger()
 {
-    if (!enableValidationLayers)
+    if (!validationEnabled_)
     {
         return;
     }
 
     VkDebugUtilsMessengerCreateInfoEXT createInfo;
-    populateDebugMeseengerCreateInfo(createInfo);
+    populateDebugMessengerCreateInfo(createInfo);
 
     VK_CHECK(CreateDebugUtilsMessengerEXT(instance_, &createInfo, nullptr, &debugMessenger_));
 }
@@ -239,11 +339,12 @@ void VulkanContext::pickPhysicalDevice()
     std::vector<VkPhysicalDevice> devices(deviceCount);
     VK_CHECK(vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data()));
 
-    for (const VkPhysicalDevice &device : devices)
+    for (const VkPhysicalDevice &candidate : devices)
     {
-        if (isDeviceSuitable(device))
+        if (isDeviceSuitable(candidate))
         {
-            physicalDevice_ = device;
+            physicalDevice_ = candidate;
+            queueFamilies_ = findQueueFamilies(candidate);
             msaaSamples_ = getMaxUsableSampleCount();
             std::cout << "MSAA samples: " << msaaSamples_ << std::endl;
             break;
@@ -374,7 +475,7 @@ bool VulkanContext::checkValidationLayerSupport() const
     return true;
 }
 
-std::vector<const char *> VulkanContext::getRequiredExtentions() const
+std::vector<const char *> VulkanContext::getRequiredExtensions() const
 {
     uint32_t glfwExtensionCount = 0;
     const char **glfwExtensions;
@@ -385,7 +486,7 @@ std::vector<const char *> VulkanContext::getRequiredExtentions() const
     // glfwExtensions[1] -> "VK_KHR_win32_surface"
     std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
-    if (enableValidationLayers)
+    if (validationEnabled_)
     {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
@@ -533,7 +634,7 @@ VkSampleCountFlagBits VulkanContext::getMaxUsableSampleCount() const
     return VK_SAMPLE_COUNT_1_BIT;
 }
 
-void VulkanContext::populateDebugMeseengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) const noexcept
+void VulkanContext::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) const noexcept
 {
     createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;

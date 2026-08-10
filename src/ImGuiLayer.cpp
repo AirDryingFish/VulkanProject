@@ -257,7 +257,7 @@ void TriangleApplication::drawImGui()
     ImGui::Text("Frame Time: %.3f ms", 1000.0f / io.Framerate);
     ImGui::Text("Swapchain Images: %zu", swapChainImages.size());
     ImGui::Text("Extent: %u x %u", swapChainExtent.width, swapChainExtent.height);
-    ImGui::Text("MSAA Samples: %d", msaaSamples);
+    ImGui::Text("MSAA Samples: %d", context.msaaSamples());
 
     ImGui::SeparatorText("Camera");
     ImGui::Text("Position: %.2f %.2f %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
