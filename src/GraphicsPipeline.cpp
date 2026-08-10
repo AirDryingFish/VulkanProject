@@ -159,20 +159,6 @@ std::vector<char> TriangleApplication::readFile(const std::string &filename)
     return buffer;
 }
 
-UniqueShaderModule TriangleApplication::createShaderModule(const std::vector<char> &code)
-{
-    VkShaderModuleCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    // SPIR-V的字节码大小(字节数)
-    createInfo.codeSize = code.size();
-    // 指向SPIR-V字节码的指针。SPIR-V字节码是一个uint32_t数组，所以需要把char*转换成uint32_t*。
-    // 因为SPIR-V字节码的大小必须是4的倍数，所以code.size()一定是4的倍数，reinterpret_cast是安全的。
-    createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
-
-    VkShaderModule shaderModule;
-    VK_CHECK(vkCreateShaderModule(context.device(), &createInfo, nullptr, &shaderModule));
-    return UniqueShaderModule(context.device(), shaderModule);
-}
 
 void TriangleApplication::createDescriptorSetLayout()
 {
@@ -245,8 +231,8 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     auto vertShaderCode = readFile(config.vertShaderPath);
     auto fragShaderCode = readFile(config.fragShaderPath);
 
-    UniqueShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    UniqueShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

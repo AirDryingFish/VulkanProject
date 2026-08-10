@@ -139,4 +139,6 @@ public:
         uint32_t arrayLayers = 1,
         VkImageCreateFlags flags = 0);
 
+    UniqueShaderModule createShaderModule(const std::vector<char> &code);
+
 };

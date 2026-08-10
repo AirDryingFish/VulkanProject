@@ -243,8 +243,8 @@ void TriangleApplication::createIrradianceResources()
     auto vertShaderCode = readFile(IRRADIANCE_VERTEX_SHADER_PATH);
     auto fragShaderCode = readFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
 
-    UniqueShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    UniqueShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -601,8 +601,8 @@ void TriangleApplication::createPrefilterResources()
     auto vertShaderCode = readFile(PREFILTER_VERTEX_SHADER_PATH);
     auto fragShaderCode = readFile(PREFILTER_FRAGMENT_SHADER_PATH);
 
-    UniqueShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-    UniqueShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -899,8 +899,8 @@ void TriangleApplication::createBRDFLUTResources()
     // 创建着色器
     const auto vertexCode = readFile(BRDF_LUT_VERTEX_SHADER_PATH);
     const auto fragmentCode = readFile(BRDF_LUT_FRAGMENT_SHADER_PATH);
-    UniqueShaderModule vertexShaderModule = createShaderModule(vertexCode);
-    UniqueShaderModule fragmentShaderModule = createShaderModule(fragmentCode);
+    UniqueShaderModule vertexShaderModule = context.createShaderModule(vertexCode);
+    UniqueShaderModule fragmentShaderModule = context.createShaderModule(fragmentCode);
 
     // 创建着色器阶段信息：这个阶段使用哪个着色器模块、入口函数
     VkPipelineShaderStageCreateInfo vertexStage{};

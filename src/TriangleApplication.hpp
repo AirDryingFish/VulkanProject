@@ -54,7 +54,6 @@ private:
 
     void createRenderPass();
     static std::vector<char> readFile(const std::string &filename);
-    UniqueShaderModule createShaderModule(const std::vector<char> &code);
     void createDescriptorSetLayout();
     void createGraphicsPipeline();
     enum class MeshSource
