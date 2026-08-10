@@ -242,43 +242,80 @@ void VulkanContext::pickPhysicalDevice()
 
 void VulkanContext::createLogicalDevice()
 {
-    // Step 1: 查询队列族索引： 找到物理设备上支持图形操作的队列族索引
-    QueueFamilyIndices indices = findQueueFamilies(physicalDevice_);
+    // // Step 1: 查询队列族索引： 找到物理设备上支持图形操作的队列族索引
+    // QueueFamilyIndices indices = findQueueFamilies(physicalDevice_);
 
-    // Step 2: 填写队列配置： 声明要几个队列、用哪几个队列族、优先级多少
-    VkDeviceQueueCreateInfo queueCreateInfo{};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-    queueCreateInfo.queueCount = 1;
+    // // Step 2: 填写队列配置： 声明要几个队列、用哪几个队列族、优先级多少
+    // VkDeviceQueueCreateInfo queueCreateInfo{};
+    // queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    // queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+    // queueCreateInfo.queueCount = 1;
+    // float queuePriority = 1.0f;
+    // queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    // // Step 3: 声明设备特性：声明要弃用哪些GPU特性，比如这里我们不需要任何特殊的GPU特性，所以就创建一个默认的结构体。
+    // VkPhysicalDeviceFeatures deviceFeatures{};
+
+    // deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+    // // Step 4: 填写设备配置: 把队列配置、设备特性、需要的拓展等信息填入 VkDeviceCreateInfo 结构体，传给 vkCreateDevice 创建逻辑设备。
+    // VkDeviceCreateInfo createInfo{};
+    // createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    // createInfo.pQueueCreateInfos = &queueCreateInfo;
+    // createInfo.queueCreateInfoCount = 1;
+    // createInfo.pEnabledFeatures = &deviceFeatures;
+    // // createInfo.enabledExtensionCount = 0;
+    // // swap chain 是vulkan的一个拓展功能，所以需要在创建logical device的时候告诉vulkan我们需要这个拓展。
+    // createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    // createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+
+    // // Validation layers are instance-scoped. Device layers are legacy and
+    // // enabledLayerCount must remain zero.
+    // createInfo.enabledLayerCount = 0;
+
+    // // Step 5: 创建逻辑设备：调用 vkCreateDevice 创建逻辑设备，并把得到的设备句柄存储在 device 变量中。
+    // VK_CHECK(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_));
+
+    // // Step 6: 获取队列句柄：调用 vkGetDeviceQueue 获取图形队列的句柄，并存储在 graphicsQueue 变量中，以便后续使用。
+    // vkGetDeviceQueue(device_, indices.graphicsFamily.value(), 0, &graphicsQueue_);
+    // vkGetDeviceQueue(device_, indices.presentFamily.value(), 0, &presentQueue_);
+
+    assert(queueFamilies_.isComplete());
+
+    const std::set<uint32_t> uniqueFamilies = {
+        queueFamilies_.graphicsFamily.value(),
+        queueFamilies_.presentFamily.value()
+    };
+
     float queuePriority = 1.0f;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
 
-    // Step 3: 声明设备特性：声明要弃用哪些GPU特性，比如这里我们不需要任何特殊的GPU特性，所以就创建一个默认的结构体。
-    VkPhysicalDeviceFeatures deviceFeatures{};
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    queueCreateInfos.reserve(uniqueFamilies.size());
 
-    deviceFeatures.samplerAnisotropy = VK_TRUE;
+    for (uint32_t family : uniqueFamilies)
+    {
+        VkDeviceQueueCreateInfo queueInfo{};
+        queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueInfo.queueFamilyIndex = family;
+        queueInfo.queueCount = 1;
+        queueInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(queueInfo);
+    }
+    VkPhysicalDeviceFeatures features{};
+    features.samplerAnisotropy = VK_TRUE;
 
-    // Step 4: 填写设备配置: 把队列配置、设备特性、需要的拓展等信息填入 VkDeviceCreateInfo 结构体，传给 vkCreateDevice 创建逻辑设备。
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.pQueueCreateInfos = &queueCreateInfo;
-    createInfo.queueCreateInfoCount = 1;
-    createInfo.pEnabledFeatures = &deviceFeatures;
-    // createInfo.enabledExtensionCount = 0;
-    // swap chain 是vulkan的一个拓展功能，所以需要在创建logical device的时候告诉vulkan我们需要这个拓展。
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
+    createInfo.pEnabledFeatures = &features;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-
-    // Validation layers are instance-scoped. Device layers are legacy and
-    // enabledLayerCount must remain zero.
     createInfo.enabledLayerCount = 0;
 
-    // Step 5: 创建逻辑设备：调用 vkCreateDevice 创建逻辑设备，并把得到的设备句柄存储在 device 变量中。
     VK_CHECK(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_));
-
-    // Step 6: 获取队列句柄：调用 vkGetDeviceQueue 获取图形队列的句柄，并存储在 graphicsQueue 变量中，以便后续使用。
-    vkGetDeviceQueue(device_, indices.graphicsFamily.value(), 0, &graphicsQueue_);
-    vkGetDeviceQueue(device_, indices.presentFamily.value(), 0, &presentQueue_);
+    vkGetDeviceQueue(device_, queueFamilies_.graphicsFamily.value(), 0, &graphicsQueue_);
+    vkGetDeviceQueue(device_, queueFamilies_.presentFamily.value(), 0, &presentQueue_);
 }
 
 void VulkanContext::createAllocator()
@@ -291,7 +328,6 @@ bool VulkanContext::checkValidationLayerSupport() const
 }
 
 std::vector<const char *> VulkanContext::getRequiredExtentions() const
-
 {
     uint32_t glfwExtensionCount = 0;
     const char **glfwExtensions;
