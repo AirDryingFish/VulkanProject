@@ -84,10 +84,10 @@ AllocatedBuffer TriangleApplication::createBuffer(VkDeviceSize size,
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
     }
 
-    VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
+    VK_CHECK(vmaCreateBuffer(context.allocator(), &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
 
     return AllocatedBuffer(
-        allocator,
+        context.allocator(),
         rawBuffer,
         rawAllocation
     );

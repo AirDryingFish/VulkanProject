@@ -18,9 +18,9 @@ void TriangleApplication::createPresentSemaphores()
 
     for (VkSemaphore &renderFinished : renderFinishedSemaphores)
     {
-        VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinished));
+        VK_CHECK(vkCreateSemaphore(context.device(), &semaphoreInfo, nullptr, &renderFinished));
         swapChainDeletionQueue.pushFunction([this, renderFinished]() {
-            vkDestroySemaphore(device, renderFinished, nullptr);
+            vkDestroySemaphore(context.device(), renderFinished, nullptr);
         });
     }
 }
@@ -45,7 +45,7 @@ void TriangleApplication::drawFrame()
     deltaTime = std::min(deltaTime, 0.05f);
 
     // fence等待gpu返回，保证gpu不再使用buffer
-    VK_CHECK(vkWaitForFences(device, 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
+    VK_CHECK(vkWaitForFences(context.device(), 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
     frame.retiredBuffers.clear();
 
     int width = 0;
@@ -66,7 +66,7 @@ void TriangleApplication::drawFrame()
     }
 
     uint32_t imageIndex = 0;
-    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(context.device(), swapChain, UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         framebufferResized = false;
@@ -84,7 +84,7 @@ void TriangleApplication::drawFrame()
     processCameraInput(deltaTime);
     updateUniformBuffer(currentFrame, deltaTime);
 
-    VK_CHECK(vkResetCommandPool(device, frame.commandPool, 0));
+    VK_CHECK(vkResetCommandPool(context.device(), frame.commandPool, 0));
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -113,10 +113,10 @@ void TriangleApplication::drawFrame()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    VK_CHECK(vkResetFences(device, 1, &frame.renderFence));
+    VK_CHECK(vkResetFences(context.device(), 1, &frame.renderFence));
 
 
-    VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, frame.renderFence));
+    VK_CHECK(vkQueueSubmit(context.graphicsQueue(), 1, &submitInfo, frame.renderFence));
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -128,7 +128,7 @@ void TriangleApplication::drawFrame()
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
 
-    result = vkQueuePresentKHR(presentQueue, &presentInfo);
+    result = vkQueuePresentKHR(context.presentQueue(), &presentInfo);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
     {
         framebufferResized = false;

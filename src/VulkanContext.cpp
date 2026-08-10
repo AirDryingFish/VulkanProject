@@ -122,14 +122,32 @@ SwapChainSupportDetails VulkanContext::querySwapchainSupport() const
     return querySwapchainSupport(physicalDevice_);
 }
 
-VkFormat VulkanContext::findSupportedFormat(const std::vector<VkFormat> &candidate, VkImageTiling tiling, VkFormatFeatureFlags feature) const
+VkFormat VulkanContext::findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const
 {
-    return VkFormat();
+    for (VkFormat format : candidates)
+    {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice_, format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+        {
+            return format;
+        }
+        if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+        {
+            return format;
+        }
+    }
+
+    throw std::runtime_error("failed to find supported format!");
 }
 
 VkFormat VulkanContext::findDepthFormat() const
 {
-    return VkFormat();
+    return findSupportedFormat(
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
 void VulkanContext::SetDebugName(VkObjectType objectType, uint64_t handle, const char *name) const noexcept
@@ -227,11 +245,11 @@ void VulkanContext::pickPhysicalDevice()
         {
             physicalDevice_ = device;
             msaaSamples_ = getMaxUsableSampleCount();
-            std::cout << "MSAA samples: " << msaaSamples << std::endl;
+            std::cout << "MSAA samples: " << msaaSamples_ << std::endl;
             break;
         }
     }
-    if (physicalDevice == VK_NULL_HANDLE)
+    if (physicalDevice_ == VK_NULL_HANDLE)
     {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
@@ -331,7 +349,29 @@ void VulkanContext::createAllocator()
 
 bool VulkanContext::checkValidationLayerSupport() const
 {
-    return false;
+    uint32_t layerCount;
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&layerCount, nullptr));
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()));
+
+    for (const char *layerName : validationLayers)
+    {
+        bool layerFound = false;
+        for (const auto &layerProperties : availableLayers)
+        {
+            if (strcmp(layerName, layerProperties.layerName) == 0)
+            {
+                layerFound = true;
+                break;
+            }
+        }
+
+        if (!layerFound)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::vector<const char *> VulkanContext::getRequiredExtentions() const

@@ -46,7 +46,7 @@ void TriangleApplication::createRenderPass()
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // subpass使用attachment时的布局
 
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = findDepthFormat();
+    depthAttachment.format = context.findDepthFormat();
     // depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     depthAttachment.samples = msaaSamples;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -131,9 +131,9 @@ void TriangleApplication::createRenderPass()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
+    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &renderPass));
     mainDeletionQueue.pushFunction([this, capturedRenderPass = renderPass]() mutable{
-        vkDestroyRenderPass(device, capturedRenderPass, nullptr);
+        vkDestroyRenderPass(context.device(), capturedRenderPass, nullptr);
     });
 }
 
@@ -170,8 +170,8 @@ UniqueShaderModule TriangleApplication::createShaderModule(const std::vector<cha
     createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
 
     VkShaderModule shaderModule;
-    VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
-    return UniqueShaderModule(device, shaderModule);
+    VK_CHECK(vkCreateShaderModule(context.device(), &createInfo, nullptr, &shaderModule));
+    return UniqueShaderModule(context.device(), shaderModule);
 }
 
 void TriangleApplication::createDescriptorSetLayout()
@@ -200,9 +200,9 @@ void TriangleApplication::createDescriptorSetLayout()
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
+    VK_CHECK(vkCreateDescriptorSetLayout(context.device(), &layoutInfo, nullptr, &descriptorSetLayout));
     mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable {
-        vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        vkDestroyDescriptorSetLayout(context.device(), layout, nullptr);
     });
 }
 
@@ -219,7 +219,7 @@ void TriangleApplication::createGraphicsPipeline()
 
     graphicsPipeline = createGraphicsPipelineFromConfig(config);
     mainDeletionQueue.pushFunction([this, pipeline = graphicsPipeline]() mutable {
-        vkDestroyPipeline(device, pipeline, nullptr);
+        vkDestroyPipeline(context.device(), pipeline, nullptr);
     });
 }
 
@@ -236,7 +236,7 @@ void TriangleApplication::createSkyboxPipeline()
 
     skyboxPipeline = createGraphicsPipelineFromConfig(config);
     mainDeletionQueue.pushFunction([this, pipeline = skyboxPipeline]() mutable {
-        vkDestroyPipeline(device, pipeline, nullptr);
+        vkDestroyPipeline(context.device(), pipeline, nullptr);
     });
 }
 
@@ -334,10 +334,10 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &modelPushConstant;
 
-        VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+        VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
         mainDeletionQueue.pushFunction([this, layout = pipelineLayout]() mutable {
-            vkDestroyPipelineLayout(device, layout, nullptr);
+            vkDestroyPipelineLayout(context.device(), layout, nullptr);
         });
     }
 
@@ -368,7 +368,7 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     pipelineInfo.basePipelineIndex = -1;
 
     VkPipeline pipeline = VK_NULL_HANDLE;
-    const VkResult pipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+    const VkResult pipelineResult = vkCreateGraphicsPipelines(context.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines");
 
     return pipeline;
@@ -399,10 +399,10 @@ void TriangleApplication::createFramebuffers()
         framebufferInfo.height = swapChainExtent.height;   // framebuffer的宽高必须和render pass里定义的视口大小一致
         framebufferInfo.layers = 1;                        // 只有一层
 
-        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
+        VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
 
         swapChainDeletionQueue.pushFunction([this, frameBuffer = swapChainFramebuffers[i]]() {
-            vkDestroyFramebuffer(device, frameBuffer, nullptr);
+            vkDestroyFramebuffer(context.device(), frameBuffer, nullptr);
         });
     }
 }

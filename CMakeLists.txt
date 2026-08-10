@@ -81,13 +81,11 @@ add_executable(vulkan
     src/RendererLegacy.cpp
     src/SwapChainLegacy.cpp
     src/TriangleApplication.cpp
-    src/VulkanDevice.cpp
-    src/VulkanInstance.cpp
     src/ThirdPartyImplementations.cpp
-    src/VulkanAllocator.cpp
     src/ImGuiLayer.cpp
     src/Skybox.cpp
     src/VulkanResources.cpp
+    src/VulkanContext.cpp
 )
 
 target_include_directories(vulkan PRIVATE

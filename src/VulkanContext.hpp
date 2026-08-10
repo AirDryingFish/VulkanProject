@@ -107,9 +107,9 @@ public:
     SwapChainSupportDetails querySwapchainSupport() const;
 
     VkFormat findSupportedFormat(
-        const std::vector<VkFormat>& candidate,
+        const std::vector<VkFormat>& candidates,
         VkImageTiling tiling,
-        VkFormatFeatureFlags feature
+        VkFormatFeatureFlags features
     ) const;
     VkFormat findDepthFormat() const;
 

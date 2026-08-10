@@ -90,9 +90,9 @@ void TriangleApplication::createIrradianceResources()
 
     for (uint32_t face = 0; face < irradianceFaceImageViews.size(); face++)
     {
-        irradianceFaceImageViews[face] = createIrradianceFaceImageView(device, irradianceImage.get(), face);
+        irradianceFaceImageViews[face] = createIrradianceFaceImageView(context.device(), irradianceImage.get(), face);
         mainDeletionQueue.pushFunction([this, imageView = irradianceFaceImageViews[face]]()
-                                       { vkDestroyImageView(device, imageView, nullptr); });
+                                       { vkDestroyImageView(context.device(), imageView, nullptr); });
     }
 
     VkSamplerCreateInfo samplerInfo{};
@@ -112,9 +112,9 @@ void TriangleApplication::createIrradianceResources()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;
 
-    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &irradianceSampler));
+    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &irradianceSampler));
     mainDeletionQueue.pushFunction([this, sampler = irradianceSampler]()
-                                   { vkDestroySampler(device, sampler, nullptr); });
+                                   { vkDestroySampler(context.device(), sampler, nullptr); });
 
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = irradianceFormat;
@@ -152,9 +152,9 @@ void TriangleApplication::createIrradianceResources()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &irradianceRenderPass));
+    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &irradianceRenderPass));
     mainDeletionQueue.pushFunction([this, renderPass = irradianceRenderPass]()
-                                   { vkDestroyRenderPass(device, renderPass, nullptr); });
+                                   { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
 
     for (uint32_t face = 0; face < irradianceFramebuffers.size(); face++)
     {
@@ -168,9 +168,9 @@ void TriangleApplication::createIrradianceResources()
         framebufferInfo.height = irradianceDimension;
         framebufferInfo.layers = 1;
 
-        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &irradianceFramebuffers[face]));
+        VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &irradianceFramebuffers[face]));
         mainDeletionQueue.pushFunction([this, framebuffer = irradianceFramebuffers[face]]()
-                                       { vkDestroyFramebuffer(device, framebuffer, nullptr); });
+                                       { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
     }
 
     VkDescriptorSetLayoutBinding environmentMapBinding{};
@@ -184,9 +184,9 @@ void TriangleApplication::createIrradianceResources()
     descriptorLayoutInfo.bindingCount = 1;
     descriptorLayoutInfo.pBindings = &environmentMapBinding;
 
-    VK_CHECK(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &irradianceDescriptorSetLayout));
+    VK_CHECK(vkCreateDescriptorSetLayout(context.device(), &descriptorLayoutInfo, nullptr, &irradianceDescriptorSetLayout));
     mainDeletionQueue.pushFunction([this, layout = irradianceDescriptorSetLayout]()
-                                   { vkDestroyDescriptorSetLayout(device, layout, nullptr); });
+                                   { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -198,9 +198,9 @@ void TriangleApplication::createIrradianceResources()
     descriptorPoolInfo.pPoolSizes = &poolSize;
     descriptorPoolInfo.maxSets = 1;
 
-    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &irradianceDescriptorPool));
+    VK_CHECK(vkCreateDescriptorPool(context.device(), &descriptorPoolInfo, nullptr, &irradianceDescriptorPool));
     mainDeletionQueue.pushFunction([this, pool = irradianceDescriptorPool]()
-                                   { vkDestroyDescriptorPool(device, pool, nullptr); });
+                                   { vkDestroyDescriptorPool(context.device(), pool, nullptr); });
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -208,7 +208,7 @@ void TriangleApplication::createIrradianceResources()
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &irradianceDescriptorSetLayout;
 
-    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &irradianceDescriptorSet));
+    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &irradianceDescriptorSet));
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = skyboxSampler;
@@ -222,7 +222,7 @@ void TriangleApplication::createIrradianceResources()
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &imageInfo;
-    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context.device(), 1, &descriptorWrite, 0, nullptr);
 
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -236,9 +236,9 @@ void TriangleApplication::createIrradianceResources()
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &irradiancePipelineLayout));
+    VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &irradiancePipelineLayout));
     mainDeletionQueue.pushFunction([this, layout = irradiancePipelineLayout]()
-                                   { vkDestroyPipelineLayout(device, layout, nullptr); });
+                                   { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
 
     auto vertShaderCode = readFile(IRRADIANCE_VERTEX_SHADER_PATH);
     auto fragShaderCode = readFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
@@ -323,11 +323,11 @@ void TriangleApplication::createIrradianceResources()
     pipelineInfo.renderPass = irradianceRenderPass;
     pipelineInfo.subpass = 0;
 
-    const VkResult irradiancePipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &irradiancePipeline);
+    const VkResult irradiancePipelineResult = vkCreateGraphicsPipelines(context.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &irradiancePipeline);
     VK_CHECK_RESULT(irradiancePipelineResult, "vkCreateGraphicsPipelines(irradiance)");
 
     mainDeletionQueue.pushFunction([this, pipeline = irradiancePipeline]()
-                                   { vkDestroyPipeline(device, pipeline, nullptr); });
+                                   { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 
     transitionImageLayout(
         irradianceImage.get(),
@@ -444,9 +444,9 @@ void TriangleApplication::createPrefilterResources()
     {
         for (uint32_t face = 0; face < prefilterFaceImageViews[mip].size(); face++)
         {
-            prefilterFaceImageViews[mip][face] = createPrefilterFaceImageView(device, prefilterImage.get(), mip, face);
+            prefilterFaceImageViews[mip][face] = createPrefilterFaceImageView(context.device(), prefilterImage.get(), mip, face);
             mainDeletionQueue.pushFunction([this, imageView = prefilterFaceImageViews[mip][face]]()
-                                           { vkDestroyImageView(device, imageView, nullptr); });
+                                           { vkDestroyImageView(context.device(), imageView, nullptr); });
         }
     }
 
@@ -467,9 +467,9 @@ void TriangleApplication::createPrefilterResources()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = float(prefilterMipLevels - 1);
 
-    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &prefilterSampler));
+    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &prefilterSampler));
     mainDeletionQueue.pushFunction([this, sampler = prefilterSampler]()
-                                   { vkDestroySampler(device, sampler, nullptr); });
+                                   { vkDestroySampler(context.device(), sampler, nullptr); });
 
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = prefilterFormat;
@@ -507,9 +507,9 @@ void TriangleApplication::createPrefilterResources()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &prefilterRenderpass));
+    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &prefilterRenderpass));
     mainDeletionQueue.pushFunction([this, renderPass = prefilterRenderpass]()
-                                   { vkDestroyRenderPass(device, renderPass, nullptr); });
+                                   { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
 
     for (uint32_t mip = 0; mip < prefilterMipLevels; mip++)
     {
@@ -525,9 +525,9 @@ void TriangleApplication::createPrefilterResources()
             framebufferInfo.height = prefilterDimension >> mip;
             framebufferInfo.layers = 1;
 
-            VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &prefilterFramebuffers[mip][face]));
+            VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &prefilterFramebuffers[mip][face]));
             mainDeletionQueue.pushFunction([this, framebuffer = prefilterFramebuffers[mip][face]]()
-                                           { vkDestroyFramebuffer(device, framebuffer, nullptr); });
+                                           { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
         }
     }
 
@@ -542,9 +542,9 @@ void TriangleApplication::createPrefilterResources()
     descriptorLayoutInfo.bindingCount = 1;
     descriptorLayoutInfo.pBindings = &environmentMapBinding;
 
-    VK_CHECK(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &prefilterDescriptorSetLayout));
+    VK_CHECK(vkCreateDescriptorSetLayout(context.device(), &descriptorLayoutInfo, nullptr, &prefilterDescriptorSetLayout));
     mainDeletionQueue.pushFunction([this, layout = prefilterDescriptorSetLayout]()
-                                   { vkDestroyDescriptorSetLayout(device, layout, nullptr); });
+                                   { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -556,9 +556,9 @@ void TriangleApplication::createPrefilterResources()
     descriptorPoolInfo.pPoolSizes = &poolSize;
     descriptorPoolInfo.maxSets = 1;
 
-    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &prefilterDescriptorPool));
+    VK_CHECK(vkCreateDescriptorPool(context.device(), &descriptorPoolInfo, nullptr, &prefilterDescriptorPool));
     mainDeletionQueue.pushFunction([this, pool = prefilterDescriptorPool]()
-                                   { vkDestroyDescriptorPool(device, pool, nullptr); });
+                                   { vkDestroyDescriptorPool(context.device(), pool, nullptr); });
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -566,7 +566,7 @@ void TriangleApplication::createPrefilterResources()
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &prefilterDescriptorSetLayout;
 
-    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &prefilterDescriptorSet));
+    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &prefilterDescriptorSet));
 
     VkDescriptorImageInfo imageInfo{};
     imageInfo.sampler = skyboxSampler;
@@ -580,7 +580,7 @@ void TriangleApplication::createPrefilterResources()
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &imageInfo;
-    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context.device(), 1, &descriptorWrite, 0, nullptr);
 
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -594,9 +594,9 @@ void TriangleApplication::createPrefilterResources()
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &prefilterPipelineLayout));
+    VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &prefilterPipelineLayout));
     mainDeletionQueue.pushFunction([this, layout = prefilterPipelineLayout]()
-                                   { vkDestroyPipelineLayout(device, layout, nullptr); });
+                                   { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
 
     auto vertShaderCode = readFile(PREFILTER_VERTEX_SHADER_PATH);
     auto fragShaderCode = readFile(PREFILTER_FRAGMENT_SHADER_PATH);
@@ -681,11 +681,11 @@ void TriangleApplication::createPrefilterResources()
     pipelineInfo.renderPass = prefilterRenderpass;
     pipelineInfo.subpass = 0;
 
-    const VkResult prefilterPipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &prefilterPipeline);
+    const VkResult prefilterPipelineResult = vkCreateGraphicsPipelines(context.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &prefilterPipeline);
     VK_CHECK_RESULT(prefilterPipelineResult, "vkCreateGraphicsPipelines(prefilter)");
 
     mainDeletionQueue.pushFunction([this, pipeline = prefilterPipeline]()
-                                   { vkDestroyPipeline(device, pipeline, nullptr); });
+                                   { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 
     transitionImageLayout(
         prefilterImage.get(),
@@ -819,10 +819,10 @@ void TriangleApplication::createBRDFLUTResources()
     samplerInfo.maxLod = 0.0f;
     samplerInfo.maxAnisotropy = 1.0f;
 
-    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &brdfLUTSampler));
+    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &brdfLUTSampler));
     mainDeletionQueue.pushFunction([this, sampler = brdfLUTSampler]()
     {
-        vkDestroySampler(device, sampler, nullptr);
+        vkDestroySampler(context.device(), sampler, nullptr);
     });
     
     // 创建颜色附件描述: 这张附件是什么，渲染前后怎么处理
@@ -866,9 +866,9 @@ void TriangleApplication::createBRDFLUTResources()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &brdfLUTRenderPass));
+    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &brdfLUTRenderPass));
     mainDeletionQueue.pushFunction([this, renderPass = brdfLUTRenderPass](){
-        vkDestroyRenderPass(device, renderPass, nullptr);
+        vkDestroyRenderPass(context.device(), renderPass, nullptr);
     });
 
     // 创建帧缓冲：这个帧缓冲会使用哪些附件、渲染通道、尺寸
@@ -882,17 +882,17 @@ void TriangleApplication::createBRDFLUTResources()
     framebufferInfo.height = brdfLUTDimension;
     framebufferInfo.layers = 1;
 
-    VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &brdfLUTFramebuffer));
+    VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &brdfLUTFramebuffer));
     mainDeletionQueue.pushFunction([this, framebuffer = brdfLUTFramebuffer](){
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
+        vkDestroyFramebuffer(context.device(), framebuffer, nullptr);
     });
 
     // 创建管线布局：这个管线布局会使用哪些描述符集、推送常量
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &brdfLUTPipelineLayout));
+    VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &brdfLUTPipelineLayout));
     mainDeletionQueue.pushFunction([this, layout = brdfLUTPipelineLayout](){
-        vkDestroyPipelineLayout(device, layout, nullptr);
+        vkDestroyPipelineLayout(context.device(), layout, nullptr);
     });
     
 
@@ -993,7 +993,7 @@ void TriangleApplication::createBRDFLUTResources()
     pipelineInfo.subpass = 0;
 
     VkResult pipelineResult = vkCreateGraphicsPipelines(
-        device,
+        context.device(),
         VK_NULL_HANDLE,
         1,
         &pipelineInfo,
@@ -1003,7 +1003,7 @@ void TriangleApplication::createBRDFLUTResources()
 
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines(brdf LUT)");
     mainDeletionQueue.pushFunction([this, pipeline = brdfLUTPipeline](){
-        vkDestroyPipeline(device, pipeline, nullptr);
+        vkDestroyPipeline(context.device(), pipeline, nullptr);
     });
 
     // 上面创建好了pipeline，接下来把fragment的结果写入附件，先设置image的格式可以作为颜色附件写入

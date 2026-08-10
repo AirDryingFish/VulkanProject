@@ -58,7 +58,7 @@ VkExtent2D TriangleApplication::chooseSwapExtent(const VkSurfaceCapabilitiesKHR 
 
 void TriangleApplication::createSwapChain()
 {
-    SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+    SwapChainSupportDetails swapChainSupport = context.querySwapchainSupport();
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
     VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
@@ -72,7 +72,7 @@ void TriangleApplication::createSwapChain()
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = surface;
+    createInfo.surface = context.surface();
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -80,7 +80,7 @@ void TriangleApplication::createSwapChain()
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    QueueFamilyIndices indices = context.queueFamilies();
     uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
     if (indices.graphicsFamily != indices.presentFamily)
@@ -102,11 +102,11 @@ void TriangleApplication::createSwapChain()
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    VK_CHECK(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain));
+    VK_CHECK(vkCreateSwapchainKHR(context.device(), &createInfo, nullptr, &swapChain));
 
-    VK_CHECK(vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr));
+    VK_CHECK(vkGetSwapchainImagesKHR(context.device(), swapChain, &imageCount, nullptr));
     swapChainImages.resize(imageCount);
-    VK_CHECK(vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data()));
+    VK_CHECK(vkGetSwapchainImagesKHR(context.device(), swapChain, &imageCount, swapChainImages.data()));
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
@@ -122,7 +122,7 @@ void TriangleApplication::waitForAllFrames()
         fences[i] = frames[i].renderFence;
     }
 
-    VK_CHECK(vkWaitForFences(device, static_cast<uint32_t>(fences.size()), fences.data(), VK_TRUE, UINT64_MAX));
+    VK_CHECK(vkWaitForFences(context.device(), static_cast<uint32_t>(fences.size()), fences.data(), VK_TRUE, UINT64_MAX));
 }
 
 void TriangleApplication::recreateSwapChain()
@@ -143,7 +143,7 @@ void TriangleApplication::recreateSwapChain()
     waitForAllFrames();
     // Frame Fence 只能证明 Graphics Submission完成
     // Present Queue 可能还在使用旧的 SwapChain Image，必须等待 Present Queue 空闲后才能销毁旧的 SwapChain
-    VK_CHECK(vkQueueWaitIdle(presentQueue));
+    VK_CHECK(vkQueueWaitIdle(context.presentQueue()));
 
     cleanupSwapChain();
     createSwapChain();
@@ -170,7 +170,7 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
 
 void TriangleApplication::cleanupSwapChain() noexcept
 {
-    if (device == VK_NULL_HANDLE)
+    if (context.device() == VK_NULL_HANDLE)
     {
         return;
     }
@@ -182,7 +182,7 @@ void TriangleApplication::cleanupSwapChain() noexcept
 
     if (swapChain != VK_NULL_HANDLE)
     {
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
+        vkDestroySwapchainKHR(context.device(), swapChain, nullptr);
         swapChain = VK_NULL_HANDLE;
     }
 }
@@ -196,7 +196,7 @@ void TriangleApplication::createImageViews()
         swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, 1);
 
         swapChainDeletionQueue.pushFunction([this, imageView = swapChainImageViews[i]]() {
-            vkDestroyImageView(device, imageView, nullptr);
+            vkDestroyImageView(context.device(), imageView, nullptr);
         });
     }
 }

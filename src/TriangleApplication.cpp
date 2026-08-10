@@ -48,14 +48,12 @@ void TriangleApplication::InitWindow()
 
 void TriangleApplication::InitVulkan()
 {
-    CreateInstance();
-    setupDebugMessenger();
-    createSurface();
+    VulkanContextConfig contextConfig{};
+    contextConfig.applicationName = "VulkanProject";
+    contextConfig.enableValidation = enableValidationLayers;
+    contextConfig.apiVersion = VK_API_VERSION_1_0;
 
-    pickPhysicalDevice();
-    createLogicalDevice();
-
-    createAllocator();
+    context.initialize(window, contextConfig);
 
     createSwapChain();
     createImageViews();
@@ -118,17 +116,16 @@ void TriangleApplication::Cleanup() noexcept
     cleanedUp = true;
     rendererReady = false;
 
-    if (device != VK_NULL_HANDLE)
+
+
+    const VkResult result = context.waitIdle();
+    if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
     {
-        const VkResult result = vkDeviceWaitIdle(device);
-        if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
-        {
-            std::fprintf(
-                stderr,
-                "vkDeviceWaitIdle failed during cleanup: %s (%d)\n",
-                vkResultToString(result),
-                static_cast<int>(result));
-        }
+        std::fprintf(
+            stderr,
+            "vkDeviceWaitIdle failed during cleanup: %s (%d)\n",
+            vkResultToString(result),
+            static_cast<int>(result));
     }
 
     cleanupSwapChain();
@@ -157,36 +154,6 @@ void TriangleApplication::Cleanup() noexcept
     irradianceImage.reset();
     prefilterImage.reset();
     brdfLUTImage.reset();
-
-    if (allocator != nullptr)
-    {
-        vmaDestroyAllocator(allocator);
-        allocator = nullptr;
-    }
-
-    if (device != VK_NULL_HANDLE)
-    {
-        vkDestroyDevice(device, nullptr);
-        device = VK_NULL_HANDLE;
-    }
-
-    if (instance != VK_NULL_HANDLE && debugMessenger != VK_NULL_HANDLE)
-    {
-        DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-        debugMessenger = VK_NULL_HANDLE;
-    }
-
-    if (instance != VK_NULL_HANDLE && surface != VK_NULL_HANDLE)
-    {
-        vkDestroySurfaceKHR(instance, surface, nullptr);
-        surface = VK_NULL_HANDLE;
-    }
-    
-    if (instance != VK_NULL_HANDLE)
-    {
-        vkDestroyInstance(instance, nullptr);
-        instance = VK_NULL_HANDLE;
-    }
 
     if (window != nullptr)
     {

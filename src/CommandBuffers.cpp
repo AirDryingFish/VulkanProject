@@ -78,13 +78,13 @@ void TriangleApplication::immediateSubmit(std::function<void(VkCommandBuffer cmd
 {
 
     // 确认上一次使用的UploadContext已经完成
-    VK_CHECK(vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX));
+    VK_CHECK(vkWaitForFences(context.device(), 1, &uploadContext.fence, VK_TRUE, UINT64_MAX));
 
     // Fence必须回到 unsignaled 才能交给下一次 submit
-    VK_CHECK(vkResetFences(device, 1, &uploadContext.fence));
+    VK_CHECK(vkResetFences(context.device(), 1, &uploadContext.fence));
 
     // Fence 已经证明上一轮 command buffer 不再 pending，因此可以安全reset command pool
-    VK_CHECK(vkResetCommandPool(device, uploadContext.commandPool, 0));
+    VK_CHECK(vkResetCommandPool(context.device(), uploadContext.commandPool, 0));
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -101,26 +101,26 @@ void TriangleApplication::immediateSubmit(std::function<void(VkCommandBuffer cmd
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &uploadContext.commandBuffer;
 
-    VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, uploadContext.fence));
+    VK_CHECK(vkQueueSubmit(context.graphicsQueue(), 1, &submitInfo, uploadContext.fence));
 
-    VK_CHECK(vkWaitForFences(device, 1, &uploadContext.fence, VK_TRUE, UINT64_MAX));
+    VK_CHECK(vkWaitForFences(context.device(), 1, &uploadContext.fence, VK_TRUE, UINT64_MAX));
 
 }
 
 void TriangleApplication::createUploadContext()
 {
-    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    QueueFamilyIndices indices = context.queueFamilies();
 
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
     poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
 
-    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &uploadContext.commandPool));
+    VK_CHECK(vkCreateCommandPool(context.device(), &poolInfo, nullptr, &uploadContext.commandPool));
 
     const VkCommandPool commandPool = uploadContext.commandPool;
     mainDeletionQueue.pushFunction([this, commandPool]() noexcept {
-        vkDestroyCommandPool(device, commandPool, nullptr);
+        vkDestroyCommandPool(context.device(), commandPool, nullptr);
     });
 
     VkCommandBufferAllocateInfo allocInfo{};
@@ -129,23 +129,23 @@ void TriangleApplication::createUploadContext()
     allocInfo.commandPool = uploadContext.commandPool;
     allocInfo.commandBufferCount = 1;
 
-    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &uploadContext.commandBuffer));
+    VK_CHECK(vkAllocateCommandBuffers(context.device(), &allocInfo, &uploadContext.commandBuffer));
 
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &uploadContext.fence));
+    VK_CHECK(vkCreateFence(context.device(), &fenceInfo, nullptr, &uploadContext.fence));
 
     const VkFence fence = uploadContext.fence;
     mainDeletionQueue.pushFunction([this, fence]() noexcept {
-        vkDestroyFence(device, fence, nullptr);
+        vkDestroyFence(context.device(), fence, nullptr);
     });
 }
 
 void TriangleApplication::createFrameContexts()
 {
-    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    QueueFamilyIndices indices = context.queueFamilies();
     
     for (FrameContext& frame : frames)
     {
@@ -158,11 +158,11 @@ void TriangleApplication::createFrameContexts()
         poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
         poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
 
-        VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &frame.commandPool));
+        VK_CHECK(vkCreateCommandPool(context.device(), &poolInfo, nullptr, &frame.commandPool));
 
         const auto commandPool = frame.commandPool;
         mainDeletionQueue.pushFunction([this, commandPool]() {
-            vkDestroyCommandPool(device, commandPool, nullptr);
+            vkDestroyCommandPool(context.device(), commandPool, nullptr);
         });
 
         // 从 frame.commandPool 分配 frame.commandBuffer
@@ -173,17 +173,17 @@ void TriangleApplication::createFrameContexts()
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = 1;
 
-        VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &frame.commandBuffer));
+        VK_CHECK(vkAllocateCommandBuffers(context.device(), &allocInfo, &frame.commandBuffer));
 
         // 创建 frame.imageAvailable 信号量
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailable));
+        VK_CHECK(vkCreateSemaphore(context.device(), &semaphoreInfo, nullptr, &frame.imageAvailable));
 
         const auto imageAvailable = frame.imageAvailable;
         mainDeletionQueue.pushFunction([this, imageAvailable]() {
-            vkDestroySemaphore(device, imageAvailable, nullptr);
+            vkDestroySemaphore(context.device(), imageAvailable, nullptr);
         });
 
         // 创建带 SIGNALED_BIT 的 frame.renderFence
@@ -191,11 +191,11 @@ void TriangleApplication::createFrameContexts()
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence));
+        VK_CHECK(vkCreateFence(context.device(), &fenceInfo, nullptr, &frame.renderFence));
 
         const VkFence renderFence = frame.renderFence;
         mainDeletionQueue.pushFunction([this, renderFence]() {
-            vkDestroyFence(device, renderFence, nullptr);
+            vkDestroyFence(context.device(), renderFence, nullptr);
         });
     }
 }

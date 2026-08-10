@@ -57,12 +57,12 @@ AllocatedImage TriangleApplication::createImage(
         allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     }
 
-    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr));
+    VK_CHECK(vmaCreateImage(context.allocator(), &imageInfo, &allocInfo, &image, &allocation, nullptr));
     // allocatedImage.mipLevels = mipLevels;
 
     return AllocatedImage(
-        allocator,
-        device, 
+        context.allocator(),
+        context.device(), 
         image, 
         allocation,
         mipLevels
@@ -249,7 +249,7 @@ VkImageView TriangleApplication::createImageView(VkImage image, VkFormat format,
     viewInfo.subresourceRange.layerCount = layerCount;
 
     VkImageView imageView;
-    VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
+    VK_CHECK(vkCreateImageView(context.device(), &viewInfo, nullptr, &imageView));
 
     return imageView;
 }
@@ -303,10 +303,10 @@ void TriangleApplication::createTextureSampler()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
 
-    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler));
+    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &textureSampler));
 
     mainDeletionQueue.pushFunction([this, sampler = textureSampler]()
-                                   { vkDestroySampler(device, sampler, nullptr); });
+                                   { vkDestroySampler(context.device(), sampler, nullptr); });
 }
 
 void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
@@ -391,12 +391,12 @@ void TriangleApplication::copyBufferToImage(VkBuffer buffer, VkImage image, uint
             height,
             1};
 
-        vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region); });
+    vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region); });
 }
 
 void TriangleApplication::createDepthResources()
 {
-    VkFormat depthFormat = findDepthFormat();
+    VkFormat depthFormat = context.findDepthFormat();
 
     depthImage = createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL,
                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -408,38 +408,6 @@ void TriangleApplication::createDepthResources()
     //                                     { destroyImage(image); });
 }
 
-VkFormat TriangleApplication::findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
-{
-    for (VkFormat format : candidates)
-    {
-        VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
-
-        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
-        {
-            return format;
-        }
-        if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
-        {
-            return format;
-        }
-    }
-
-    throw std::runtime_error("failed to find supported format!");
-}
-
-VkFormat TriangleApplication::findDepthFormat()
-{
-    return findSupportedFormat(
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-}
-
-VkSampleCountFlagBits TriangleApplication::getMaxUsableSampleCount()
-{
-
-}
 
 void TriangleApplication::createColorResources()
 {
@@ -464,18 +432,3 @@ bool TriangleApplication::hasStencilComponent(VkFormat format)
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-// void TriangleApplication::destroyImage(AllocatedImage &image)
-// {
-//     if (image.imageView != VK_NULL_HANDLE)
-//     {
-//         vkDestroyImageView(device, image.imageView, nullptr);
-//         image.imageView = VK_NULL_HANDLE;
-//     }
-
-//     if (image.image != VK_NULL_HANDLE)
-//     {
-//         vmaDestroyImage(allocator, image.image, image.allocation);
-//         image.image = VK_NULL_HANDLE;
-//         image.allocation = nullptr;
-//     }
-// }

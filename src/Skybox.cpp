@@ -380,9 +380,9 @@ void TriangleApplication::createSkyboxSampler()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = static_cast<float>(skyboxImage.mipLevels() - 1);
 
-    VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &skyboxSampler));
+    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &skyboxSampler));
 
     mainDeletionQueue.pushFunction([this, sampler = skyboxSampler]() {
-        vkDestroySampler(device, sampler, nullptr);
+        vkDestroySampler(context.device(), sampler, nullptr);
     });
 }

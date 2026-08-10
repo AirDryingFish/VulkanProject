@@ -204,9 +204,9 @@ void TriangleApplication::initImGui()
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
 
-    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool));
+    VK_CHECK(vkCreateDescriptorPool(context.device(), &poolInfo, nullptr, &imguiDescriptorPool));
     mainDeletionQueue.pushFunction([this, pool = imguiDescriptorPool]() mutable
-                                   { vkDestroyDescriptorPool(device, pool, nullptr); });
+                                   { vkDestroyDescriptorPool(context.device(), pool, nullptr); });
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -224,20 +224,20 @@ void TriangleApplication::initImGui()
         ImGui_ImplGlfw_Shutdown();
     });
 
-    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    QueueFamilyIndices indices = context.queueFamilies();
 
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.ApiVersion = VK_API_VERSION_1_0;
-    initInfo.Instance = instance;
-    initInfo.PhysicalDevice = physicalDevice;
-    initInfo.Device = device;
+    initInfo.Instance = context.instance();
+    initInfo.PhysicalDevice = context.physicalDevice();
+    initInfo.Device = context.device();
     initInfo.QueueFamily = indices.graphicsFamily.value();
-    initInfo.Queue = graphicsQueue;
+    initInfo.Queue = context.graphicsQueue();
     initInfo.DescriptorPool = imguiDescriptorPool;
     initInfo.PipelineInfoMain.RenderPass = renderPass;
     initInfo.MinImageCount = MAX_FRAMES_IN_FLIGHT;
     initInfo.ImageCount = static_cast<uint32_t>(swapChainImages.size());
-    initInfo.PipelineInfoMain.MSAASamples = msaaSamples;
+    initInfo.PipelineInfoMain.MSAASamples = context.msaaSamples();
 
     if (!ImGui_ImplVulkan_Init(&initInfo))
     {

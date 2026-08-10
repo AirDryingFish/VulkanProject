@@ -23,10 +23,10 @@ void TriangleApplication::createDescriptorPool()
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * descriptorSetGroupCount;
 
-    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+    VK_CHECK(vkCreateDescriptorPool(context.device(), &poolInfo, nullptr, &descriptorPool));
 
     mainDeletionQueue.pushFunction([this, pool = descriptorPool]() mutable {
-        vkDestroyDescriptorPool(device, pool, nullptr);
+        vkDestroyDescriptorPool(context.device(), pool, nullptr);
     });
 }
 
@@ -43,7 +43,7 @@ void TriangleApplication::createTextureDescriptorSets(
     allocInfo.pSetLayouts = layouts.data();
 
     targetDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, targetDescriptorSets.data()));
+    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, targetDescriptorSets.data()));
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
@@ -72,7 +72,7 @@ void TriangleApplication::createTextureDescriptorSets(
             descriptorWrites[binding].pImageInfo = &imageInfos[binding - 1];
         }
 
-        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        vkUpdateDescriptorSets(context.device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 }
 
