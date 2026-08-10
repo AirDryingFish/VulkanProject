@@ -68,7 +68,7 @@ namespace
 
 void TriangleApplication::createIrradianceResources()
 {
-    irradianceImage = createImage(
+    irradianceImage = context.createImage(
         irradianceDimension,
         irradianceDimension,
         1,
@@ -420,7 +420,7 @@ void TriangleApplication::renderIrradianceCubemap()
 
 void TriangleApplication::createPrefilterResources()
 {
-    prefilterImage = createImage(
+    prefilterImage = context.createImage(
         prefilterDimension,
         prefilterDimension,
         prefilterMipLevels,
@@ -790,7 +790,7 @@ void TriangleApplication::renderPrefilterCubemap()
 void TriangleApplication::createBRDFLUTResources()
 {
     // 创建BRDF LUT纹理
-    brdfLUTImage = createImage(
+    brdfLUTImage = context.createImage(
         brdfLUTDimension,
         brdfLUTDimension,
         1,

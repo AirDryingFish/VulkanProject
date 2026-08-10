@@ -287,7 +287,7 @@ void TriangleApplication::createSkyboxImage()
     // vmaUnmapMemory(allocator, stagingBuffer.allocation);
     stagingBuffer.unmap();
 
-    skyboxImage = createImage(
+    skyboxImage = context.createImage(
         pixels.width,
         pixels.height,
         skyboxMipLevels,

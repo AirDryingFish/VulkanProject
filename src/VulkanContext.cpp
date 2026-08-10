@@ -285,6 +285,51 @@ AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlag
     );
 }
 
+AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags)
+{
+    // AllocatedImage allocatedImage{};
+    VkImage image = VK_NULL_HANDLE;
+    VmaAllocation allocation = nullptr;
+
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = static_cast<uint32_t>(width);
+    imageInfo.extent.height = static_cast<uint32_t>(height);
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = mipLevels;
+    imageInfo.arrayLayers = arrayLayers;
+    imageInfo.format = format;
+    imageInfo.tiling = tiling;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = usage;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = numSamples;
+    imageInfo.flags = flags;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    if (properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+    {
+        allocInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    }
+    if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+    {
+        allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    }
+
+    VK_CHECK(vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image, &allocation, nullptr));
+    // allocatedImage.mipLevels = mipLevels;
+
+    return AllocatedImage(
+        allocator_,
+        device_, 
+        image, 
+        allocation,
+        mipLevels
+    );
+}
+
 void VulkanContext::createInstance(const VulkanContextConfig &config)
 {
     if (validationEnabled_ && !checkValidationLayerSupport())

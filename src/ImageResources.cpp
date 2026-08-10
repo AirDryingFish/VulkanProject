@@ -13,62 +13,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-AllocatedImage TriangleApplication::createImage(
-    uint32_t width, 
-    uint32_t height, 
-    uint32_t mipLevels, 
-    VkSampleCountFlagBits numSamples, 
-    VkFormat format, 
-    VkImageTiling tiling, 
-    VkImageUsageFlags usage, 
-    VkMemoryPropertyFlags properties, 
-    uint32_t arrayLayers, 
-    VkImageCreateFlags flags
-)
-{
-    // AllocatedImage allocatedImage{};
-    VkImage image = VK_NULL_HANDLE;
-    VmaAllocation allocation = nullptr;
-
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = static_cast<uint32_t>(width);
-    imageInfo.extent.height = static_cast<uint32_t>(height);
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = mipLevels;
-    imageInfo.arrayLayers = arrayLayers;
-    imageInfo.format = format;
-    imageInfo.tiling = tiling;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = usage;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    imageInfo.samples = numSamples;
-    imageInfo.flags = flags;
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    if (properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-    {
-        allocInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    }
-    if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-    {
-        allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-    }
-
-    VK_CHECK(vmaCreateImage(context.allocator(), &imageInfo, &allocInfo, &image, &allocation, nullptr));
-    // allocatedImage.mipLevels = mipLevels;
-
-    return AllocatedImage(
-        context.allocator(),
-        context.device(), 
-        image, 
-        allocation,
-        mipLevels
-    );
-}
-
 AllocatedImage TriangleApplication::createTextureImageFromFile(
     const std::string &path,
     VkFormat format,
@@ -103,7 +47,7 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
     stagingBuffer.unmap();
 
 
-    AllocatedImage image = createImage(
+    AllocatedImage image = context.createImage(
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight),
         imageMipLevels,
@@ -398,7 +342,7 @@ void TriangleApplication::createDepthResources()
 {
     VkFormat depthFormat = context.findDepthFormat();
 
-    depthImage = createImage(swapChainExtent.width, swapChainExtent.height, 1, context.msaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
+    depthImage = context.createImage(swapChainExtent.width, swapChainExtent.height, 1, context.msaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     depthImage.setView(createImageView(depthImage.get(), depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT));
@@ -412,7 +356,7 @@ void TriangleApplication::createDepthResources()
 void TriangleApplication::createColorResources()
 {
     VkFormat colorFormat = swapChainImageFormat;
-    colorImage = createImage(
+    colorImage = context.createImage(
         swapChainExtent.width,
         swapChainExtent.height,
         1,

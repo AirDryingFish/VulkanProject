@@ -117,11 +117,6 @@ private:
 
     void immediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function);
 
-    AllocatedBuffer createBuffer(
-        VkDeviceSize size,
-        VkBufferUsageFlags usage,
-        VkMemoryPropertyFlags properties);
-
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
     void loadModel();
@@ -166,18 +161,6 @@ private:
     void renderPrefilterCubemap();
     void createBRDFLUTResources();
     void renderBRDFLUT();
-
-    AllocatedImage createImage(
-        uint32_t width,
-        uint32_t height,
-        uint32_t mipLevels,
-        VkSampleCountFlagBits numSamples,
-        VkFormat format,
-        VkImageTiling tiling,
-        VkImageUsageFlags usage,
-        VkMemoryPropertyFlags properties,
-        uint32_t arrayLayers = 1,
-        VkImageCreateFlags flags = 0);
 
     VkImageView createImageView(
         VkImage image,
