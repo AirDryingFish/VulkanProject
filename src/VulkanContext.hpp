@@ -137,8 +137,8 @@ public:
         VkImageUsageFlags usage,
         VkMemoryPropertyFlags properties,
         uint32_t arrayLayers = 1,
-        VkImageCreateFlags flags = 0);
+        VkImageCreateFlags flags = 0) const;
 
-    UniqueShaderModule createShaderModule(const std::vector<char> &code);
+    UniqueShaderModule createShaderModule(const std::vector<char> &code) const;
 
 };

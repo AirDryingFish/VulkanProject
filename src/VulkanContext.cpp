@@ -285,7 +285,7 @@ AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlag
     );
 }
 
-AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags)
+AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags) const
 {
     // AllocatedImage allocatedImage{};
     VkImage image = VK_NULL_HANDLE;
@@ -330,7 +330,7 @@ AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint3
     );
 }
 
-UniqueShaderModule VulkanContext::createShaderModule(const std::vector<char> &code)
+UniqueShaderModule VulkanContext::createShaderModule(const std::vector<char> &code) const
 {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -345,7 +345,7 @@ UniqueShaderModule VulkanContext::createShaderModule(const std::vector<char> &co
     return UniqueShaderModule(device_, shaderModule);
 }
 
-void VulkanContext::createInstance(const VulkanContextConfig &config)
+void VulkanContext::createInstance(const VulkanContextConfig &config) 
 {
     if (validationEnabled_ && !checkValidationLayerSupport())
     {
