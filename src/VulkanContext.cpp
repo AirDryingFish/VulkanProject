@@ -320,6 +320,13 @@ void VulkanContext::createLogicalDevice()
 
 void VulkanContext::createAllocator()
 {
+    VmaAllocatorCreateInfo allocatorInfo{};
+    allocatorInfo.instance = instance_;
+    allocatorInfo.physicalDevice = physicalDevice_;
+    allocatorInfo.device = device_;
+    allocatorInfo.vulkanApiVersion = apiVersion_;
+    
+    VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator_));
 }
 
 bool VulkanContext::checkValidationLayerSupport() const
