@@ -15,6 +15,8 @@
 #include "VulkanHeaders.hpp"
 #include "VulkanTypes.hpp"
 
+#include "VulkanResources.hpp"
+
 #include <cstdint>
 #include <vector>
 
@@ -118,4 +120,11 @@ public:
         uint64_t handle,
         const char* name
     ) const noexcept;
+
+
+    AllocatedBuffer createBuffer(
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags properties) const;
+
 };

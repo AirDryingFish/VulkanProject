@@ -60,39 +60,6 @@ const TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObj
     return &sceneObjects[selectedSceneObjectIndex];
 }
 
-AllocatedBuffer TriangleApplication::createBuffer(VkDeviceSize size,
-                                                  VkBufferUsageFlags usage,
-                                                  VkMemoryPropertyFlags properties)
-{
-    VkBuffer rawBuffer = VK_NULL_HANDLE;
-    VmaAllocation rawAllocation = nullptr;
-
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VmaAllocationCreateInfo allocInfo{};
-    if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-    {
-        allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    }
-    else
-    {
-        allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    }
-
-    VK_CHECK(vmaCreateBuffer(context.allocator(), &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
-
-    return AllocatedBuffer(
-        context.allocator(),
-        rawBuffer,
-        rawAllocation
-    );
-}
-
 void TriangleApplication::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     immediateSubmit([&](VkCommandBuffer commandBuffer) {
@@ -112,7 +79,7 @@ void TriangleApplication::createIndexBuffer()
     }
 
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-    AllocatedBuffer stagingBuffer = createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    AllocatedBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
     // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
@@ -121,7 +88,7 @@ void TriangleApplication::createIndexBuffer()
     stagingBuffer.unmap();
     // vmaUnmapMemory(allocator, stagingBuffer.allocation);
 
-    indexBuffer = createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    indexBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     copyBuffer(stagingBuffer.get(), indexBuffer.get(), bufferSize);
 
@@ -135,7 +102,7 @@ void TriangleApplication::createVertexBuffer()
     }
 
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-    AllocatedBuffer stagingBuffer = createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    AllocatedBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
     // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
@@ -144,7 +111,7 @@ void TriangleApplication::createVertexBuffer()
     stagingBuffer.unmap();
     // vmaUnmapMemory(allocator, stagingBuffer.allocation);
 
-    vertexBuffer = createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    vertexBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     copyBuffer(stagingBuffer.get(), vertexBuffer.get(), bufferSize);
 
@@ -158,7 +125,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     }
 
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
-    AllocatedBuffer vertexStagingBuffer = createBuffer(
+    AllocatedBuffer vertexStagingBuffer = context.createBuffer(
         vertexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -170,7 +137,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     // vmaUnmapMemory(allocator, vertexStagingBuffer.allocation);
     vertexStagingBuffer.unmap();
 
-    object.vertexBuffer = createBuffer(
+    object.vertexBuffer = context.createBuffer(
         vertexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -179,7 +146,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
 
 
     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
-    AllocatedBuffer indexStagingBuffer = createBuffer(
+    AllocatedBuffer indexStagingBuffer = context.createBuffer(
         indexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -190,7 +157,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     // vmaUnmapMemory(allocator, indexStagingBuffer.allocation);
     indexStagingBuffer.unmap();
 
-    object.indexBuffer = createBuffer(
+    object.indexBuffer = context.createBuffer(
         indexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -209,7 +176,7 @@ void TriangleApplication::createUniformBuffer()
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
-        uniformBuffers[i] = createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        uniformBuffers[i] = context.createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         VK_CHECK(uniformBuffers[i].map(&uniformBufferMapped[i]));
     }
 }

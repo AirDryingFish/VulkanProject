@@ -254,8 +254,38 @@ void VulkanContext::setDebugName(VkObjectType objectType, uint64_t handle, const
     }
 }
 
-void VulkanContext::createInstance(const VulkanContextConfig &config)
+AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) const
+{
+    VkBuffer rawBuffer = VK_NULL_HANDLE;
+    VmaAllocation rawAllocation = nullptr;
 
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocInfo{};
+    if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+    {
+        allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    }
+    else
+    {
+        allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    }
+
+    VK_CHECK(vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
+
+    return AllocatedBuffer(
+        allocator_,
+        rawBuffer,
+        rawAllocation
+    );
+}
+
+void VulkanContext::createInstance(const VulkanContextConfig &config)
 {
     if (validationEnabled_ && !checkValidationLayerSupport())
     {
