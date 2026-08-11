@@ -45,7 +45,6 @@ private:
     static void framebufferRizeCallback(GLFWwindow *window, int width, int height);
     static void windowRefreshCallback(GLFWwindow *window);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
-    void cleanupSwapChain() noexcept;
 
     void createRenderPass();
     static std::vector<char> readFile(const std::string &filename);
@@ -161,11 +160,6 @@ private:
     void generateMipmaps(VkImage image, VkFormat imageFormat, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, uint32_t layerCount = 1);
 
 
-    void createDepthResources();
-
-
-    void createColorResources();
-
     bool hasStencilComponent(VkFormat format);
 
     void drawFrame();
@@ -188,7 +182,6 @@ private:
     VulkanContext context;
 
     Swapchain swapchain;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
 
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
@@ -236,9 +229,6 @@ private:
     AllocatedImage roughnessImage;
     AllocatedImage aoImage;
     VkSampler textureSampler = VK_NULL_HANDLE;
-
-    AllocatedImage depthImage;
-    AllocatedImage colorImage;
 
     DeletionQueue mainDeletionQueue;
     DeletionQueue swapChainDeletionQueue;

@@ -320,38 +320,6 @@ void TriangleApplication::copyBufferToImage(VkBuffer buffer, VkImage image, uint
     vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region); });
 }
 
-void TriangleApplication::createDepthResources()
-{
-    VkFormat depthFormat = context.findDepthFormat();
-
-    depthImage = context.createImage(swapchain.extent().width, swapchain.extent().height, 1, context.msaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
-                             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    depthImage.setView(context.createImageView(depthImage.get(), depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT));
-    
-    // depthImage.imageView = createImageView(depthImage.image, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
-    // swapChainDeletionQueue.pushFunction([this, image = depthImage]() mutable
-    //                                     { destroyImage(image); });
-}
-
-
-void TriangleApplication::createColorResources()
-{
-    VkFormat colorFormat = swapchain.format();
-    colorImage = context.createImage(
-        swapchain.extent().width,
-        swapchain.extent().height,
-        1,
-        context.msaaSamples(),
-        colorFormat,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-
-    colorImage.setView(context.createImageView(colorImage.get(), colorFormat, 1));
-
-}
 
 bool TriangleApplication::hasStencilComponent(VkFormat format)
 {

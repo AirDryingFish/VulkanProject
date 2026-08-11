@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VulkanContext.hpp"
+#include "VulkanResources.hpp"
 
 #include <cstddef>
 #include <vector>
@@ -21,11 +22,17 @@ private:
     VkPresentModeKHR presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
     VkExtent2D extent_{};
 
+    AllocatedImage depthImage_;
+    AllocatedImage colorImage_;
+
+    std::vector<VkFramebuffer> framebuffers_;
+
     VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
     VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& presentMode) const;
     VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& capabilities) const;
     void createImageViews();
     void createPresentSemaphores();
+    void createAttachments();
 
 
 public:
@@ -51,4 +58,8 @@ public:
     VkImage image(std::size_t index) const;
     VkImageView imageView(std::size_t index) const;
     VkSemaphore renderFinishedSemaphore(std::size_t index) const;
+
+    void createFramebuffers(VkRenderPass renderPass);
+    void destroyFramebuffersAndAttachments() noexcept;
+    VkFramebuffer framebuffer(std::size_t index) const;
 };

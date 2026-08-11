@@ -65,10 +65,7 @@ void TriangleApplication::InitVulkan()
     createUploadContext();
     createFrameContexts();
 
-    createColorResources();
-    createDepthResources();
-
-    createFramebuffers();
+    swapchain.createFramebuffers(renderPass);
 
     initImGui();
 
@@ -116,7 +113,7 @@ void TriangleApplication::cleanup() noexcept
 
     const VkResult result = context.waitIdle();
     
-    cleanupSwapChain();
+    swapchain.shutdown();
 
     if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
     {
@@ -126,8 +123,6 @@ void TriangleApplication::cleanup() noexcept
             vkResultToString(result),
             static_cast<int>(result));
     }
-
-
 
     for (FrameContext& frame : frames)
     {

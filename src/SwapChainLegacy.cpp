@@ -46,7 +46,7 @@ void TriangleApplication::recreateSwapChain()
 
     const VkFormat oldFormat = swapchain.format();
 
-    cleanupSwapChain();
+    swapchain.shutdown();
     swapchain.initializeCore(context, window);
 
     if (oldFormat != VK_FORMAT_UNDEFINED && oldFormat != swapchain.format())
@@ -56,9 +56,7 @@ void TriangleApplication::recreateSwapChain()
             "resources must be rebuilt");
     }
 
-    createColorResources();
-    createDepthResources();
-    createFramebuffers();
+    swapchain.createFramebuffers(renderPass);
 }
 
 void TriangleApplication::framebufferRizeCallback(GLFWwindow *window, int width, int height)
@@ -76,18 +74,3 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
     }
 }
 
-void TriangleApplication::cleanupSwapChain() noexcept
-{
-    if (context.device() == VK_NULL_HANDLE)
-    {
-        return;
-    }
-
-    swapChainDeletionQueue.flush();
-    swapChainFramebuffers.clear();
-
-    depthImage.reset();
-    colorImage.reset();
-
-    swapchain.shutdown();
-}

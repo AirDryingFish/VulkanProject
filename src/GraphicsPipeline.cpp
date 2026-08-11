@@ -360,35 +360,4 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     return pipeline;
 }
 
-void TriangleApplication::createFramebuffers()
-{
-    // 1 个swap chain图像对应1个framebuffer，所以framebuffer的数量和swap chain图像的数量一样多
-    swapChainFramebuffers.resize(swapchain.imageCount());
-    // 遍历 ImageView，给每个ImageView创建一个对应的framebuffer
-    for (size_t i = 0; i < swapchain.imageCount(); i++)
-    {
 
-        // std::array<VkImageView, 3> attachments = {
-        //     swapChainImageViews[i],
-        //     depthImageView,
-        //     colorImageView};
-        std::array<VkImageView, 3> attachments = {
-            colorImage.view(),
-            depthImage.view(),
-            swapchain.imageView(i)};
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = renderPass; // framebuffer要兼容哪个render pass
-        framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-        framebufferInfo.pAttachments = attachments.data(); // framebuffer要绑定哪些图像作为附件
-        framebufferInfo.width = swapchain.extent().width;     // framebuffer的宽高必须和render pass里定义的视口大小一致
-        framebufferInfo.height = swapchain.extent().height;   // framebuffer的宽高必须和render pass里定义的视口大小一致
-        framebufferInfo.layers = 1;                        // 只有一层
-
-        VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
-
-        swapChainDeletionQueue.pushFunction([this, frameBuffer = swapChainFramebuffers[i]]() {
-            vkDestroyFramebuffer(context.device(), frameBuffer, nullptr);
-        });
-    }
-}
