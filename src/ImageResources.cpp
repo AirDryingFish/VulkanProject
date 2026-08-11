@@ -179,24 +179,6 @@ void TriangleApplication::generateMipmaps(VkImage image, VkFormat imageFormat, u
             1, &barrier); });
 }
 
-VkImageView TriangleApplication::createImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags, VkImageViewType viewType, uint32_t layerCount)
-{
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = image;
-    viewInfo.viewType = viewType;
-    viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = aspectFlags;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = mipLevels;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = layerCount;
-
-    VkImageView imageView;
-    VK_CHECK(vkCreateImageView(context.device(), &viewInfo, nullptr, &imageView));
-
-    return imageView;
-}
 
 void TriangleApplication::createTextureImageView()
 {
@@ -216,11 +198,11 @@ void TriangleApplication::createTextureImageView()
     //                                { destroyImage(image); });
     // mainDeletionQueue.pushFunction([this, image = aoImage]() mutable
     //                                { destroyImage(image); });
-    textureImage.setView(createImageView(textureImage.get(), VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels()));
-    normalImage.setView(createImageView(normalImage.get(), VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels()));
-    metallicImage.setView(createImageView(metallicImage.get(), VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels()));
-    roughnessImage.setView(createImageView(roughnessImage.get(), VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels()));
-    aoImage.setView(createImageView(aoImage.get(), VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels()));
+    textureImage.setView(context.createImageView(textureImage.get(), VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels()));
+    normalImage.setView(context.createImageView(normalImage.get(), VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels()));
+    metallicImage.setView(context.createImageView(metallicImage.get(), VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels()));
+    roughnessImage.setView(context.createImageView(roughnessImage.get(), VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels()));
+    aoImage.setView(context.createImageView(aoImage.get(), VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels()));
 }
 
 void TriangleApplication::createTextureSampler()
@@ -342,10 +324,10 @@ void TriangleApplication::createDepthResources()
 {
     VkFormat depthFormat = context.findDepthFormat();
 
-    depthImage = context.createImage(swapChainExtent.width, swapChainExtent.height, 1, context.msaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
+    depthImage = context.createImage(swapchain.extent().width, swapchain.extent().height, 1, context.msaaSamples(), depthFormat, VK_IMAGE_TILING_OPTIMAL,
                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    depthImage.setView(createImageView(depthImage.get(), depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT));
+    depthImage.setView(context.createImageView(depthImage.get(), depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT));
     
     // depthImage.imageView = createImageView(depthImage.image, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
     // swapChainDeletionQueue.pushFunction([this, image = depthImage]() mutable
@@ -355,10 +337,10 @@ void TriangleApplication::createDepthResources()
 
 void TriangleApplication::createColorResources()
 {
-    VkFormat colorFormat = swapChainImageFormat;
+    VkFormat colorFormat = swapchain.format();
     colorImage = context.createImage(
-        swapChainExtent.width,
-        swapChainExtent.height,
+        swapchain.extent().width,
+        swapchain.extent().height,
         1,
         context.msaaSamples(),
         colorFormat,
@@ -367,7 +349,7 @@ void TriangleApplication::createColorResources()
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 
-    colorImage.setView(createImageView(colorImage.get(), colorFormat, 1));
+    colorImage.setView(context.createImageView(colorImage.get(), colorFormat, 1));
 
 }
 

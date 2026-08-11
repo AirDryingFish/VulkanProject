@@ -18,7 +18,7 @@ void TriangleApplication::run()
     InitWindow();
     InitVulkan();
     MainLoop();
-    Cleanup();
+    cleanup();
 }
 
 void TriangleApplication::InitWindow()
@@ -54,9 +54,7 @@ void TriangleApplication::InitVulkan()
     contextConfig.apiVersion = VK_API_VERSION_1_0;
 
     context.initialize(window, contextConfig);
-
-    createSwapChain();
-    createImageViews();
+    swapchain.initializeCore(context, window);
 
     createRenderPass();
     createDescriptorSetLayout();
@@ -95,7 +93,7 @@ void TriangleApplication::InitVulkan()
 
 TriangleApplication::~TriangleApplication() noexcept
 {
-    Cleanup();
+    cleanup();
 }
 
 void TriangleApplication::MainLoop()
@@ -107,7 +105,7 @@ void TriangleApplication::MainLoop()
     }
 }
 
-void TriangleApplication::Cleanup() noexcept
+void TriangleApplication::cleanup() noexcept
 {
     if (cleanedUp)
     {
@@ -117,6 +115,9 @@ void TriangleApplication::Cleanup() noexcept
     rendererReady = false;
 
     const VkResult result = context.waitIdle();
+    
+    cleanupSwapChain();
+
     if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
     {
         std::fprintf(
@@ -126,7 +127,7 @@ void TriangleApplication::Cleanup() noexcept
             static_cast<int>(result));
     }
 
-    cleanupSwapChain();
+
 
     for (FrameContext& frame : frames)
     {

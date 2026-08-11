@@ -347,7 +347,7 @@ void TriangleApplication::createSkyboxImage()
         6
     );
 
-    skyboxImage.setView(createImageView(
+    skyboxImage.setView(context.createImageView(
         skyboxImage.get(),
         skyboxFormat,
         skyboxMipLevels,

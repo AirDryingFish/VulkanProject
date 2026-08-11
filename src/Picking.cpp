@@ -116,7 +116,7 @@ void TriangleApplication::processModelPicking()
     const float ndcY = (2.0f * static_cast<float>(mouseY)) / static_cast<float>(height) - 1.0f;
 
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), cameraNear, cameraFar);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
     projection[1][1] *= -1;
 
     const glm::mat4 inverseViewProjection = glm::inverse(projection * view);

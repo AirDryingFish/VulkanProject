@@ -80,7 +80,7 @@ void TriangleApplication::createIrradianceResources()
         6,
         VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
 
-    irradianceImage.setView(createImageView(
+    irradianceImage.setView(context.createImageView(
         irradianceImage.get(),
         irradianceFormat,
         1,
@@ -432,7 +432,7 @@ void TriangleApplication::createPrefilterResources()
         6,
         VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
 
-    prefilterImage.setView(createImageView(
+    prefilterImage.setView(context.createImageView(
         prefilterImage.get(),
         prefilterFormat,
         prefilterMipLevels,
@@ -800,7 +800,7 @@ void TriangleApplication::createBRDFLUTResources()
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    brdfLUTImage.setView(createImageView(
+    brdfLUTImage.setView(context.createImageView(
         brdfLUTImage.get(),
         brdfLUTFormat,
         1

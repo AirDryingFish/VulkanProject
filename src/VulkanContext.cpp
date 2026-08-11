@@ -330,6 +330,25 @@ AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint3
     );
 }
 
+VkImageView VulkanContext::createImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags, VkImageViewType viewType, uint32_t layerCount) const
+{
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = viewType;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = mipLevels;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = layerCount;
+
+    VkImageView imageView;
+    VK_CHECK(vkCreateImageView(device_, &viewInfo, nullptr, &imageView));
+
+    return imageView;
+}
+
 UniqueShaderModule VulkanContext::createShaderModule(const std::vector<char> &code) const
 {
     VkShaderModuleCreateInfo createInfo{};

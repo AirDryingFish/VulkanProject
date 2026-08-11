@@ -13,7 +13,7 @@
 void TriangleApplication::createRenderPass()
 {
     VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = swapChainImageFormat; // swap chain图像的格式
+    colorAttachment.format = swapchain.format(); // swap chain图像的格式
     // colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // 不使用多重采样
     colorAttachment.samples = context.msaaSamples();
 
@@ -61,7 +61,7 @@ void TriangleApplication::createRenderPass()
     depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkAttachmentDescription colorAttachmentResolve{};
-    colorAttachmentResolve.format = swapChainImageFormat;
+    colorAttachmentResolve.format = swapchain.format();
     colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -363,9 +363,9 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
 void TriangleApplication::createFramebuffers()
 {
     // 1 个swap chain图像对应1个framebuffer，所以framebuffer的数量和swap chain图像的数量一样多
-    swapChainFramebuffers.resize(swapChainImageViews.size());
+    swapChainFramebuffers.resize(swapchain.imageCount());
     // 遍历 ImageView，给每个ImageView创建一个对应的framebuffer
-    for (size_t i = 0; i < swapChainImageViews.size(); i++)
+    for (size_t i = 0; i < swapchain.imageCount(); i++)
     {
 
         // std::array<VkImageView, 3> attachments = {
@@ -375,14 +375,14 @@ void TriangleApplication::createFramebuffers()
         std::array<VkImageView, 3> attachments = {
             colorImage.view(),
             depthImage.view(),
-            swapChainImageViews[i]};
+            swapchain.imageView(i)};
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass; // framebuffer要兼容哪个render pass
         framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
         framebufferInfo.pAttachments = attachments.data(); // framebuffer要绑定哪些图像作为附件
-        framebufferInfo.width = swapChainExtent.width;     // framebuffer的宽高必须和render pass里定义的视口大小一致
-        framebufferInfo.height = swapChainExtent.height;   // framebuffer的宽高必须和render pass里定义的视口大小一致
+        framebufferInfo.width = swapchain.extent().width;     // framebuffer的宽高必须和render pass里定义的视口大小一致
+        framebufferInfo.height = swapchain.extent().height;   // framebuffer的宽高必须和render pass里定义的视口大小一致
         framebufferInfo.layers = 1;                        // 只有一层
 
         VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]));

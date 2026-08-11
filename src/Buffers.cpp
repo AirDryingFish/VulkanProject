@@ -200,7 +200,7 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     UniformBufferObject ubo{};
     ubo.model = glm::mat4(1.0f);
     ubo.view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), cameraNear, cameraFar);
+    ubo.proj = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
     ubo.proj[1][1] *= -1;
     ubo.cameraPosition = glm::vec4(cameraPos, 1.0f);
     ubo.ambientLight = glm::vec4(ambientLightColor, ambientLightIntensity);

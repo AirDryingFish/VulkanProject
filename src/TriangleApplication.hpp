@@ -7,6 +7,7 @@
 #include "VulkanResources.hpp"
 #include "VulkanContext.hpp"
 #include "Render.hpp"
+#include "Swapchain.hpp"
 
 #include <array>
 #include <functional>
@@ -40,17 +41,11 @@ private:
     void drawTransformGizmo();
     void drawLightOverlays();
 
-
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
-    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
-    void createSwapChain();
     void recreateSwapChain();
     static void framebufferRizeCallback(GLFWwindow *window, int width, int height);
     static void windowRefreshCallback(GLFWwindow *window);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
     void cleanupSwapChain() noexcept;
-    void createImageViews();
 
     void createRenderPass();
     static std::vector<char> readFile(const std::string &filename);
@@ -161,34 +156,21 @@ private:
     void createBRDFLUTResources();
     void renderBRDFLUT();
 
-    VkImageView createImageView(
-        VkImage image,
-        VkFormat format,
-        uint32_t mipLevels,
-        VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
-        VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D,
-        uint32_t layerCount = 1);
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount = 1);
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
     void generateMipmaps(VkImage image, VkFormat imageFormat, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, uint32_t layerCount = 1);
 
-    VkSampleCountFlagBits getMaxUsableSampleCount();
 
     void createDepthResources();
-    VkFormat findSupportedFormat(
-        const std::vector<VkFormat> &candidates,
-        VkImageTiling tiling,
-        VkFormatFeatureFlags features);
-    VkFormat findDepthFormat();
+
 
     void createColorResources();
 
     bool hasStencilComponent(VkFormat format);
 
-    void createPresentSemaphores();
     void drawFrame();
     void MainLoop();
-    void Cleanup() noexcept;
+    void cleanup() noexcept;
 
     void createUploadContext();
     void createFrameContexts();
@@ -205,14 +187,10 @@ private:
 
     VulkanContext context;
 
-    VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
-
-    VkSwapchainKHR swapChain = VK_NULL_HANDLE;
-    std::vector<VkImage> swapChainImages;
-    VkFormat swapChainImageFormat{};
-    VkExtent2D swapChainExtent{};
-    std::vector<VkImageView> swapChainImageViews;
+    Swapchain swapchain;
     std::vector<VkFramebuffer> swapChainFramebuffers;
+
+    VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
     VkRenderPass renderPass = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
@@ -266,7 +244,6 @@ private:
     DeletionQueue swapChainDeletionQueue;
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
 
     bool rendererReady = false;
     bool frameInProgress = false;

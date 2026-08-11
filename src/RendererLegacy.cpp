@@ -8,22 +8,6 @@
 #include <array>
 #include <stdexcept>
 
-void TriangleApplication::createPresentSemaphores()
-{
-    renderFinishedSemaphores.resize(swapChainImages.size());
-
-    VkSemaphoreCreateInfo semaphoreInfo{};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-
-    for (VkSemaphore &renderFinished : renderFinishedSemaphores)
-    {
-        VK_CHECK(vkCreateSemaphore(context.device(), &semaphoreInfo, nullptr, &renderFinished));
-        swapChainDeletionQueue.pushFunction([this, renderFinished]() {
-            vkDestroySemaphore(context.device(), renderFinished, nullptr);
-        });
-    }
-}
 
 void TriangleApplication::drawFrame()
 {
@@ -66,7 +50,7 @@ void TriangleApplication::drawFrame()
     }
 
     uint32_t imageIndex = 0;
-    VkResult result = vkAcquireNextImageKHR(context.device(), swapChain, UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(context.device(), swapchain.get(), UINT64_MAX, frame.imageAvailable, VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         framebufferResized = false;
@@ -109,7 +93,7 @@ void TriangleApplication::drawFrame()
     // Presentation completion is not covered by the per-frame submit fence.
     // Indexing this semaphore by acquired image makes reuse safe: reacquiring
     // that image guarantees the previous presentation wait has completed.
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[imageIndex]};
+    VkSemaphore signalSemaphores[] = {swapchain.renderFinishedSemaphore(imageIndex)};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -123,7 +107,7 @@ void TriangleApplication::drawFrame()
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
 
-    VkSwapchainKHR swapChains[] = {swapChain};
+    VkSwapchainKHR swapChains[] = {swapchain.get()};
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;

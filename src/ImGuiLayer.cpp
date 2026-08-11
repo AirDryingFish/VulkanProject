@@ -236,7 +236,7 @@ void TriangleApplication::initImGui()
     initInfo.DescriptorPool = imguiDescriptorPool;
     initInfo.PipelineInfoMain.RenderPass = renderPass;
     initInfo.MinImageCount = MAX_FRAMES_IN_FLIGHT;
-    initInfo.ImageCount = static_cast<uint32_t>(swapChainImages.size());
+    initInfo.ImageCount = static_cast<uint32_t>(swapchain.imageCount());
     initInfo.PipelineInfoMain.MSAASamples = context.msaaSamples();
 
     if (!ImGui_ImplVulkan_Init(&initInfo))
@@ -255,8 +255,8 @@ void TriangleApplication::drawImGui()
 
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame Time: %.3f ms", 1000.0f / io.Framerate);
-    ImGui::Text("Swapchain Images: %zu", swapChainImages.size());
-    ImGui::Text("Extent: %u x %u", swapChainExtent.width, swapChainExtent.height);
+    ImGui::Text("Swapchain Images: %zu", swapchain.imageCount());
+    ImGui::Text("Extent: %u x %u", swapchain.extent().width, swapchain.extent().height);
     ImGui::Text("MSAA Samples: %d", context.msaaSamples());
 
     ImGui::SeparatorText("Camera");
@@ -462,7 +462,7 @@ void TriangleApplication::drawLightOverlays()
     ImGuiIO &io = ImGui::GetIO();
 
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), cameraNear, cameraFar);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
     projection[1][1] *= -1;
 
     const ImVec2 mouse = io.MousePos;
@@ -568,7 +568,7 @@ void TriangleApplication::drawTransformGizmo()
     ImGuiIO &io = ImGui::GetIO();
 
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), cameraNear, cameraFar);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
     projection[1][1] *= -1;
 
     const float distanceToCamera = glm::length(cameraPos - originWorld);

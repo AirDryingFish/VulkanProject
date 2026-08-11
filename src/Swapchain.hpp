@@ -23,7 +23,7 @@ private:
 
     VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
     VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& presentMode) const;
-    VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& capibilities) const;
+    VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& capabilities) const;
     void createImageViews();
     void createPresentSemaphores();
 
@@ -44,7 +44,7 @@ public:
 
     VkSwapchainKHR get() const noexcept;
     VkFormat format() const noexcept;
-    VkExtent2D extenet() const noexcept;
+    VkExtent2D extent() const noexcept;
 
     std::size_t imageCount() const noexcept;
 

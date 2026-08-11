@@ -86,6 +86,7 @@ add_executable(vulkan
     src/Skybox.cpp
     src/VulkanResources.cpp
     src/VulkanContext.cpp
+    src/Swapchain.cpp
 )
 
 target_include_directories(vulkan PRIVATE
