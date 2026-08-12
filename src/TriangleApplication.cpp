@@ -41,7 +41,7 @@ void TriangleApplication::InitWindow()
     }
 
     glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferRizeCallback);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     glfwSetWindowRefreshCallback(window, windowRefreshCallback);
     glfwSetScrollCallback(window, scrollCallback);
 }
@@ -210,7 +210,7 @@ void TriangleApplication::recreateSwapChain()
     swapchain.createFramebuffers(renderPass);
 }
 
-void TriangleApplication::framebufferRizeCallback(GLFWwindow *window, int width, int height)
+void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
     auto app = reinterpret_cast<TriangleApplication *>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;

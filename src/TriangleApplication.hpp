@@ -42,7 +42,7 @@ private:
     void drawLightOverlays();
 
     void recreateSwapChain();
-    static void framebufferRizeCallback(GLFWwindow *window, int width, int height);
+    static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
     static void windowRefreshCallback(GLFWwindow *window);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
