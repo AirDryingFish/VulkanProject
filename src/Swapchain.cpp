@@ -215,9 +215,7 @@ void Swapchain::createFramebuffers(VkRenderPass renderPass)
 
             VK_CHECK(vkCreateFramebuffer(context_->device(), &framebufferInfo, nullptr, &framebuffers_[i]));
 
-            // swapChainDeletionQueue.pushFunction([this, frameBuffer = swapChainFramebuffers[i]]() {
-            //     vkDestroyFramebuffer(context.device(), frameBuffer, nullptr);
-            // });
+
         }
     }
     catch (...)
@@ -332,9 +330,6 @@ void Swapchain::createPresentSemaphores()
     for (VkSemaphore &renderFinished : renderFinishedSemaphores_)
     {
         VK_CHECK(vkCreateSemaphore(context_->device(), &semaphoreInfo, nullptr, &renderFinished));
-        // swapChainDeletionQueue.pushFunction([this, renderFinished]() {
-        //     vkDestroySemaphore(context.device(), renderFinished, nullptr);
-        // });
     }
 }
 

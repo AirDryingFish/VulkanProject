@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 
-void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -44,11 +44,11 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &skyboxDescriptorSets[currentFrame], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &skyboxDescriptorSets[frameIndex], 0, nullptr);
     vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[frameIndex], 0, nullptr);
 
     VkDeviceSize offsets[] = {0};
     for (const SceneObject &object : sceneObjects)
@@ -141,61 +141,4 @@ void TriangleApplication::createUploadContext()
     mainDeletionQueue.pushFunction([this, fence]() noexcept {
         vkDestroyFence(context.device(), fence, nullptr);
     });
-}
-
-void TriangleApplication::createFrameContexts()
-{
-    QueueFamilyIndices indices = context.queueFamilies();
-    
-    for (FrameContext& frame : frames)
-    {
-        // 创建 frame.commandPool
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        // TRANSIENT_BIT 表示该 command pool 中的 command buffer 会频繁分配和释放
-        // 而不是 RESET_COMMAND_BUFFER_BIT 表示该 command pool 中的 command buffer 可以单独 reset
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-        poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
-
-        VK_CHECK(vkCreateCommandPool(context.device(), &poolInfo, nullptr, &frame.commandPool));
-
-        const auto commandPool = frame.commandPool;
-        mainDeletionQueue.pushFunction([this, commandPool]() {
-            vkDestroyCommandPool(context.device(), commandPool, nullptr);
-        });
-
-        // 从 frame.commandPool 分配 frame.commandBuffer
-
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = frame.commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
-
-        VK_CHECK(vkAllocateCommandBuffers(context.device(), &allocInfo, &frame.commandBuffer));
-
-        // 创建 frame.imageAvailable 信号量
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VK_CHECK(vkCreateSemaphore(context.device(), &semaphoreInfo, nullptr, &frame.imageAvailable));
-
-        const auto imageAvailable = frame.imageAvailable;
-        mainDeletionQueue.pushFunction([this, imageAvailable]() {
-            vkDestroySemaphore(context.device(), imageAvailable, nullptr);
-        });
-
-        // 创建带 SIGNALED_BIT 的 frame.renderFence
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        VK_CHECK(vkCreateFence(context.device(), &fenceInfo, nullptr, &frame.renderFence));
-
-        const VkFence renderFence = frame.renderFence;
-        mainDeletionQueue.pushFunction([this, renderFence]() {
-            vkDestroyFence(context.device(), renderFence, nullptr);
-        });
-    }
 }

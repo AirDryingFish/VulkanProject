@@ -86,6 +86,7 @@ add_executable(vulkan
     src/VulkanResources.cpp
     src/VulkanContext.cpp
     src/Swapchain.cpp
+    src/Renderer.cpp
 )
 
 target_include_directories(vulkan PRIVATE

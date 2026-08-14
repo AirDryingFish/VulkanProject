@@ -6,7 +6,7 @@
 #include "VulkanTypes.hpp"
 #include "VulkanResources.hpp"
 #include "VulkanContext.hpp"
-#include "Render.hpp"
+#include "Renderer.hpp"
 #include "Swapchain.hpp"
 
 #include <array>
@@ -104,9 +104,8 @@ private:
         VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
     };
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
-    void createFramebuffers();
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);
 
     void immediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function);
 
@@ -159,7 +158,6 @@ private:
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
     void generateMipmaps(VkImage image, VkFormat imageFormat, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, uint32_t layerCount = 1);
 
-
     bool hasStencilComponent(VkFormat format);
 
     void drawFrame();
@@ -167,8 +165,6 @@ private:
     void cleanup() noexcept;
 
     void createUploadContext();
-    void createFrameContexts();
-    void waitForAllFrames();
 
     void destroyBufferDeferred(AllocatedBuffer& buffer);
 
@@ -182,6 +178,8 @@ private:
     VulkanContext context;
 
     Swapchain swapchain;
+
+    Renderer renderer;
 
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
@@ -231,12 +229,8 @@ private:
     VkSampler textureSampler = VK_NULL_HANDLE;
 
     DeletionQueue mainDeletionQueue;
-    DeletionQueue swapChainDeletionQueue;
-
-    std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames;
 
     bool rendererReady = false;
-    bool frameInProgress = false;
     bool framebufferResized = false;
     uint32_t currentFrame = 0;
 

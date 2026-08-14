@@ -231,5 +231,5 @@ void TriangleApplication::destroyBufferDeferred(AllocatedBuffer& buffer)
     {
         return;
     }
-    frames[currentFrame].retiredBuffers.push_back(std::move(buffer));
+    renderer.retireBuffer(std::move(buffer));
 }

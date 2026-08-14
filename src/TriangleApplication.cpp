@@ -12,6 +12,11 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
 void TriangleApplication::run()
 {
     std::snprintf(importModelPath, sizeof(importModelPath), "%s", MODEL_PATH.c_str());
@@ -61,9 +66,8 @@ void TriangleApplication::InitVulkan()
     createGraphicsPipeline();
     createSkyboxPipeline();
 
-    // createCommandPool();
     createUploadContext();
-    createFrameContexts();
+    renderer.initialize(context, swapchain);
 
     swapchain.createFramebuffers(renderPass);
 
@@ -113,6 +117,7 @@ void TriangleApplication::cleanup() noexcept
 
     const VkResult result = context.waitIdle();
     
+    renderer.shutdown();
     swapchain.shutdown();
 
     if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
@@ -122,11 +127,6 @@ void TriangleApplication::cleanup() noexcept
             "vkDeviceWaitIdle failed during cleanup: %s (%d)\n",
             vkResultToString(result),
             static_cast<int>(result));
-    }
-
-    for (FrameContext& frame : frames)
-    {
-        frame.retiredBuffers.clear();
     }
 
     // Destroy raw Vulkan objects which may reference the RAII buffers/images
@@ -164,16 +164,6 @@ void TriangleApplication::cleanup() noexcept
     }
 }
 
-void TriangleApplication::waitForAllFrames()
-{
-    std::array<VkFence, MAX_FRAMES_IN_FLIGHT> fences{};
-    for (size_t i = 0; i < frames.size(); i++)
-    {
-        fences[i] = frames[i].renderFence;
-    }
-
-    VK_CHECK(vkWaitForFences(context.device(), static_cast<uint32_t>(fences.size()), fences.data(), VK_TRUE, UINT64_MAX));
-}
 
 void TriangleApplication::recreateSwapChain()
 {
@@ -219,8 +209,75 @@ void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int widt
 void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
 {
     auto app = reinterpret_cast<TriangleApplication *>(glfwGetWindowUserPointer(window));
-    if (app != nullptr && app->rendererReady && !app->frameInProgress)
+    if (app != nullptr && app->rendererReady && !app->renderer.frameInProgress())
     {
         app->drawFrame();
+    }
+}
+
+
+void TriangleApplication::drawFrame()
+{
+    if (!rendererReady || renderer.frameInProgress())
+    {
+        return;
+    }
+
+    int width = 0;
+    int height = 0;
+
+    glfwGetFramebufferSize(window, &width, &height);
+
+    if (width == 0 || height == 0)
+    {
+        return;
+    }
+
+    if (framebufferResized)
+    {
+        framebufferResized = false;
+        recreateSwapChain();
+        return;
+    }
+
+    const BeginFrameResult beginResult = renderer.beginFrame();
+    if (beginResult.status == FrameStatus::Skip)
+    {
+        return;
+    }
+
+    if (beginResult.status == FrameStatus::RecreateSwapchain)
+    {
+        recreateSwapChain();
+        return;
+    }
+
+    const FrameToken& frame = beginResult.frame;
+
+    const float now = static_cast<float>(glfwGetTime());
+    float deltaTime = now - lastFrameTime;
+    lastFrameTime = now;
+    deltaTime = std::min(deltaTime, 0.05f);
+
+    // 应用层更新
+    processCameraInput(deltaTime);
+
+    updateUniformBuffer(currentFrame, deltaTime);
+
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    drawImGui();
+    processModelPicking();
+    ImGui::Render();
+
+    recordCommandBuffer(frame.commandBuffer, frame.imageIndex, frame.frameIndex);
+
+    const FrameStatus endStatus = renderer.endFrame(frame);
+
+    if (endStatus == FrameStatus::RecreateSwapchain || framebufferResized)
+    {
+        framebufferResized = false;
+        recreateSwapChain();
     }
 }
