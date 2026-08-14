@@ -198,6 +198,11 @@ BeginFrameResult Renderer::beginFrame()
         VK_NULL_HANDLE,
         &imageIndex
     );
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        return {FrameStatus::RecreateSwapchain, {}};
+    }
+
     if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR)
     {
         VK_CHECK_RESULT(acquireResult, "vkAcquireNextImageKHR");
