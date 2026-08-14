@@ -180,7 +180,7 @@ void TriangleApplication::recreateSwapChain()
         glfwWaitEvents();
     }
 
-    waitForAllFrames();
+    renderer.waitForAllFrames();
     // Frame Fence 只能证明 Graphics Submission完成
     // Present Queue 可能还在使用旧的 SwapChain Image，必须等待 Present Queue 空闲后才能销毁旧的 SwapChain
     VK_CHECK(vkQueueWaitIdle(context.presentQueue()));
@@ -262,7 +262,7 @@ void TriangleApplication::drawFrame()
     // 应用层更新
     processCameraInput(deltaTime);
 
-    updateUniformBuffer(currentFrame, deltaTime);
+    updateUniformBuffer(frame.frameIndex, deltaTime);
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();

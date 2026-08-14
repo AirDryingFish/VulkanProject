@@ -232,7 +232,6 @@ private:
 
     bool rendererReady = false;
     bool framebufferResized = false;
-    uint32_t currentFrame = 0;
 
     // camera-related params
     glm::vec3 cameraPos = {2.0f, 2.0f, 2.0f};

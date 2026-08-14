@@ -78,7 +78,6 @@ add_executable(vulkan
     src/ImageResources.cpp
     src/Model.cpp
     src/Picking.cpp
-    src/RendererLegacy.cpp
     src/TriangleApplication.cpp
     src/ThirdPartyImplementations.cpp
     src/ImGuiLayer.cpp
