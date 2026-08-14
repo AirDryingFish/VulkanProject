@@ -62,4 +62,13 @@ public:
     void createFramebuffers(VkRenderPass renderPass);
     void destroyFramebuffersAndAttachments() noexcept;
     VkFramebuffer framebuffer(std::size_t index) const;
+
+    SwapchainBuildStatus buildStatus() const noexcept;
+};
+
+enum class SwapchainBuildStatus
+{
+    Ready,
+    Deffered,
+    WindowClosed,
 };

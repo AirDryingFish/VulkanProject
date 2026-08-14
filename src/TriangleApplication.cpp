@@ -170,15 +170,23 @@ void TriangleApplication::recreateSwapChain()
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
 
-    while (width == 0 || height == 0)
+    const SwapchainBuildStatus status = swapchain.buildStatus();
+
+    if (status == SwapchainBuildStatus::Deffered ||
+        status == SwapchainBuildStatus::WindowClosed)
     {
-        if (glfwWindowShouldClose(window))
-        {
-            return;
-        }
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
+        return;
     }
+
+    // while (width == 0 || height == 0)
+    // {
+    //     if (glfwWindowShouldClose(window))
+    //     {
+    //         return;
+    //     }
+    //     glfwGetFramebufferSize(window, &width, &height);
+    //     glfwWaitEvents();
+    // }
 
     renderer.waitForAllFrames();
     // Frame Fence 只能证明 Graphics Submission完成

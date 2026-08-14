@@ -252,6 +252,26 @@ VkFramebuffer Swapchain::framebuffer(std::size_t index) const
     return framebuffers_.at(index);
 }
 
+SwapchainBuildStatus Swapchain::buildStatus() const noexcept
+{
+    if (window_ == nullptr || glfwWindowShouldClose(window_))
+    {
+        return SwapchainBuildStatus::WindowClosed;
+    }
+
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(window_, &width, & height);
+
+    if (width == 0 || height == 0)
+    {
+        return SwapchainBuildStatus::Deffered;
+    }
+    
+    return SwapchainBuildStatus::Ready;
+
+}
+
 VkSurfaceFormatKHR Swapchain::chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &formats) const
 {
     for (const auto &availableForat : formats)
