@@ -7,6 +7,7 @@
 #include "VulkanResources.hpp"
 #include "VulkanContext.hpp"
 #include "Renderer.hpp"
+#include "RenderTypes.hpp"
 #include "Swapchain.hpp"
 
 #include <array>
@@ -15,8 +16,6 @@
 #include <vector>
 
 #include <vk_mem_alloc.h>
-
-static constexpr uint32_t pbrImageDescriptorCount = 9;
 
 class TriangleApplication
 {
@@ -38,9 +37,6 @@ private:
     static void windowRefreshCallback(GLFWwindow *window);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-    static std::vector<char> readFile(const std::string &filename);
-    void createDescriptorSetLayout();
-    void createGraphicsPipeline();
     enum class MeshSource
     {
         Obj,
@@ -84,18 +80,6 @@ private:
         float autoRotateSpeed = 90.0f;
     };
 
-    struct GraphicsPipelineConfig
-    {
-        std::string vertShaderPath;
-        std::string fragShaderPath;
-        bool useVertexInput = true;
-        VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
-        bool depthTest = true;
-        bool depthWrite = true;
-        VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
-    };
-    VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
-
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -133,7 +117,6 @@ private:
 
     void createSkyboxImage();
     void createSkyboxSampler();
-    void createSkyboxPipeline();
     void createSkyboxDescriptorSets();
 
     void createIrradianceResources();
@@ -153,8 +136,7 @@ private:
     void MainLoop();
     void cleanup() noexcept;
 
-    void destroyBufferDeferred(AllocatedBuffer& buffer);
-
+    void destroyBufferDeferred(AllocatedBuffer &buffer);
 
     bool glfwInitialized = false;
 
@@ -169,10 +151,6 @@ private:
     Renderer renderer;
 
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
-
-    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline graphicsPipeline = VK_NULL_HANDLE;
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -257,7 +235,6 @@ private:
     // skybox member
     AllocatedImage skyboxImage;
     VkSampler skyboxSampler = VK_NULL_HANDLE;
-    VkPipeline skyboxPipeline = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> skyboxDescriptorSets;
 
     // diffuse IBL irradiance cubemap
@@ -299,5 +276,4 @@ private:
     float materialMetallic = 1.0f;
     float materialRoughness = 1.0f;
     float materialAo = 1.0f;
-
 };

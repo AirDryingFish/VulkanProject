@@ -43,12 +43,12 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
     scissor.extent = swapchain.extent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &skyboxDescriptorSets[frameIndex], 0, nullptr);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.skyboxPipeline());
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.pipelineLayout(), 0, 1, &skyboxDescriptorSets[frameIndex], 0, nullptr);
     vkCmdDraw(commandBuffer, 36, 1, 0, 0);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[frameIndex], 0, nullptr);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.graphicsPipeline());
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.pipelineLayout(), 0, 1, &descriptorSets[frameIndex], 0, nullptr);
 
     VkDeviceSize offsets[] = {0};
     for (const SceneObject &object : sceneObjects)
@@ -59,7 +59,7 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
         }
 
         const glm::mat4 model = getObjectMatrix(object);
-        vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
+        vkCmdPushConstants(commandBuffer, renderer.pipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
         VkBuffer vertexBuffers[] = {object.vertexBuffer.get()};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);

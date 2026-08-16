@@ -1,4 +1,9 @@
-#include "TriangleApplication.hpp"
+#include "Renderer.hpp"
+#include "VulkanContext.hpp"
+#include "Swapchain.hpp"
+#include "VulkanCheck.hpp"
+#include "VulkanTypes.hpp"
+#include "FileUtils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,30 +16,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-std::vector<char> TriangleApplication::readFile(const std::string &filename)
-{
-    // ate: 从文件末尾开始读取，这样就可以直接得到文件大小，不需要先读一遍来计算大小了
-    // binary: 以二进制模式打开文件，SPIR-V 是二进制数据。如果用文本模式，Windows 会把 \r\n 自动转成 \n，破坏二进制内容。
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        throw std::runtime_error("failed to open file!");
-    }
-
-    // 光标位置 = 文件字节数
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<char> buffer(fileSize);
-
-    file.seekg(0);
-    file.read(buffer.data(), fileSize);
-
-    file.close();
-    return buffer;
-}
-
-
-void TriangleApplication::createDescriptorSetLayout()
+void Renderer::createDescriptorSetLayout()
 {
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
@@ -60,13 +42,12 @@ void TriangleApplication::createDescriptorSetLayout()
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    VK_CHECK(vkCreateDescriptorSetLayout(context.device(), &layoutInfo, nullptr, &descriptorSetLayout));
-    mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable {
-        vkDestroyDescriptorSetLayout(context.device(), layout, nullptr);
-    });
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &layoutInfo, nullptr, &descriptorSetLayout_));
+    // mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable
+    //                                { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
 }
 
-void TriangleApplication::createGraphicsPipeline()
+void Renderer::createGraphicsPipeline()
 {
     GraphicsPipelineConfig config{};
     config.vertShaderPath = MAIN_VERTEX_SHADER_PATH;
@@ -77,13 +58,12 @@ void TriangleApplication::createGraphicsPipeline()
     config.depthWrite = true;
     config.depthCompareOp = VK_COMPARE_OP_LESS;
 
-    graphicsPipeline = createGraphicsPipelineFromConfig(config);
-    mainDeletionQueue.pushFunction([this, pipeline = graphicsPipeline]() mutable {
-        vkDestroyPipeline(context.device(), pipeline, nullptr);
-    });
+    graphicsPipeline_ = createGraphicsPipelineFromConfig(config);
+    // mainDeletionQueue.pushFunction([this, pipeline = graphicsPipeline]() mutable
+    //                                { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 }
 
-void TriangleApplication::createSkyboxPipeline()
+void Renderer::createSkyboxPipeline()
 {
     GraphicsPipelineConfig config{};
     config.vertShaderPath = SKYBOX_VERTEX_SHADER_PATH;
@@ -94,19 +74,18 @@ void TriangleApplication::createSkyboxPipeline()
     config.depthWrite = false;
     config.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
-    skyboxPipeline = createGraphicsPipelineFromConfig(config);
-    mainDeletionQueue.pushFunction([this, pipeline = skyboxPipeline]() mutable {
-        vkDestroyPipeline(context.device(), pipeline, nullptr);
-    });
+    skyboxPipeline_ = createGraphicsPipelineFromConfig(config);
+    // mainDeletionQueue.pushFunction([this, pipeline = skyboxPipeline]() mutable
+    //                                { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 }
 
-VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config)
+VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config)
 {
-    auto vertShaderCode = readFile(config.vertShaderPath);
-    auto fragShaderCode = readFile(config.fragShaderPath);
+    auto vertShaderCode = readBinaryFile(config.vertShaderPath);
+    auto fragShaderCode = readBinaryFile(config.fragShaderPath);
 
-    UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
-    UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = context_->createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = context_->createShaderModule(fragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -168,7 +147,7 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = context.msaaSamples();
+    multisampling.rasterizationSamples = context_->msaaSamples();
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -180,7 +159,7 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
 
-    if (pipelineLayout == VK_NULL_HANDLE)
+    if (pipelineLayout_ == VK_NULL_HANDLE)
     {
         VkPushConstantRange modelPushConstant{};
         modelPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -190,15 +169,14 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout_;
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &modelPushConstant;
 
-        VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
+        VK_CHECK(vkCreatePipelineLayout(context_->device(), &pipelineLayoutInfo, nullptr, &pipelineLayout_));
 
-        mainDeletionQueue.pushFunction([this, layout = pipelineLayout]() mutable {
-            vkDestroyPipelineLayout(context.device(), layout, nullptr);
-        });
+        // mainDeletionQueue.pushFunction([this, layout = pipelineLayout]() mutable
+        //                                { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
     }
 
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
@@ -221,17 +199,15 @@ VkPipeline TriangleApplication::createGraphicsPipelineFromConfig(const GraphicsP
     pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = renderer.renderPass();
+    pipelineInfo.layout = pipelineLayout_;
+    pipelineInfo.renderPass = renderPass_;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
 
     VkPipeline pipeline = VK_NULL_HANDLE;
-    const VkResult pipelineResult = vkCreateGraphicsPipelines(context.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+    const VkResult pipelineResult = vkCreateGraphicsPipelines(context_->device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines");
 
     return pipeline;
 }
-
-

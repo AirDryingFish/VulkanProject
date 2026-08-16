@@ -34,7 +34,7 @@ void TriangleApplication::createTextureDescriptorSets(
     const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
     std::vector<VkDescriptorSet> &targetDescriptorSets)
 {
-    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, renderer.descriptorSetLayout());
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;

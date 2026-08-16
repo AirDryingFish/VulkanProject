@@ -1,4 +1,5 @@
 #include "TriangleApplication.hpp"
+#include "FileUtils.hpp"
 
 #include <array>
 #include <stdexcept>
@@ -240,8 +241,8 @@ void TriangleApplication::createIrradianceResources()
     mainDeletionQueue.pushFunction([this, layout = irradiancePipelineLayout]()
                                    { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
 
-    auto vertShaderCode = readFile(IRRADIANCE_VERTEX_SHADER_PATH);
-    auto fragShaderCode = readFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
+    auto vertShaderCode = readBinaryFile(IRRADIANCE_VERTEX_SHADER_PATH);
+    auto fragShaderCode = readBinaryFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
 
     UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
     UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
@@ -598,8 +599,8 @@ void TriangleApplication::createPrefilterResources()
     mainDeletionQueue.pushFunction([this, layout = prefilterPipelineLayout]()
                                    { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
 
-    auto vertShaderCode = readFile(PREFILTER_VERTEX_SHADER_PATH);
-    auto fragShaderCode = readFile(PREFILTER_FRAGMENT_SHADER_PATH);
+    auto vertShaderCode = readBinaryFile(PREFILTER_VERTEX_SHADER_PATH);
+    auto fragShaderCode = readBinaryFile(PREFILTER_FRAGMENT_SHADER_PATH);
 
     UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
     UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
@@ -803,8 +804,7 @@ void TriangleApplication::createBRDFLUTResources()
     brdfLUTImage.setView(context.createImageView(
         brdfLUTImage.get(),
         brdfLUTFormat,
-        1
-    ));
+        1));
 
     // 创建纹理采样器
     VkSamplerCreateInfo samplerInfo{};
@@ -821,10 +821,8 @@ void TriangleApplication::createBRDFLUTResources()
 
     VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &brdfLUTSampler));
     mainDeletionQueue.pushFunction([this, sampler = brdfLUTSampler]()
-    {
-        vkDestroySampler(context.device(), sampler, nullptr);
-    });
-    
+                                   { vkDestroySampler(context.device(), sampler, nullptr); });
+
     // 创建颜色附件描述: 这张附件是什么，渲染前后怎么处理
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = brdfLUTFormat;
@@ -867,9 +865,8 @@ void TriangleApplication::createBRDFLUTResources()
     renderPassInfo.pDependencies = &dependency;
 
     VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &brdfLUTRenderPass));
-    mainDeletionQueue.pushFunction([this, renderPass = brdfLUTRenderPass](){
-        vkDestroyRenderPass(context.device(), renderPass, nullptr);
-    });
+    mainDeletionQueue.pushFunction([this, renderPass = brdfLUTRenderPass]()
+                                   { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
 
     // 创建帧缓冲：这个帧缓冲会使用哪些附件、渲染通道、尺寸
     VkImageView attachment = brdfLUTImage.view();
@@ -883,22 +880,19 @@ void TriangleApplication::createBRDFLUTResources()
     framebufferInfo.layers = 1;
 
     VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &brdfLUTFramebuffer));
-    mainDeletionQueue.pushFunction([this, framebuffer = brdfLUTFramebuffer](){
-        vkDestroyFramebuffer(context.device(), framebuffer, nullptr);
-    });
+    mainDeletionQueue.pushFunction([this, framebuffer = brdfLUTFramebuffer]()
+                                   { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
 
     // 创建管线布局：这个管线布局会使用哪些描述符集、推送常量
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &brdfLUTPipelineLayout));
-    mainDeletionQueue.pushFunction([this, layout = brdfLUTPipelineLayout](){
-        vkDestroyPipelineLayout(context.device(), layout, nullptr);
-    });
-    
+    mainDeletionQueue.pushFunction([this, layout = brdfLUTPipelineLayout]()
+                                   { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
 
     // 创建着色器
-    const auto vertexCode = readFile(BRDF_LUT_VERTEX_SHADER_PATH);
-    const auto fragmentCode = readFile(BRDF_LUT_FRAGMENT_SHADER_PATH);
+    const auto vertexCode = readBinaryFile(BRDF_LUT_VERTEX_SHADER_PATH);
+    const auto fragmentCode = readBinaryFile(BRDF_LUT_FRAGMENT_SHADER_PATH);
     UniqueShaderModule vertexShaderModule = context.createShaderModule(vertexCode);
     UniqueShaderModule fragmentShaderModule = context.createShaderModule(fragmentCode);
 
@@ -948,10 +942,10 @@ void TriangleApplication::createBRDFLUTResources()
 
     // 设置颜色混合状态信息：这个状态描述如何将片段颜色与帧缓冲颜色混合
     VkPipelineColorBlendAttachmentState blendAttachment{};
-    blendAttachment.colorWriteMask = 
-        VK_COLOR_COMPONENT_R_BIT | 
-        VK_COLOR_COMPONENT_G_BIT | 
-        VK_COLOR_COMPONENT_B_BIT | 
+    blendAttachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT |
+        VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT |
         VK_COLOR_COMPONENT_A_BIT;
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};
@@ -998,13 +992,11 @@ void TriangleApplication::createBRDFLUTResources()
         1,
         &pipelineInfo,
         nullptr,
-        &brdfLUTPipeline
-    );
+        &brdfLUTPipeline);
 
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines(brdf LUT)");
-    mainDeletionQueue.pushFunction([this, pipeline = brdfLUTPipeline](){
-        vkDestroyPipeline(context.device(), pipeline, nullptr);
-    });
+    mainDeletionQueue.pushFunction([this, pipeline = brdfLUTPipeline]()
+                                   { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 
     // 上面创建好了pipeline，接下来把fragment的结果写入附件，先设置image的格式可以作为颜色附件写入
     transitionImageLayout(
@@ -1012,8 +1004,7 @@ void TriangleApplication::createBRDFLUTResources()
         brdfLUTFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        1
-    );
+        1);
     renderBRDFLUT();
 
     // 切换成 Shader 只读布局，方便后续 PBR Shader 采样 LUT
@@ -1022,9 +1013,7 @@ void TriangleApplication::createBRDFLUTResources()
         brdfLUTFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        1
-    );
-
+        1);
 }
 
 void TriangleApplication::renderBRDFLUT()
@@ -1049,8 +1038,7 @@ void TriangleApplication::renderBRDFLUT()
 
             VkClearValue clearValue{};
             clearValue.color = {
-                {0.0f, 0.0f, 0.0f, 1.0f}
-            };
+                {0.0f, 0.0f, 0.0f, 1.0f}};
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1067,29 +1055,25 @@ void TriangleApplication::renderBRDFLUT()
             vkCmdBeginRenderPass(
                 commandBuffer,
                 &renderPassInfo,
-                VK_SUBPASS_CONTENTS_INLINE
-            );
-            
+                VK_SUBPASS_CONTENTS_INLINE);
+
             vkCmdSetViewport(
                 commandBuffer,
                 0,
                 1,
-                &viewport
-            );
+                &viewport);
 
             vkCmdSetScissor(
                 commandBuffer,
                 0,
                 1,
-                &scissor
-            );
+                &scissor);
 
             vkCmdBindPipeline(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                brdfLUTPipeline
-            );
-            
+                brdfLUTPipeline);
+
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             vkCmdEndRenderPass(commandBuffer);
         }

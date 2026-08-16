@@ -5,6 +5,9 @@
 
 #include <cstdint>
 #include <vector>
+#include <cstddef>
+
+inline constexpr std::size_t pbrImageDescriptorCount = 9;
 
 struct ImDrawData;
 

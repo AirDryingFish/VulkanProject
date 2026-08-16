@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <vector>
+#include <string>
 
 class VulkanContext;
 class Swapchain;
@@ -33,10 +34,26 @@ private:
         VkFence fence = VK_NULL_HANDLE;
     };
 
+    struct GraphicsPipelineConfig
+    {
+        std::string vertShaderPath;
+        std::string fragShaderPath;
+        bool useVertexInput = true;
+        VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
+        bool depthTest = true;
+        bool depthWrite = true;
+        VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
+    };
+
     VulkanContext *context_ = nullptr;
     Swapchain *swapchain_ = nullptr;
 
     VkRenderPass renderPass_ = VK_NULL_HANDLE;
+
+    VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+    VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
+    VkPipeline skyboxPipeline_ = VK_NULL_HANDLE;
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
 
@@ -48,6 +65,11 @@ private:
 
     void createUploadContext();
     void createRenderPass();
+
+    void createDescriptorSetLayout();
+    void createGraphicsPipeline();
+    void createSkyboxPipeline();
+    VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
 
 public:
     Renderer() noexcept = default;
@@ -72,7 +94,12 @@ public:
 
     bool frameInProgress() const noexcept;
 
-    VkRenderPass renderPass();
+    VkRenderPass renderPass() const noexcept;
+
+    VkDescriptorSetLayout descriptorSetLayout() const noexcept;
+    VkPipelineLayout pipelineLayout() const noexcept;
+    VkPipeline graphicsPipeline() const noexcept;
+    VkPipeline skyboxPipeline() const noexcept;
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 };

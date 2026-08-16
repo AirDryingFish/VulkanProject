@@ -25,6 +25,9 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         swapchain_ = &swapchain;
 
         createRenderPass();
+        createDescriptorSetLayout();
+        createGraphicsPipeline();
+        createSkyboxPipeline();
 
         QueueFamilyIndices indices = context.queueFamilies();
 
@@ -253,11 +256,6 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
-            if (renderPass_ != VK_NULL_HANDLE)
-            {
-                vkDestroyRenderPass(context_->device(), renderPass_, nullptr);
-            }
-
             for (FrameContext &frame : frames_)
             {
                 frame.retiredBuffers.clear(); // 析构时自动触发资源释放
@@ -290,12 +288,40 @@ void Renderer::shutdown() noexcept
             {
                 vkDestroyCommandPool(device, uploadContext_.commandPool, nullptr);
             }
+
+            if (skyboxPipeline_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, skyboxPipeline_, nullptr);
+            }
+
+            if (graphicsPipeline_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, graphicsPipeline_, nullptr);
+            }
+
+            if (pipelineLayout_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipelineLayout(device, pipelineLayout_, nullptr);
+            }
+
+            if (descriptorSetLayout_ != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(device, descriptorSetLayout_, nullptr);
+            }
+
+            if (renderPass_ != VK_NULL_HANDLE)
+            {
+                vkDestroyRenderPass(device, renderPass_, nullptr);
+            }
         }
     }
 
     uploadContext_.fence = VK_NULL_HANDLE;
     uploadContext_.commandBuffer = VK_NULL_HANDLE;
     uploadContext_.commandPool = VK_NULL_HANDLE;
+
+    renderPass_ = VK_NULL_HANDLE;
+    
 
     currentFrame_ = 0;
     frameInProgress_ = false;
@@ -348,9 +374,29 @@ bool Renderer::frameInProgress() const noexcept
     return frameInProgress_;
 }
 
-VkRenderPass Renderer::renderPass()
+VkRenderPass Renderer::renderPass() const noexcept
 {
     return renderPass_;
+}
+
+VkDescriptorSetLayout Renderer::descriptorSetLayout() const noexcept
+{
+    return descriptorSetLayout_;
+}
+
+VkPipelineLayout Renderer::pipelineLayout() const noexcept
+{
+    return pipelineLayout_;
+}
+
+VkPipeline Renderer::graphicsPipeline() const noexcept
+{
+    return graphicsPipeline_;
+}
+
+VkPipeline Renderer::skyboxPipeline() const noexcept
+{
+    return skyboxPipeline_;
 }
 
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
