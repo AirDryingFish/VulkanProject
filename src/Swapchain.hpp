@@ -6,11 +6,18 @@
 #include <cstddef>
 #include <vector>
 
+enum class SwapchainBuildStatus
+{
+    Ready,
+    Deferred,
+    WindowClosed,
+};
+
 class Swapchain final
 {
 private:
-    VulkanContext* context_ = nullptr;
-    GLFWwindow* window_ = nullptr;
+    VulkanContext *context_ = nullptr;
+    GLFWwindow *window_ = nullptr;
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     std::vector<VkImage> images_;
@@ -27,25 +34,24 @@ private:
 
     std::vector<VkFramebuffer> framebuffers_;
 
-    VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
-    VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& presentMode) const;
-    VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& capabilities) const;
+    VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &formats) const;
+    VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR> &presentMode) const;
+    VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR &capabilities) const;
     void createImageViews();
     void createPresentSemaphores();
     void createAttachments();
-
 
 public:
     Swapchain() noexcept = default;
     ~Swapchain() noexcept;
 
-    Swapchain(const Swapchain&) = delete;
-    Swapchain& operator=(const Swapchain&) = delete;
-    Swapchain(Swapchain&&) = delete;
-    Swapchain& operator=(Swapchain&&) = delete;
+    Swapchain(const Swapchain &) = delete;
+    Swapchain &operator=(const Swapchain &) = delete;
+    Swapchain(Swapchain &&) = delete;
+    Swapchain &operator=(Swapchain &&) = delete;
 
     // 暴露的接口
-    void initializeCore(VulkanContext& context, GLFWwindow* window);
+    void initializeCore(VulkanContext &context, GLFWwindow *window);
 
     void shutdown() noexcept;
 
@@ -64,11 +70,4 @@ public:
     VkFramebuffer framebuffer(std::size_t index) const;
 
     SwapchainBuildStatus buildStatus() const noexcept;
-};
-
-enum class SwapchainBuildStatus
-{
-    Ready,
-    Deffered,
-    WindowClosed,
 };

@@ -265,7 +265,7 @@ SwapchainBuildStatus Swapchain::buildStatus() const noexcept
 
     if (width == 0 || height == 0)
     {
-        return SwapchainBuildStatus::Deffered;
+        return SwapchainBuildStatus::Deferred;
     }
     
     return SwapchainBuildStatus::Ready;

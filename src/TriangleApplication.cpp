@@ -172,7 +172,7 @@ void TriangleApplication::recreateSwapChain()
 
     const SwapchainBuildStatus status = swapchain.buildStatus();
 
-    if (status == SwapchainBuildStatus::Deffered ||
+    if (status == SwapchainBuildStatus::Deferred ||
         status == SwapchainBuildStatus::WindowClosed)
     {
         return;
