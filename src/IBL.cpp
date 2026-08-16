@@ -362,8 +362,8 @@ void TriangleApplication::renderIrradianceCubemap()
         glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
     };
 
-    immediateSubmit([&](VkCommandBuffer commandBuffer)
-                    {
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+                             {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -720,8 +720,8 @@ void TriangleApplication::renderPrefilterCubemap()
         glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
     };
 
-    immediateSubmit([&](VkCommandBuffer commandBuffer)
-                    {
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+                             {
                         VkViewport viewport{};
                         viewport.x = 0.0f;
                         viewport.y = 0.0f;
@@ -1029,7 +1029,7 @@ void TriangleApplication::createBRDFLUTResources()
 
 void TriangleApplication::renderBRDFLUT()
 {
-    immediateSubmit(
+    renderer.immediateSubmit(
         [&](VkCommandBuffer commandBuffer)
         {
             VkViewport viewport{};
@@ -1092,7 +1092,6 @@ void TriangleApplication::renderBRDFLUT()
             
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             vkCmdEndRenderPass(commandBuffer);
-
         }
 
     );

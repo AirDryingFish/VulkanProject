@@ -16,14 +16,6 @@
 
 #include <vk_mem_alloc.h>
 
-struct UploadContext
-{
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    VkFence fence = VK_NULL_HANDLE;
-};
-
-
 static constexpr uint32_t pbrImageDescriptorCount = 9;
 
 class TriangleApplication
@@ -107,8 +99,6 @@ private:
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);
 
-    void immediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function);
-
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
     void loadModel();
@@ -163,8 +153,6 @@ private:
     void drawFrame();
     void MainLoop();
     void cleanup() noexcept;
-
-    void createUploadContext();
 
     void destroyBufferDeferred(AllocatedBuffer& buffer);
 
@@ -314,6 +302,4 @@ private:
     float materialRoughness = 1.0f;
     float materialAo = 1.0f;
 
-    // upload context for immediate submit
-    UploadContext uploadContext;
 };

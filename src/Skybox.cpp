@@ -307,7 +307,7 @@ void TriangleApplication::createSkyboxImage()
         skyboxMipLevels,
         6);
 
-    immediateSubmit([&](VkCommandBuffer commandBuffer) {
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer) {
         std::array<VkBufferImageCopy, 6> regions{};
         for (uint32_t i = 0; i < regions.size(); i++)
         {

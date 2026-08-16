@@ -83,8 +83,8 @@ void TriangleApplication::generateMipmaps(VkImage image, VkFormat imageFormat, u
         throw std::runtime_error("texture image format does not support linear blitting!");
     }
 
-    immediateSubmit([&](VkCommandBuffer commandBuffer)
-                    {
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+                             {
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.image = image;
@@ -237,8 +237,8 @@ void TriangleApplication::createTextureSampler()
 
 void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
 {
-    immediateSubmit([&](VkCommandBuffer commandBuffer)
-                    {
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+                             {
         VkPipelineStageFlags sourceStage;
         VkPipelineStageFlags destinationStage;
 
@@ -301,8 +301,8 @@ void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, 
 
 void TriangleApplication::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
-    immediateSubmit([&](VkCommandBuffer commandBuffer)
-                    {
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+                             {
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
         region.bufferRowLength = 0;

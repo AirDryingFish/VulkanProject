@@ -66,7 +66,6 @@ void TriangleApplication::InitVulkan()
     createGraphicsPipeline();
     createSkyboxPipeline();
 
-    createUploadContext();
     renderer.initialize(context, swapchain);
 
     swapchain.createFramebuffers(renderPass);
