@@ -20,7 +20,7 @@ void TriangleApplication::recordCommandBuffer(VkCommandBuffer commandBuffer, uin
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = renderPass;
+    renderPassInfo.renderPass = renderer.renderPass();
     renderPassInfo.framebuffer = swapchain.framebuffer(imageIndex);
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = swapchain.extent();

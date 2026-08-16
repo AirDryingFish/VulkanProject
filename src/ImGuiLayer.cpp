@@ -234,7 +234,7 @@ void TriangleApplication::initImGui()
     initInfo.QueueFamily = indices.graphicsFamily.value();
     initInfo.Queue = context.graphicsQueue();
     initInfo.DescriptorPool = imguiDescriptorPool;
-    initInfo.PipelineInfoMain.RenderPass = renderPass;
+    initInfo.PipelineInfoMain.RenderPass = renderer.renderPass();
     initInfo.MinImageCount = MAX_FRAMES_IN_FLIGHT;
     initInfo.ImageCount = static_cast<uint32_t>(swapchain.imageCount());
     initInfo.PipelineInfoMain.MSAASamples = context.msaaSamples();

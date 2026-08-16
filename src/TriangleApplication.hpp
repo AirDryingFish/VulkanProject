@@ -38,7 +38,6 @@ private:
     static void windowRefreshCallback(GLFWwindow *window);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-    void createRenderPass();
     static std::vector<char> readFile(const std::string &filename);
     void createDescriptorSetLayout();
     void createGraphicsPipeline();
@@ -171,7 +170,6 @@ private:
 
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
-    VkRenderPass renderPass = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;

@@ -36,6 +36,8 @@ private:
     VulkanContext *context_ = nullptr;
     Swapchain *swapchain_ = nullptr;
 
+    VkRenderPass renderPass_ = VK_NULL_HANDLE;
+
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
 
     UploadContext uploadContext_{};
@@ -45,6 +47,7 @@ private:
     bool initialized_ = false;
 
     void createUploadContext();
+    void createRenderPass();
 
 public:
     Renderer() noexcept = default;
@@ -68,6 +71,8 @@ public:
     uint32_t currentFrameIndex() const noexcept;
 
     bool frameInProgress() const noexcept;
+
+    VkRenderPass renderPass();
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 };

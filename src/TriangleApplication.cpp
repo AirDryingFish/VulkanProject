@@ -61,14 +61,13 @@ void TriangleApplication::InitVulkan()
     context.initialize(window, contextConfig);
     swapchain.initializeCore(context, window);
 
-    createRenderPass();
+    renderer.initialize(context, swapchain);
+
     createDescriptorSetLayout();
     createGraphicsPipeline();
     createSkyboxPipeline();
 
-    renderer.initialize(context, swapchain);
-
-    swapchain.createFramebuffers(renderPass);
+    swapchain.createFramebuffers(renderer.renderPass());
 
     initImGui();
 
@@ -115,7 +114,9 @@ void TriangleApplication::cleanup() noexcept
     rendererReady = false;
 
     const VkResult result = context.waitIdle();
-    
+
+    swapchain.destroyFramebuffersAndAttachments();
+
     renderer.shutdown();
     swapchain.shutdown();
 
@@ -163,7 +164,6 @@ void TriangleApplication::cleanup() noexcept
     }
 }
 
-
 void TriangleApplication::recreateSwapChain()
 {
     int width = 0, height = 0;
@@ -204,7 +204,7 @@ void TriangleApplication::recreateSwapChain()
             "resources must be rebuilt");
     }
 
-    swapchain.createFramebuffers(renderPass);
+    swapchain.createFramebuffers(renderer.renderPass());
 }
 
 void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int width, int height)
@@ -221,7 +221,6 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
         app->drawFrame();
     }
 }
-
 
 void TriangleApplication::drawFrame()
 {
@@ -259,7 +258,7 @@ void TriangleApplication::drawFrame()
         return;
     }
 
-    const FrameToken& frame = beginResult.frame;
+    const FrameToken &frame = beginResult.frame;
 
     const float now = static_cast<float>(glfwGetTime());
     float deltaTime = now - lastFrameTime;
