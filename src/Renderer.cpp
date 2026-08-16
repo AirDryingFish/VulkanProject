@@ -102,7 +102,6 @@ void Renderer::createUploadContext()
     poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
 
     VK_CHECK(vkCreateCommandPool(context_->device(), &poolInfo, nullptr, &uploadContext_.commandPool));
-    const VkCommandPool commandPool = uploadContext_.commandPool;
 
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -148,16 +147,16 @@ void Renderer::shutdown() noexcept
                 frame.renderFence = VK_NULL_HANDLE;
                 frame.imageAvailable = VK_NULL_HANDLE;
                 frame.commandPool = VK_NULL_HANDLE;
-
-                if (uploadContext_.fence != VK_NULL_HANDLE)
-                {
-                    vkDestroyFence(device, uploadContext_.fence, nullptr);
-                }
-                if (uploadContext_.commandPool != VK_NULL_HANDLE)
-                {
-                    vkDestroyCommandPool(device, uploadContext_.commandPool, nullptr);
-                }
             }
+        }
+
+        if (uploadContext_.fence != VK_NULL_HANDLE)
+        {
+            vkDestroyFence(device, uploadContext_.fence, nullptr);
+        }
+        if (uploadContext_.commandPool != VK_NULL_HANDLE)
+        {
+            vkDestroyCommandPool(device, uploadContext_.commandPool, nullptr);
         }
     }
 
@@ -219,6 +218,14 @@ bool Renderer::frameInProgress() const noexcept
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
 void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
 {
+    if (!initialized_ ||
+        context_ == nullptr ||
+        uploadContext_.commandPool == VK_NULL_HANDLE ||
+        uploadContext_.commandBuffer == VK_NULL_HANDLE ||
+        uploadContext_.fence == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("Renderer upload context is not initialized");
+    }
 
     // 确认上一次使用的UploadContext已经完成
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
