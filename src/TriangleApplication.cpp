@@ -47,7 +47,6 @@ void TriangleApplication::InitWindow()
 
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    glfwSetWindowRefreshCallback(window, windowRefreshCallback);
     glfwSetScrollCallback(window, scrollCallback);
 }
 
@@ -208,14 +207,6 @@ void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int widt
     app->framebufferResized = true;
 }
 
-void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
-{
-    auto app = reinterpret_cast<TriangleApplication *>(glfwGetWindowUserPointer(window));
-    if (app != nullptr && app->rendererReady && !app->renderer.hasActiveFrame())
-    {
-        app->drawFrame();
-    }
-}
 
 void TriangleApplication::drawFrame()
 {
