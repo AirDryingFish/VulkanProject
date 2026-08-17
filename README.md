@@ -43,7 +43,9 @@ VulkanProject/
 │   ├── standardization-log.md
 │   └── todo-phase-1/
 │       ├── overview.md
-│       └── stage-1-resource-lifetime.md
+│       ├── stage-1-resource-lifetime.md
+│       ├── stage-2-application-split.md
+│       └── stage-3-gpu-resource-layer.md
 ├── scripts/
 │   ├── compile-shaders.bat
 │   ├── compile-shaders.sh

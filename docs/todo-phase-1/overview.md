@@ -1,6 +1,10 @@
 # VulkanProject 开发路线图
 
-> 阶段 1 学习与实施指南：[资源生命周期与异常安全](stage-1-resource-lifetime.md)
+> 分阶段学习与实施指南：
+>
+> - [阶段 1：资源生命周期与异常安全](stage-1-resource-lifetime.md)
+> - [阶段 2：应用层拆分](stage-2-application-split.md)
+> - [阶段 3：通用 GPU 资源层](stage-3-gpu-resource-layer.md)
 
 本文档记录 VulkanProject 从当前 PBR Renderer 继续演进为可扩展 Vulkan
 渲染引擎的开发计划。任务按依赖关系和风险排序，而不是单纯按照视觉效果排序。
@@ -193,6 +197,8 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 ## 阶段 3：通用 GPU 资源层
 
 目标：减少裸 Vulkan handle 在业务代码中的传播，同时保留 Vulkan 行为的可见性。
+
+> 详细的评估、手敲顺序、接口草图与验收标准见：[阶段 3：通用 GPU 资源层实施指南](stage-3-gpu-resource-layer.md)。
 
 ### 3.1 Buffer 与 Image
 
@@ -517,13 +523,14 @@ Dynamic Rendering / Bindless / Render Graph
 
 ## 当前最近任务
 
-下一批提交建议控制在以下范围：
+Stage 1 的 RAII 基础和 Stage 2 的核心模块拆分已经基本落地。接下来进入 Stage 3，但仍按小提交推进：
 
-1. 检查 GLFW 初始化和窗口创建结果。
-2. 让 `Cleanup()` 支持部分初始化、重复调用和异常路径。
-3. 完善 DeletionQueue 的移动语义、使用约定与测试。
-4. 明确并验证 SceneObject 删除时的 GPU Buffer 延迟销毁约束。
-5. 完成 Swapchain 重建、模型导入和对象删除压力测试。
+1. **P0** 在当前提交上记录一次 Stage 2 Debug/Release、测试和 Validation 运行基线；
+2. **P0** 为现有 buffer/image 包装类型补齐 metadata，并检查 move/reset 是否同步处理 metadata；
+3. **P0** 在不改变行为的独立提交中重命名为 `GpuBuffer` / `GpuImage`；
+4. **P0** 增加 `BufferDesc` / `ImageDesc`，逐模块迁移并删除旧长参数接口；
+5. **P0** 分离 command recording 与 queue submission；
+6. **P0** 先把 vertex/index 合并为一次同步上传，再处理 texture 上传；
+7. **P1** 最后统一 sampler 和 IBL 的窄创建 helper。
 
-阶段 1 的 P0 项完成之前，暂缓抽取 VulkanContext 或加入新的大型视觉效果。这样
-后续 Material、glTF 和 Shadow Map 都能建立在可靠的资源所有权之上。
+在 Stage 3 的 P0 项完成前，不把 Scene、Material、EnvironmentLighting 拆分、异步上传或 dedicated transfer queue 混入当前改动。
