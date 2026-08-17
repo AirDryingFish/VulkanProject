@@ -110,12 +110,6 @@ void TriangleApplication::cleanup() noexcept
     rendererReady = false;
 
     const VkResult result = context.waitIdle();
-
-    swapchain.destroyFramebuffersAndAttachments();
-
-    renderer.shutdown();
-    swapchain.shutdown();
-
     if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
     {
         std::fprintf(
@@ -144,6 +138,11 @@ void TriangleApplication::cleanup() noexcept
     irradianceImage.reset();
     prefilterImage.reset();
     brdfLUTImage.reset();
+
+    swapchain.destroyFramebuffersAndAttachments();
+
+    renderer.shutdown();
+    swapchain.shutdown();
 
     context.shutdown();
 
