@@ -263,9 +263,6 @@ void TriangleApplication::drawFrame()
     processModelPicking();
     ImGui::Render();
 
-    // recordCommandBuffer(frame.commandBuffer, frame.imageIndex, frame.frameIndex);
-    
-
     std::vector<RenderObjectView> renderObjects;
     renderObjects.reserve(sceneObjects.size());
 
