@@ -60,7 +60,7 @@ private:
     UploadContext uploadContext_{};
 
     uint32_t currentFrame_ = 0;
-    bool frameInProgress_ = false;
+    bool hasActiveFrame_ = false;
     bool initialized_ = false;
 
     void createUploadContext();
@@ -85,6 +85,7 @@ public:
 
     // 让 FrameContext 保持为 Renderer 的私有实现，同时给 TriangleApplication 提供完成一帧所需的最少信息
     BeginFrameResult beginFrame();
+    void recordFrame(const FrameToken& token, const RenderFrameData& data);
     FrameStatus endFrame(const FrameToken &token);
 
     void waitForAllFrames();
@@ -92,14 +93,11 @@ public:
 
     uint32_t currentFrameIndex() const noexcept;
 
-    bool frameInProgress() const noexcept;
+    bool hasActiveFrame() const noexcept;
 
     VkRenderPass renderPass() const noexcept;
 
     VkDescriptorSetLayout descriptorSetLayout() const noexcept;
-    VkPipelineLayout pipelineLayout() const noexcept;
-    VkPipeline graphicsPipeline() const noexcept;
-    VkPipeline skyboxPipeline() const noexcept;
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 };

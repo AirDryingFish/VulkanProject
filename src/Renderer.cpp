@@ -6,6 +6,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <utility>
+#include <imgui_impl_vulkan.h>
 
 Renderer::~Renderer() noexcept
 {
@@ -324,7 +325,7 @@ void Renderer::shutdown() noexcept
     
 
     currentFrame_ = 0;
-    frameInProgress_ = false;
+    hasActiveFrame_ = false;
     initialized_ = false;
 
     swapchain_ = nullptr;
@@ -369,9 +370,9 @@ uint32_t Renderer::currentFrameIndex() const noexcept
     return currentFrame_;
 }
 
-bool Renderer::frameInProgress() const noexcept
+bool Renderer::hasActiveFrame() const noexcept
 {
-    return frameInProgress_;
+    return hasActiveFrame_;
 }
 
 VkRenderPass Renderer::renderPass() const noexcept
@@ -382,21 +383,6 @@ VkRenderPass Renderer::renderPass() const noexcept
 VkDescriptorSetLayout Renderer::descriptorSetLayout() const noexcept
 {
     return descriptorSetLayout_;
-}
-
-VkPipelineLayout Renderer::pipelineLayout() const noexcept
-{
-    return pipelineLayout_;
-}
-
-VkPipeline Renderer::graphicsPipeline() const noexcept
-{
-    return graphicsPipeline_;
-}
-
-VkPipeline Renderer::skyboxPipeline() const noexcept
-{
-    return skyboxPipeline_;
 }
 
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
@@ -444,7 +430,7 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
 BeginFrameResult Renderer::beginFrame()
 {
     // framInProgress 为 true 代表beginFrame已经成功开始了一帧，但还没有调用endFrame来完成提交和呈现。
-    if (!initialized_ || context_ == nullptr || swapchain_ == nullptr || frameInProgress_)
+    if (!initialized_ || context_ == nullptr || swapchain_ == nullptr || hasActiveFrame_)
     {
         return {
             FrameStatus::Skip, {}};
@@ -480,13 +466,153 @@ BeginFrameResult Renderer::beginFrame()
     VK_CHECK(vkResetCommandPool(context_->device(), frame.commandPool, 0));
 
     // 5. 返回 FrameToken
-    frameInProgress_ = true;
+    hasActiveFrame_ = true;
     FrameToken token{};
     token.frameIndex = currentFrame_;
     token.imageIndex = imageIndex;
     token.commandBuffer = frame.commandBuffer;
 
     return {FrameStatus::Ready, token};
+}
+
+void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
+{
+    if (!initialized_ || !hasActiveFrame_)
+    {
+        throw std::logic_error("Renderer has no active frame to record");
+    }
+
+    if (token.frameIndex != currentFrame_)
+    {
+        throw std::logic_error("FrameToken does not match current frame");
+    }
+    FrameContext& frame = frames_[currentFrame_];
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    VK_CHECK(vkBeginCommandBuffer(token.commandBuffer, &beginInfo));
+
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = {{
+        data.clearColor.r,
+        data.clearColor.g,
+        data.clearColor.b,
+        data.clearColor.a,
+    }};
+    clearValues[1].depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass_;
+    renderPassInfo.framebuffer = swapchain_->framebuffer(token.imageIndex);
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = swapchain_->extent();
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
+    vkCmdBeginRenderPass(token.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(swapchain_->extent().width);
+    viewport.height = static_cast<float>(swapchain_->extent().height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapchain_->extent();
+    vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
+
+    // 绘制 skybox
+    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
+
+    vkCmdBindDescriptorSets(
+        token.commandBuffer, 
+        VK_PIPELINE_BIND_POINT_GRAPHICS, 
+        pipelineLayout_, 
+        0, 
+        1, 
+        &data.skyboxDescriptorSet, 
+        0, 
+        nullptr
+    );
+    vkCmdDraw(
+        token.commandBuffer,
+        36,
+        1, 
+        0,
+        0
+    );
+
+    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
+
+        vkCmdBindDescriptorSets(
+        token.commandBuffer, 
+        VK_PIPELINE_BIND_POINT_GRAPHICS, 
+        pipelineLayout_, 
+        0, 
+        1, 
+        &data.sceneDescriptorSet, 
+        0, 
+        nullptr
+    );
+
+    if (data.objects != nullptr)
+    {
+        const VkDeviceSize offset = 0;
+        for (const RenderObjectView& object : *data.objects)
+        {
+            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE)
+            {
+                continue;
+            }
+            vkCmdPushConstants(
+                token.commandBuffer,
+                pipelineLayout_, 
+                VK_SHADER_STAGE_VERTEX_BIT,
+                0,
+                sizeof(glm::mat4),
+                &object.model
+            );
+            vkCmdBindVertexBuffers(
+                token.commandBuffer, 
+                0, 
+                1, 
+                &object.vertexBuffer, 
+                &offset
+            );
+
+            vkCmdBindIndexBuffer(
+                token.commandBuffer, 
+                object.indexBuffer, 
+                0, 
+                VK_INDEX_TYPE_UINT32
+            );
+
+            vkCmdDrawIndexed(
+                token.commandBuffer,
+                object.indexCount, 
+                1, 
+                0, 
+                0, 
+                0
+            );
+
+        }
+    }
+
+    if (data.imguiDrawData != nullptr)
+    {
+        ImGui_ImplVulkan_RenderDrawData(data.imguiDrawData, token.commandBuffer);
+    }
+
+    vkCmdEndRenderPass(token.commandBuffer);
+
+    VK_CHECK(vkEndCommandBuffer(token.commandBuffer));
+
+
 }
 
 // CPU 已经录完 commandBuffer
@@ -504,7 +630,7 @@ BeginFrameResult Renderer::beginFrame()
 // vkQueuePresentKHR()
 FrameStatus Renderer::endFrame(const FrameToken &token)
 {
-    if (!initialized_ || !frameInProgress_)
+    if (!initialized_ || !hasActiveFrame_)
     {
         throw std::logic_error("Renderer has no active frame");
     }
@@ -553,8 +679,8 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     // 4. 更新 currentFrame_。
     currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 
-    // 5. 设置 frameInProgress_ = false。
-    frameInProgress_ = false;
+    // 5. 设置 hasActiveFrame_ = false。
+    hasActiveFrame_ = false;
 
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
     {

@@ -80,8 +80,6 @@ private:
         float autoRotateSpeed = 90.0f;
     };
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);
-
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
     void loadModel();

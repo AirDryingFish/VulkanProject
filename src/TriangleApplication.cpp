@@ -211,7 +211,7 @@ void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int widt
 void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
 {
     auto app = reinterpret_cast<TriangleApplication *>(glfwGetWindowUserPointer(window));
-    if (app != nullptr && app->rendererReady && !app->renderer.frameInProgress())
+    if (app != nullptr && app->rendererReady && !app->renderer.hasActiveFrame())
     {
         app->drawFrame();
     }
@@ -219,7 +219,7 @@ void TriangleApplication::windowRefreshCallback(GLFWwindow *window)
 
 void TriangleApplication::drawFrame()
 {
-    if (!rendererReady || renderer.frameInProgress())
+    if (!rendererReady || renderer.hasActiveFrame())
     {
         return;
     }
@@ -272,7 +272,36 @@ void TriangleApplication::drawFrame()
     processModelPicking();
     ImGui::Render();
 
-    recordCommandBuffer(frame.commandBuffer, frame.imageIndex, frame.frameIndex);
+    // recordCommandBuffer(frame.commandBuffer, frame.imageIndex, frame.frameIndex);
+    
+
+    std::vector<RenderObjectView> renderObjects;
+    renderObjects.reserve(sceneObjects.size());
+
+    for (const SceneObject& object : sceneObjects)
+    {
+        if (object.indexCount == 0 || !object.vertexBuffer || !object.indexBuffer)
+        {
+            continue;
+        }
+
+        RenderObjectView view{};
+        view.vertexBuffer = object.vertexBuffer.get();
+        view.indexBuffer = object.indexBuffer.get();
+        view.indexCount = object.indexCount;
+        view.model = getObjectMatrix(object);
+
+        renderObjects.push_back(view);
+    }
+
+    RenderFrameData renderData{};
+    renderData.objects = &renderObjects;
+    renderData.sceneDescriptorSet = descriptorSets.at(frame.frameIndex);
+    renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);
+    renderData.imguiDrawData = ImGui::GetDrawData();
+    renderData.clearColor = clearColor;
+
+    renderer.recordFrame(frame, renderData);
 
     const FrameStatus endStatus = renderer.endFrame(frame);
 

@@ -26,6 +26,8 @@ struct RenderFrameData
     VkDescriptorSet skyboxDescriptorSet = VK_NULL_HANDLE;
 
     ImDrawData* imguiDrawData = nullptr;
+
+    glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 };
 
 // 本帧应该怎么处理
