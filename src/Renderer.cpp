@@ -321,8 +321,11 @@ void Renderer::shutdown() noexcept
     uploadContext_.commandBuffer = VK_NULL_HANDLE;
     uploadContext_.commandPool = VK_NULL_HANDLE;
 
+    skyboxPipeline_ = VK_NULL_HANDLE;
+    graphicsPipeline_ = VK_NULL_HANDLE;
+    pipelineLayout_ = VK_NULL_HANDLE;
+    descriptorSetLayout_ = VK_NULL_HANDLE;
     renderPass_ = VK_NULL_HANDLE;
-    
 
     currentFrame_ = 0;
     hasActiveFrame_ = false;
@@ -486,7 +489,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     {
         throw std::logic_error("FrameToken does not match current frame");
     }
-    FrameContext& frame = frames_[currentFrame_];
+    FrameContext &frame = frames_[currentFrame_];
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -529,40 +532,37 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
 
     vkCmdBindDescriptorSets(
-        token.commandBuffer, 
-        VK_PIPELINE_BIND_POINT_GRAPHICS, 
-        pipelineLayout_, 
-        0, 
-        1, 
-        &data.skyboxDescriptorSet, 
-        0, 
-        nullptr
-    );
+        token.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout_,
+        0,
+        1,
+        &data.skyboxDescriptorSet,
+        0,
+        nullptr);
     vkCmdDraw(
         token.commandBuffer,
         36,
-        1, 
+        1,
         0,
-        0
-    );
+        0);
 
     vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
 
-        vkCmdBindDescriptorSets(
-        token.commandBuffer, 
-        VK_PIPELINE_BIND_POINT_GRAPHICS, 
-        pipelineLayout_, 
-        0, 
-        1, 
-        &data.sceneDescriptorSet, 
-        0, 
-        nullptr
-    );
+    vkCmdBindDescriptorSets(
+        token.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout_,
+        0,
+        1,
+        &data.sceneDescriptorSet,
+        0,
+        nullptr);
 
     if (data.objects != nullptr)
     {
         const VkDeviceSize offset = 0;
-        for (const RenderObjectView& object : *data.objects)
+        for (const RenderObjectView &object : *data.objects)
         {
             if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE)
             {
@@ -570,36 +570,31 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
             }
             vkCmdPushConstants(
                 token.commandBuffer,
-                pipelineLayout_, 
+                pipelineLayout_,
                 VK_SHADER_STAGE_VERTEX_BIT,
                 0,
                 sizeof(glm::mat4),
-                &object.model
-            );
+                &object.model);
             vkCmdBindVertexBuffers(
-                token.commandBuffer, 
-                0, 
-                1, 
-                &object.vertexBuffer, 
-                &offset
-            );
+                token.commandBuffer,
+                0,
+                1,
+                &object.vertexBuffer,
+                &offset);
 
             vkCmdBindIndexBuffer(
-                token.commandBuffer, 
-                object.indexBuffer, 
-                0, 
-                VK_INDEX_TYPE_UINT32
-            );
+                token.commandBuffer,
+                object.indexBuffer,
+                0,
+                VK_INDEX_TYPE_UINT32);
 
             vkCmdDrawIndexed(
                 token.commandBuffer,
-                object.indexCount, 
-                1, 
-                0, 
-                0, 
-                0
-            );
-
+                object.indexCount,
+                1,
+                0,
+                0,
+                0);
         }
     }
 
@@ -611,8 +606,6 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     vkCmdEndRenderPass(token.commandBuffer);
 
     VK_CHECK(vkEndCommandBuffer(token.commandBuffer));
-
-
 }
 
 // CPU 已经录完 commandBuffer
