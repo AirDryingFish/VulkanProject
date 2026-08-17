@@ -644,19 +644,20 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 // vkQueuePresentKHR()
 FrameStatus Renderer::endFrame(const FrameToken &token)
 {
-    if (!hasRecordedFrame_)
-    {
-        throw std::logic_error("Renderer active frame has not been recorded");
-    }
 
     if (!initialized_ || !hasActiveFrame_)
     {
         throw std::logic_error("Renderer has no active frame");
     }
 
+    if (!hasRecordedFrame_)
+    {
+        throw std::logic_error("Renderer active frame has not been recorded");
+    }
+
     if (token.frameIndex != currentFrame_)
     {
-        throw std::logic_error("FrameToken dose not match current frame");
+        throw std::logic_error("FrameToken does not match current frame");
     }
 
     FrameContext &frame = frames_[currentFrame_];
