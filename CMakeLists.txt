@@ -70,7 +70,6 @@ add_executable(vulkan
     main.cpp
     src/Buffers.cpp
     src/Camera.cpp
-    src/CommandBuffers.cpp
     src/DebugUtils.cpp
     src/Descriptors.cpp
     src/GraphicsPipeline.cpp
