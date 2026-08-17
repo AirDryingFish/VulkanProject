@@ -329,6 +329,7 @@ void Renderer::shutdown() noexcept
 
     currentFrame_ = 0;
     hasActiveFrame_ = false;
+    hasRecordedFrame_ = false;
     initialized_ = false;
 
     swapchain_ = nullptr;
@@ -470,6 +471,7 @@ BeginFrameResult Renderer::beginFrame()
 
     // 5. 返回 FrameToken
     hasActiveFrame_ = true;
+    hasRecordedFrame_ = false;
     FrameToken token{};
     token.frameIndex = currentFrame_;
     token.imageIndex = imageIndex;
@@ -480,6 +482,7 @@ BeginFrameResult Renderer::beginFrame()
 
 void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 {
+
     if (!initialized_ || !hasActiveFrame_)
     {
         throw std::logic_error("Renderer has no active frame to record");
@@ -489,7 +492,23 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     {
         throw std::logic_error("FrameToken does not match current frame");
     }
+
+    if (hasRecordedFrame_)
+    {
+        throw std::logic_error("Renderer frame has already been recorded");
+    }
+
     FrameContext &frame = frames_[currentFrame_];
+
+    if (token.commandBuffer != frame.commandBuffer)
+    {
+        throw std::logic_error("FrameToken contains invalid command buffer");
+    }
+
+    if (token.imageIndex >= swapchain_->imageCount())
+    {
+        throw std::out_of_range("FrameToken contains invalid swapchain image index");
+    }
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -606,6 +625,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     vkCmdEndRenderPass(token.commandBuffer);
 
     VK_CHECK(vkEndCommandBuffer(token.commandBuffer));
+
+    hasRecordedFrame_ = true;
 }
 
 // CPU 已经录完 commandBuffer
@@ -623,6 +644,11 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 // vkQueuePresentKHR()
 FrameStatus Renderer::endFrame(const FrameToken &token)
 {
+    if (!hasRecordedFrame_)
+    {
+        throw std::logic_error("Renderer active frame has not been recorded");
+    }
+
     if (!initialized_ || !hasActiveFrame_)
     {
         throw std::logic_error("Renderer has no active frame");
@@ -674,6 +700,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
 
     // 5. 设置 hasActiveFrame_ = false。
     hasActiveFrame_ = false;
+    hasRecordedFrame_ = false;
 
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
     {

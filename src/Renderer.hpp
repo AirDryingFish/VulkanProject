@@ -61,6 +61,7 @@ private:
 
     uint32_t currentFrame_ = 0;
     bool hasActiveFrame_ = false;
+    bool hasRecordedFrame_ = false;
     bool initialized_ = false;
 
     void createUploadContext();
@@ -85,7 +86,7 @@ public:
 
     // 让 FrameContext 保持为 Renderer 的私有实现，同时给 TriangleApplication 提供完成一帧所需的最少信息
     BeginFrameResult beginFrame();
-    void recordFrame(const FrameToken& token, const RenderFrameData& data);
+    void recordFrame(const FrameToken &token, const RenderFrameData &data);
     FrameStatus endFrame(const FrameToken &token);
 
     void waitForAllFrames();
