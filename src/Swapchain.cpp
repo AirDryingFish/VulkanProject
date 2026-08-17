@@ -22,7 +22,8 @@ void Swapchain::initializeCore(VulkanContext &context, GLFWwindow *window)
     context_ = &context;
     window_ = window;
 
-    try{
+    try
+    {
         SwapChainSupportDetails swapChainSupport = context.querySwapchainSupport();
         VkSurfaceFormatKHR surfaceFormat = chooseSurfaceFormat(swapChainSupport.formats);
         VkPresentModeKHR presentMode = choosePresentMode(swapChainSupport.presentModes);
@@ -81,12 +82,11 @@ void Swapchain::initializeCore(VulkanContext &context, GLFWwindow *window)
         createImageViews();
         createPresentSemaphores();
     }
-    catch(...)
+    catch (...)
     {
         shutdown();
         throw;
     }
-
 }
 
 void Swapchain::shutdown() noexcept
@@ -180,7 +180,7 @@ void Swapchain::createFramebuffers(VkRenderPass renderPass)
         throw std::invalid_argument("createFramebuffers requires a valid render pass");
     }
 
-    if (!framebuffers_.empty() ||  
+    if (!framebuffers_.empty() ||
         depthImage_ ||
         colorImage_)
     {
@@ -209,13 +209,11 @@ void Swapchain::createFramebuffers(VkRenderPass renderPass)
             framebufferInfo.renderPass = renderPass; // framebuffer要兼容哪个render pass
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data(); // framebuffer要绑定哪些图像作为附件
-            framebufferInfo.width = extent_.width;     // framebuffer的宽高必须和render pass里定义的视口大小一致
-            framebufferInfo.height = extent_.height;   // framebuffer的宽高必须和render pass里定义的视口大小一致
+            framebufferInfo.width = extent_.width;             // framebuffer的宽高必须和render pass里定义的视口大小一致
+            framebufferInfo.height = extent_.height;           // framebuffer的宽高必须和render pass里定义的视口大小一致
             framebufferInfo.layers = 1;                        // 只有一层
 
             VK_CHECK(vkCreateFramebuffer(context_->device(), &framebufferInfo, nullptr, &framebuffers_[i]));
-
-
         }
     }
     catch (...)
@@ -223,7 +221,6 @@ void Swapchain::createFramebuffers(VkRenderPass renderPass)
         destroyFramebuffersAndAttachments();
         throw;
     }
-
 }
 
 void Swapchain::destroyFramebuffersAndAttachments() noexcept
@@ -261,22 +258,43 @@ SwapchainBuildStatus Swapchain::buildStatus() const noexcept
 
     int width = 0;
     int height = 0;
-    glfwGetFramebufferSize(window_, &width, & height);
+    glfwGetFramebufferSize(window_, &width, &height);
 
     if (width == 0 || height == 0)
     {
         return SwapchainBuildStatus::Deferred;
     }
-    
-    return SwapchainBuildStatus::Ready;
 
+    return SwapchainBuildStatus::Ready;
+}
+
+SwapchainBuildStatus Swapchain::rebuildCore()
+{
+    const SwapchainBuildStatus status = buildStatus();
+
+    if (status != SwapchainBuildStatus::Ready)
+    {
+        return status;
+    }
+
+    if (context_ == nullptr || window_ == nullptr)
+    {
+        throw std::logic_error("Swapchain is not initialized");
+    }
+
+    VulkanContext *context = context_;
+    GLFWwindow *window = window_;
+
+    shutdown();
+    initializeCore(*context, window);
+    return SwapchainBuildStatus::Ready;
 }
 
 VkSurfaceFormatKHR Swapchain::chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &formats) const
 {
     for (const auto &availableForat : formats)
     {
-        if (availableForat.format == VK_FORMAT_B8G8R8A8_SRGB && 
+        if (availableForat.format == VK_FORMAT_B8G8R8A8_SRGB &&
             availableForat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
             return availableForat;
@@ -284,8 +302,7 @@ VkSurfaceFormatKHR Swapchain::chooseSurfaceFormat(const std::vector<VkSurfaceFor
     }
 
     const SwapChainSupportDetails support = context_->querySwapchainSupport();
-    if (support.formats.empty()
-        || support.presentModes.empty())
+    if (support.formats.empty() || support.presentModes.empty())
     {
         throw std::runtime_error("swapchain support is incomplete");
     }
@@ -346,7 +363,6 @@ void Swapchain::createPresentSemaphores()
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-
     for (VkSemaphore &renderFinished : renderFinishedSemaphores_)
     {
         VK_CHECK(vkCreateSemaphore(context_->device(), &semaphoreInfo, nullptr, &renderFinished));
@@ -361,25 +377,21 @@ void Swapchain::createAttachments()
     const VkFormat depthFormat = context_->findDepthFormat();
 
     depthImage_ = context_->createImage(
-        extent_.width, 
-        extent_.height, 
-        1, 
-        context_->msaaSamples(), 
-        depthFormat, 
+        extent_.width,
+        extent_.height,
+        1,
+        context_->msaaSamples(),
+        depthFormat,
         VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    );
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     depthImage_.setView(
         context_->createImageView(
             depthImage_.get(),
             depthFormat,
             1,
-            VK_IMAGE_ASPECT_DEPTH_BIT
-        )
-    );
-
+            VK_IMAGE_ASPECT_DEPTH_BIT));
 
     colorImage_ = context_->createImage(
         extent_.width,
@@ -389,16 +401,13 @@ void Swapchain::createAttachments()
         format_,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    );
-    
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
     colorImage_.setView(
         context_->createImageView(
             colorImage_.get(),
             format_,
-            1
-        )
-    );
+            1));
 }
 
 Swapchain::~Swapchain() noexcept

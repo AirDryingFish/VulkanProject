@@ -163,33 +163,14 @@ void TriangleApplication::recreateSwapChain()
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
 
-    const SwapchainBuildStatus status = swapchain.buildStatus();
+    const SwapchainBuildStatus status = swapchain.rebuildCore();
 
-    if (status == SwapchainBuildStatus::Deferred ||
-        status == SwapchainBuildStatus::WindowClosed)
+    if (status != SwapchainBuildStatus::Ready)
     {
         return;
     }
 
-    // while (width == 0 || height == 0)
-    // {
-    //     if (glfwWindowShouldClose(window))
-    //     {
-    //         return;
-    //     }
-    //     glfwGetFramebufferSize(window, &width, &height);
-    //     glfwWaitEvents();
-    // }
-
-    renderer.waitForAllFrames();
-    // Frame Fence 只能证明 Graphics Submission完成
-    // Present Queue 可能还在使用旧的 SwapChain Image，必须等待 Present Queue 空闲后才能销毁旧的 SwapChain
-    VK_CHECK(vkQueueWaitIdle(context.presentQueue()));
-
     const VkFormat oldFormat = swapchain.format();
-
-    swapchain.shutdown();
-    swapchain.initializeCore(context, window);
 
     if (oldFormat != VK_FORMAT_UNDEFINED && oldFormat != swapchain.format())
     {

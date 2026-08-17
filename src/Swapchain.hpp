@@ -70,4 +70,6 @@ public:
     VkFramebuffer framebuffer(std::size_t index) const;
 
     SwapchainBuildStatus buildStatus() const noexcept;
+
+    SwapchainBuildStatus rebuildCore();
 };
