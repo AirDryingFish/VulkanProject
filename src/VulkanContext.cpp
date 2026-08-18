@@ -260,17 +260,44 @@ void VulkanContext::setDebugName(VkObjectType objectType, uint64_t handle, const
 
 GpuBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) const
 {
+    BufferDesc desc{};
+    desc.size = size;
+    desc.usage = usage;
+    desc.requiredMemoryProperties = properties;
+
+    return createBuffer(desc);
+}
+
+GpuImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags) const
+{
+    ImageDesc desc{};
+    desc.extent = {width, height, 1};
+    desc.mipLevels = mipLevels;
+    desc.arrayLayers = arrayLayers;
+    desc.samples = numSamples;
+    desc.format = format;
+    desc.tiling = tiling;
+    desc.usage = usage;
+    desc.requiredMemoryProperties = properties;
+    desc.flags = flags;
+
+    return createImage(desc);
+}
+
+GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
+{
+
     VkBuffer rawBuffer = VK_NULL_HANDLE;
     VmaAllocation rawAllocation = nullptr;
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
+    bufferInfo.size = desc.size;
+    bufferInfo.usage = desc.usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo allocInfo{};
-    if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+    if (desc.requiredMemoryProperties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
     {
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -286,56 +313,94 @@ GpuBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usag
         allocator_,
         rawBuffer,
         rawAllocation,
-        size,
-        usage,
-        properties
+        desc.size,
+        desc.usage,
+        desc.requiredMemoryProperties
     );
 }
 
-GpuImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags) const
+GpuImage VulkanContext::createImage(const ImageDesc &desc) const
 {
+    if (allocator_ == nullptr)
+    {
+        throw std::logic_error("cannot create image before allocator initialization");
+    }
+
+    if (desc.extent.width == 0 ||
+        desc.extent.height == 0 ||
+        desc.extent.depth == 0)
+    {
+        throw std::invalid_argument("image extent components must be greater than zero");
+    }
+
+    if (desc.mipLevels == 0)
+    {
+        throw std::invalid_argument("image mip level count must be greater than zero");
+    }
+
+    if (desc.arrayLayers == 0)
+    {
+        throw std::invalid_argument("image array layer count must greater than zero");
+    }
+
+    if (desc.format == VK_FORMAT_UNDEFINED)
+    {
+        throw std::invalid_argument("image format must be defined");
+    }
+
+    if (desc.usage == 0)
+    {
+        throw std::invalid_argument("image usage must not be empty");
+    }
+
     VkImage image = VK_NULL_HANDLE;
     VmaAllocation allocation = nullptr;
 
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = static_cast<uint32_t>(width);
-    imageInfo.extent.height = static_cast<uint32_t>(height);
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = mipLevels;
-    imageInfo.arrayLayers = arrayLayers;
-    imageInfo.format = format;
-    imageInfo.tiling = tiling;
+    imageInfo.extent.width = static_cast<uint32_t>(desc.extent.width);
+    imageInfo.extent.height = static_cast<uint32_t>(desc.extent.height);
+    imageInfo.extent.depth = desc.extent.depth;
+    imageInfo.mipLevels = desc.mipLevels;
+    imageInfo.arrayLayers = desc.arrayLayers;
+    imageInfo.format = desc.format;
+    imageInfo.tiling = desc.tiling;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = usage;
+    imageInfo.usage = desc.usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    imageInfo.samples = numSamples;
-    imageInfo.flags = flags;
+    imageInfo.samples = desc.samples;
+    imageInfo.flags = desc.flags;
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    if (properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+    if (desc.requiredMemoryProperties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
     {
         allocInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     }
-    if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+    if (desc.requiredMemoryProperties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
     {
         allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     }
 
     VK_CHECK(vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image, &allocation, nullptr));
+
+    setDebugName(
+        VK_OBJECT_TYPE_IMAGE,
+        reinterpret_cast<uint64_t>(image),
+        desc.debugName);
+        
     return GpuImage(
         allocator_,
         device_, 
         image, 
         allocation,
-        VkExtent3D{width, height, 1},
-        format,
-        usage,
-        mipLevels,
-        arrayLayers,
-        numSamples
+        desc.extent,
+        desc.format,
+        desc.usage,
+        desc.mipLevels,
+        desc.arrayLayers,
+        desc.samples
     );
 }
 

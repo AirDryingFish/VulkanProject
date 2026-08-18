@@ -4,6 +4,28 @@
 #include <cstdint>
 #include <vk_mem_alloc.h>
 
+struct BufferDesc
+{
+    VkDeviceSize size = 0;
+    VkBufferUsageFlags usage = 0;
+    VkMemoryPropertyFlags requiredMemoryProperties = 0;
+    const char* debugName = nullptr;
+};
+
+struct ImageDesc
+{
+    VkExtent3D extent{0, 0, 1};
+    uint32_t mipLevels = 1;
+    uint32_t arrayLayers = 1;
+    VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+    VkImageUsageFlags usage = 0;
+    VkMemoryPropertyFlags requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkImageCreateFlags flags = 0;
+    const char* debugName = nullptr;
+};
+
 class GpuBuffer
 {
 private:

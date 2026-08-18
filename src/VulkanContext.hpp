@@ -139,6 +139,9 @@ public:
         uint32_t arrayLayers = 1,
         VkImageCreateFlags flags = 0) const;
 
+    GpuBuffer createBuffer(const BufferDesc& desc) const;
+    GpuImage createImage(const ImageDesc& desc) const;
+
     VkImageView createImageView(
         VkImage image,
         VkFormat format,
