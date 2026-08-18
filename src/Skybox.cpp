@@ -275,29 +275,39 @@ void TriangleApplication::createSkyboxImage()
         pixels = loadLdrFaceSkybox();
     }
     const uint32_t skyboxMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(pixels.width, pixels.height)))) + 1;
-    GpuBuffer stagingBuffer = context.createBuffer(
-        pixels.imageSize(),
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    
+    std::string stagingDebugName = SKYBOX_HDR_PATH + " skybox";
+    BufferDesc stagingDesc{};
+    stagingDesc.size = pixels.imageSize();
+    stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    stagingDesc.debugName = stagingDebugName.c_str();
+    
+    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
 
     void *data = nullptr;
-    // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
     VK_CHECK(stagingBuffer.map(&data));
     std::memcpy(data, pixels.pixels.data(), static_cast<size_t>(pixels.imageSize()));
-    // vmaUnmapMemory(allocator, stagingBuffer.allocation);
     stagingBuffer.unmap();
 
-    skyboxImage = context.createImage(
+    const std::string imageDebugName = SKYBOX_HDR_PATH + " image";
+    ImageDesc skyboxDecs{};
+    skyboxDecs.extent = {
         pixels.width,
         pixels.height,
-        skyboxMipLevels,
-        VK_SAMPLE_COUNT_1_BIT,
-        skyboxFormat,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        6,
-        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+        1
+    };
+    skyboxDecs.mipLevels = skyboxMipLevels;
+    skyboxDecs.arrayLayers = 6;
+    skyboxDecs.samples = VK_SAMPLE_COUNT_1_BIT;
+    skyboxDecs.format = skyboxFormat;
+    skyboxDecs.tiling = VK_IMAGE_TILING_OPTIMAL;
+    skyboxDecs.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    skyboxDecs.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    skyboxDecs.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    skyboxDecs.debugName = imageDebugName.c_str();
+
+    skyboxImage = context.createImage(skyboxDecs);
 
     transitionImageLayout(
         skyboxImage.get(),
