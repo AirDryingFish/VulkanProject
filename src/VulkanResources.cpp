@@ -3,10 +3,20 @@
 #include <utility>
 
 
-AllocatedBuffer::AllocatedBuffer(VmaAllocator allocator, VkBuffer buffer, VmaAllocation allocation) noexcept: 
+AllocatedBuffer::AllocatedBuffer(
+    VmaAllocator allocator, 
+    VkBuffer buffer, 
+    VmaAllocation allocation,
+    VkDeviceSize size,
+    VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags requiredMemoryProperties
+) noexcept: 
     allocator_(allocator),
     buffer_(buffer),
-    allocation_(allocation) 
+    allocation_(allocation),
+    size_(size),
+    usage_(usage),
+    requiredMemoryProperties_(requiredMemoryProperties)
 {
 }
 
@@ -67,19 +77,35 @@ void AllocatedBuffer::unmap() noexcept
 
 void AllocatedBuffer::reset() noexcept
 {
-    if (buffer_ == VK_NULL_HANDLE)
+    if (buffer_ != VK_NULL_HANDLE)
     {
-        return;
+        assert(allocator_ != nullptr);
+        unmap();
+        vmaDestroyBuffer(allocator_, buffer_, allocation_);
     }
-
-    assert(allocator_ != nullptr);
-    unmap();
-    vmaDestroyBuffer(allocator_, buffer_, allocation_);
     allocator_ = nullptr;
     buffer_ = VK_NULL_HANDLE;
     allocation_ = nullptr;
+    mappedData_ = nullptr;
+    size_ = 0;
+    usage_ = 0;
+    requiredMemoryProperties_ = 0;
 }
 
+VkDeviceSize AllocatedBuffer::size() const noexcept
+{
+    return size_;
+}
+
+VkBufferUsageFlags AllocatedBuffer::usage() const noexcept
+{
+    return usage_;
+}
+
+VkMemoryPropertyFlags AllocatedBuffer::requiredMemoryProperties() const noexcept
+{
+    return requiredMemoryProperties_;
+}
 
 void AllocatedBuffer::moveFrom(AllocatedBuffer &other) noexcept
 {
@@ -87,14 +113,22 @@ void AllocatedBuffer::moveFrom(AllocatedBuffer &other) noexcept
     allocation_ = std::exchange(other.allocation_, nullptr);
     buffer_ = std::exchange(other.buffer_, VK_NULL_HANDLE);
     mappedData_ = std::exchange(other.mappedData_, nullptr);
+    size_ = std::exchange(other.size_, 0);
+    usage_ = std::exchange(other.usage_, 0);
+    requiredMemoryProperties_ = std::exchange(other.requiredMemoryProperties_, 0);
 }
 
-AllocatedImage::AllocatedImage(VmaAllocator allocator, VkDevice device, VkImage image, VmaAllocation allocation, uint32_t mipLevels) noexcept:
+AllocatedImage::AllocatedImage(VmaAllocator allocator, VkDevice device, VkImage image, VmaAllocation allocation, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, uint32_t mipLevels, uint32_t arrayLayers, VkSampleCountFlagBits samples) noexcept:
     allocator_(allocator),
     device_(device),
     image_(image),
     allocation_(allocation),
-    mipLevels_(mipLevels)
+    extent_(extent),
+    format_(format),
+    usage_(usage),
+    mipLevels_(mipLevels),
+    arrayLayers_(arrayLayers),
+    samples_(samples)
 {
 }
 
@@ -133,9 +167,34 @@ VkImageView AllocatedImage::view() const noexcept
     return imageView_;
 }
 
+VkExtent3D AllocatedImage::extent() const noexcept
+{
+    return extent_;
+}
+
+VkFormat AllocatedImage::format() const noexcept
+{
+    return format_;
+}
+
+VkImageUsageFlags AllocatedImage::usage() const noexcept
+{
+    return usage_;
+}
+
 uint32_t AllocatedImage::mipLevels() const noexcept
 {
     return mipLevels_;
+}
+
+uint32_t AllocatedImage::arrayLayers() const noexcept
+{
+    return arrayLayers_;
+}
+
+VkSampleCountFlagBits AllocatedImage::samples() const noexcept
+{
+    return samples_;
 }
 
 void AllocatedImage::setView(VkImageView imageView) noexcept
@@ -179,7 +238,13 @@ void AllocatedImage::moveFrom(AllocatedImage &other) noexcept
     device_ = std::exchange(other.device_, VK_NULL_HANDLE);
     image_ = std::exchange(other.image_, VK_NULL_HANDLE);
     imageView_ = std::exchange(other.imageView_, VK_NULL_HANDLE);
-    mipLevels_ = std::exchange(other.mipLevels_, 1);
+    extent_ = std::exchange(other.extent_, VkExtent3D{0, 0, 0});
+    format_ = std::exchange(other.format_, VK_FORMAT_UNDEFINED);
+    usage_ = std::exchange(other.usage_, 0);
+    mipLevels_ = std::exchange(other.mipLevels_, 0);
+    arrayLayers_ = std::exchange(other.arrayLayers_, 0);
+    samples_ = std::exchange(other.samples_, VK_SAMPLE_COUNT_1_BIT);
+
 }
 
 UniqueShaderModule::UniqueShaderModule(

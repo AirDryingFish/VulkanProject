@@ -285,7 +285,10 @@ AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlag
     return AllocatedBuffer(
         allocator_,
         rawBuffer,
-        rawAllocation
+        rawAllocation,
+        size,
+        usage,
+        properties
     );
 }
 
@@ -330,7 +333,12 @@ AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint3
         device_, 
         image, 
         allocation,
-        mipLevels
+        VkExtent3D{width, height, 1},
+        format,
+        usage,
+        mipLevels,
+        arrayLayers,
+        numSamples
     );
 }
 

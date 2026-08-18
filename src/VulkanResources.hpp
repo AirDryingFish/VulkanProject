@@ -12,6 +12,10 @@ private:
     VmaAllocation allocation_ = nullptr;
     void* mappedData_ = nullptr;
 
+    VkDeviceSize size_ = 0;
+    VkBufferUsageFlags usage_ = 0;
+    VkMemoryPropertyFlags requiredMemoryProperties_ = 0;
+
     void moveFrom(AllocatedBuffer& other) noexcept;
 
 public:
@@ -20,7 +24,10 @@ public:
     AllocatedBuffer(
         VmaAllocator allocator,
         VkBuffer buffer,
-        VmaAllocation allocation
+        VmaAllocation allocation,
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags requiredMemoryProperties
     ) noexcept;
 
     ~AllocatedBuffer() noexcept;
@@ -37,6 +44,10 @@ public:
     void unmap() noexcept;
     void reset() noexcept;
 
+    VkDeviceSize size() const noexcept;
+    VkBufferUsageFlags usage() const noexcept;
+    VkMemoryPropertyFlags requiredMemoryProperties() const noexcept;
+
 };
 
 class AllocatedImage
@@ -47,9 +58,16 @@ private:
     VkImage image_ = VK_NULL_HANDLE;
     VkImageView imageView_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
-    uint32_t mipLevels_ = 1;
+
+    VkExtent3D extent_{0, 0, 0};
+    VkFormat format_ = VK_FORMAT_UNDEFINED;
+    VkImageUsageFlags usage_ = 0;
+    uint32_t mipLevels_ = 0;
+    uint32_t arrayLayers_ = 0;
+    VkSampleCountFlagBits samples_ = VK_SAMPLE_COUNT_1_BIT;
 
     void moveFrom(AllocatedImage& other) noexcept;
+
 public:
     AllocatedImage() noexcept = default;
     AllocatedImage(
@@ -57,7 +75,12 @@ public:
         VkDevice device,
         VkImage image,
         VmaAllocation allocation,
-        uint32_t mipLevels
+        VkExtent3D extent,
+        VkFormat format,
+        VkImageUsageFlags usage,
+        uint32_t mipLevels,
+        uint32_t arrayLayers,
+        VkSampleCountFlagBits samples
     ) noexcept;
 
     ~AllocatedImage() noexcept;
@@ -70,7 +93,12 @@ public:
     explicit operator bool() const noexcept;
     VkImage get() const noexcept;
     VkImageView view() const noexcept;
+    VkExtent3D extent() const noexcept;
+    VkFormat format() const noexcept;
+    VkImageUsageFlags usage() const noexcept;
     uint32_t mipLevels() const noexcept;
+    uint32_t arrayLayers() const noexcept;
+    VkSampleCountFlagBits samples() const noexcept;
 
     void setView(VkImageView imageView) noexcept;
     void reset() noexcept;
@@ -94,5 +122,6 @@ public:
 
     explicit operator bool() const noexcept;
     VkShaderModule get() const noexcept;
+
     void reset() noexcept;
 };
