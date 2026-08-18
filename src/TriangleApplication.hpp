@@ -64,8 +64,8 @@ private:
         std::string name;
         MeshSource source = MeshSource::Obj;
         std::string sourcePath;
-        AllocatedBuffer vertexBuffer;
-        AllocatedBuffer indexBuffer;
+        GpuBuffer vertexBuffer;
+        GpuBuffer indexBuffer;
         uint32_t vertexCount = 0;
         uint32_t indexCount = 0;
         glm::vec3 localBoundsMin = {0.0f, 0.0f, 0.0f};
@@ -104,7 +104,7 @@ private:
         const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
         std::vector<VkDescriptorSet> &targetDescriptorSets);
 
-    AllocatedImage createTextureImageFromFile(
+    GpuImage createTextureImageFromFile(
         const std::string &path,
         VkFormat format,
         const std::array<unsigned char, 4> &fallbackPixel);
@@ -133,7 +133,7 @@ private:
     void MainLoop();
     void cleanup() noexcept;
 
-    void destroyBufferDeferred(AllocatedBuffer &buffer);
+    void destroyBufferDeferred(GpuBuffer &buffer);
 
     bool glfwInitialized = false;
 
@@ -171,10 +171,10 @@ private:
     glm::vec3 gizmoDragAxis = {0.0f, 0.0f, 0.0f};
     glm::vec3 gizmoDragPlaneNormal = {0.0f, 0.0f, 0.0f};
     glm::vec3 gizmoDragStartHitPoint = {0.0f, 0.0f, 0.0f};
-    AllocatedBuffer vertexBuffer;
-    AllocatedBuffer indexBuffer;
+    GpuBuffer vertexBuffer;
+    GpuBuffer indexBuffer;
 
-    std::vector<AllocatedBuffer> uniformBuffers;
+    std::vector<GpuBuffer> uniformBuffers;
     std::vector<void *> uniformBufferMapped;
 
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
@@ -182,11 +182,11 @@ private:
 
     uint32_t mipLevels;
 
-    AllocatedImage textureImage;
-    AllocatedImage normalImage;
-    AllocatedImage metallicImage;
-    AllocatedImage roughnessImage;
-    AllocatedImage aoImage;
+    GpuImage textureImage;
+    GpuImage normalImage;
+    GpuImage metallicImage;
+    GpuImage roughnessImage;
+    GpuImage aoImage;
     VkSampler textureSampler = VK_NULL_HANDLE;
 
     DeletionQueue mainDeletionQueue;
@@ -230,12 +230,12 @@ private:
     MeshSource meshSource = MeshSource::Sphere;
 
     // skybox member
-    AllocatedImage skyboxImage;
+    GpuImage skyboxImage;
     VkSampler skyboxSampler = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> skyboxDescriptorSets;
 
     // diffuse IBL irradiance cubemap
-    AllocatedImage irradianceImage;
+    GpuImage irradianceImage;
     VkSampler irradianceSampler = VK_NULL_HANDLE;
     VkRenderPass irradianceRenderPass = VK_NULL_HANDLE;
     VkDescriptorSetLayout irradianceDescriptorSetLayout = VK_NULL_HANDLE;
@@ -247,7 +247,7 @@ private:
     std::array<VkFramebuffer, 6> irradianceFramebuffers{};
 
     // prefilter cubemap
-    AllocatedImage prefilterImage;
+    GpuImage prefilterImage;
     VkSampler prefilterSampler = VK_NULL_HANDLE;
     VkRenderPass prefilterRenderpass = VK_NULL_HANDLE;
     VkPipeline prefilterPipeline = VK_NULL_HANDLE;
@@ -261,7 +261,7 @@ private:
     std::array<std::array<VkFramebuffer, 6>, prefilterMipLevels> prefilterFramebuffers;
 
     // Split-sum BRDF Integration LUT
-    AllocatedImage brdfLUTImage;
+    GpuImage brdfLUTImage;
     VkSampler brdfLUTSampler = VK_NULL_HANDLE;
     VkRenderPass brdfLUTRenderPass = VK_NULL_HANDLE;
     VkPipeline brdfLUTPipeline = VK_NULL_HANDLE;

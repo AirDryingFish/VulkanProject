@@ -275,7 +275,7 @@ void TriangleApplication::createSkyboxImage()
         pixels = loadLdrFaceSkybox();
     }
     const uint32_t skyboxMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(pixels.width, pixels.height)))) + 1;
-    AllocatedBuffer stagingBuffer = context.createBuffer(
+    GpuBuffer stagingBuffer = context.createBuffer(
         pixels.imageSize(),
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);

@@ -29,8 +29,8 @@ private:
     VkPresentModeKHR presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
     VkExtent2D extent_{};
 
-    AllocatedImage depthImage_;
-    AllocatedImage colorImage_;
+    GpuImage depthImage_;
+    GpuImage colorImage_;
 
     std::vector<VkFramebuffer> framebuffers_;
 

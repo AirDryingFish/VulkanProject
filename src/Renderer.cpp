@@ -353,7 +353,7 @@ void Renderer::waitForAllFrames()
     VK_CHECK(vkWaitForFences(context_->device(), static_cast<uint32_t>(fences.size()), fences.data(), VK_TRUE, UINT64_MAX));
 }
 
-void Renderer::retireBuffer(AllocatedBuffer &&buffer)
+void Renderer::retireBuffer(GpuBuffer &&buffer)
 {
     if (!buffer)
     {

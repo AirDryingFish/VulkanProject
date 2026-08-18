@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-AllocatedImage TriangleApplication::createTextureImageFromFile(
+GpuImage TriangleApplication::createTextureImageFromFile(
     const std::string &path,
     VkFormat format,
     const std::array<unsigned char, 4> &fallbackPixel)
@@ -39,7 +39,7 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
     const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * static_cast<VkDeviceSize>(texHeight) * 4;
     const uint32_t imageMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-    AllocatedBuffer stagingBuffer = context.createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    GpuBuffer stagingBuffer = context.createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
@@ -47,7 +47,7 @@ AllocatedImage TriangleApplication::createTextureImageFromFile(
     stagingBuffer.unmap();
 
 
-    AllocatedImage image = context.createImage(
+    GpuImage image = context.createImage(
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight),
         imageMipLevels,
@@ -325,4 +325,3 @@ bool TriangleApplication::hasStencilComponent(VkFormat format)
 {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
-

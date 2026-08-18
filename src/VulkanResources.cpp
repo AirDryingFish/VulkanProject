@@ -3,7 +3,7 @@
 #include <utility>
 
 
-AllocatedBuffer::AllocatedBuffer(
+GpuBuffer::GpuBuffer(
     VmaAllocator allocator, 
     VkBuffer buffer, 
     VmaAllocation allocation,
@@ -20,17 +20,17 @@ AllocatedBuffer::AllocatedBuffer(
 {
 }
 
-AllocatedBuffer::~AllocatedBuffer() noexcept
+GpuBuffer::~GpuBuffer() noexcept
 {
     reset();
 }
 
-AllocatedBuffer::AllocatedBuffer(AllocatedBuffer &&other) noexcept
+GpuBuffer::GpuBuffer(GpuBuffer &&other) noexcept
 {
     moveFrom(other);
 }
 
-AllocatedBuffer &AllocatedBuffer::operator=(AllocatedBuffer &&other) noexcept
+GpuBuffer &GpuBuffer::operator=(GpuBuffer &&other) noexcept
 {
     if (this != &other)
     {
@@ -40,17 +40,17 @@ AllocatedBuffer &AllocatedBuffer::operator=(AllocatedBuffer &&other) noexcept
     return *this;
 }
 
-AllocatedBuffer::operator bool() const noexcept
+GpuBuffer::operator bool() const noexcept
 {
     return buffer_ != VK_NULL_HANDLE;
 }
 
-VkBuffer AllocatedBuffer::get() const noexcept
+VkBuffer GpuBuffer::get() const noexcept
 {
     return buffer_;
 }
 
-VkResult AllocatedBuffer::map(void **data) noexcept
+VkResult GpuBuffer::map(void **data) noexcept
 {
     if (mappedData_ != nullptr)
     {
@@ -65,7 +65,7 @@ VkResult AllocatedBuffer::map(void **data) noexcept
     return result;
 }
 
-void AllocatedBuffer::unmap() noexcept
+void GpuBuffer::unmap() noexcept
 {
     if (mappedData_ == nullptr)
     {
@@ -75,7 +75,7 @@ void AllocatedBuffer::unmap() noexcept
     mappedData_ = nullptr;
 }
 
-void AllocatedBuffer::reset() noexcept
+void GpuBuffer::reset() noexcept
 {
     if (buffer_ != VK_NULL_HANDLE)
     {
@@ -92,22 +92,22 @@ void AllocatedBuffer::reset() noexcept
     requiredMemoryProperties_ = 0;
 }
 
-VkDeviceSize AllocatedBuffer::size() const noexcept
+VkDeviceSize GpuBuffer::size() const noexcept
 {
     return size_;
 }
 
-VkBufferUsageFlags AllocatedBuffer::usage() const noexcept
+VkBufferUsageFlags GpuBuffer::usage() const noexcept
 {
     return usage_;
 }
 
-VkMemoryPropertyFlags AllocatedBuffer::requiredMemoryProperties() const noexcept
+VkMemoryPropertyFlags GpuBuffer::requiredMemoryProperties() const noexcept
 {
     return requiredMemoryProperties_;
 }
 
-void AllocatedBuffer::moveFrom(AllocatedBuffer &other) noexcept
+void GpuBuffer::moveFrom(GpuBuffer &other) noexcept
 {
     allocator_ = std::exchange(other.allocator_, nullptr);
     allocation_ = std::exchange(other.allocation_, nullptr);
@@ -118,7 +118,7 @@ void AllocatedBuffer::moveFrom(AllocatedBuffer &other) noexcept
     requiredMemoryProperties_ = std::exchange(other.requiredMemoryProperties_, 0);
 }
 
-AllocatedImage::AllocatedImage(VmaAllocator allocator, VkDevice device, VkImage image, VmaAllocation allocation, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, uint32_t mipLevels, uint32_t arrayLayers, VkSampleCountFlagBits samples) noexcept:
+GpuImage::GpuImage(VmaAllocator allocator, VkDevice device, VkImage image, VmaAllocation allocation, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, uint32_t mipLevels, uint32_t arrayLayers, VkSampleCountFlagBits samples) noexcept:
     allocator_(allocator),
     device_(device),
     image_(image),
@@ -132,17 +132,17 @@ AllocatedImage::AllocatedImage(VmaAllocator allocator, VkDevice device, VkImage 
 {
 }
 
-AllocatedImage::~AllocatedImage() noexcept
+GpuImage::~GpuImage() noexcept
 {
     reset();
 }
 
-AllocatedImage::AllocatedImage(AllocatedImage &&other) noexcept
+GpuImage::GpuImage(GpuImage &&other) noexcept
 {
     moveFrom(other);
 }
 
-AllocatedImage &AllocatedImage::operator=(AllocatedImage &&other) noexcept
+GpuImage &GpuImage::operator=(GpuImage &&other) noexcept
 {
     if (this != &other)
     {
@@ -152,52 +152,52 @@ AllocatedImage &AllocatedImage::operator=(AllocatedImage &&other) noexcept
     return *this;
 }
 
-AllocatedImage::operator bool() const noexcept
+GpuImage::operator bool() const noexcept
 {
     return image_ != VK_NULL_HANDLE;
 }
 
-VkImage AllocatedImage::get() const noexcept
+VkImage GpuImage::get() const noexcept
 {
     return image_;
 }
 
-VkImageView AllocatedImage::view() const noexcept
+VkImageView GpuImage::view() const noexcept
 {
     return imageView_;
 }
 
-VkExtent3D AllocatedImage::extent() const noexcept
+VkExtent3D GpuImage::extent() const noexcept
 {
     return extent_;
 }
 
-VkFormat AllocatedImage::format() const noexcept
+VkFormat GpuImage::format() const noexcept
 {
     return format_;
 }
 
-VkImageUsageFlags AllocatedImage::usage() const noexcept
+VkImageUsageFlags GpuImage::usage() const noexcept
 {
     return usage_;
 }
 
-uint32_t AllocatedImage::mipLevels() const noexcept
+uint32_t GpuImage::mipLevels() const noexcept
 {
     return mipLevels_;
 }
 
-uint32_t AllocatedImage::arrayLayers() const noexcept
+uint32_t GpuImage::arrayLayers() const noexcept
 {
     return arrayLayers_;
 }
 
-VkSampleCountFlagBits AllocatedImage::samples() const noexcept
+VkSampleCountFlagBits GpuImage::samples() const noexcept
 {
     return samples_;
 }
 
-void AllocatedImage::setView(VkImageView imageView) noexcept
+void GpuImage::setView(VkImageView imageView) noexcept
 {
     assert(image_ != VK_NULL_HANDLE);
     assert(device_ != VK_NULL_HANDLE);
@@ -211,7 +211,7 @@ void AllocatedImage::setView(VkImageView imageView) noexcept
     imageView_ = imageView;
 }
 
-void AllocatedImage::reset() noexcept
+void GpuImage::reset() noexcept
 {
     if (imageView_ != VK_NULL_HANDLE)
     {
@@ -237,7 +237,7 @@ void AllocatedImage::reset() noexcept
     samples_ = VK_SAMPLE_COUNT_1_BIT;
 }
 
-void AllocatedImage::moveFrom(AllocatedImage &other) noexcept
+void GpuImage::moveFrom(GpuImage &other) noexcept
 {
     allocator_ = std::exchange(other.allocator_, nullptr);
     allocation_ = std::exchange(other.allocation_, nullptr);

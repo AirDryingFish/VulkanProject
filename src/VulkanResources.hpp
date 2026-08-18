@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vk_mem_alloc.h>
 
-class AllocatedBuffer
+class GpuBuffer
 {
 private:
     VmaAllocator allocator_ = nullptr;
@@ -16,12 +16,12 @@ private:
     VkBufferUsageFlags usage_ = 0;
     VkMemoryPropertyFlags requiredMemoryProperties_ = 0;
 
-    void moveFrom(AllocatedBuffer& other) noexcept;
+    void moveFrom(GpuBuffer& other) noexcept;
 
 public:
-    AllocatedBuffer() noexcept = default;
+    GpuBuffer() noexcept = default;
 
-    AllocatedBuffer(
+    GpuBuffer(
         VmaAllocator allocator,
         VkBuffer buffer,
         VmaAllocation allocation,
@@ -30,12 +30,12 @@ public:
         VkMemoryPropertyFlags requiredMemoryProperties
     ) noexcept;
 
-    ~AllocatedBuffer() noexcept;
+    ~GpuBuffer() noexcept;
 
-    AllocatedBuffer(const AllocatedBuffer&) = delete; // 拷贝构造
-    AllocatedBuffer& operator=(const AllocatedBuffer&) = delete; // 拷贝赋值
-    AllocatedBuffer(AllocatedBuffer&& other) noexcept;
-    AllocatedBuffer& operator=(AllocatedBuffer&& other) noexcept;
+    GpuBuffer(const GpuBuffer&) = delete; // 拷贝构造
+    GpuBuffer& operator=(const GpuBuffer&) = delete; // 拷贝赋值
+    GpuBuffer(GpuBuffer&& other) noexcept;
+    GpuBuffer& operator=(GpuBuffer&& other) noexcept;
 
     explicit operator bool() const noexcept; // explicit 避免对象被当成 bool 运算
 
@@ -50,7 +50,7 @@ public:
 
 };
 
-class AllocatedImage
+class GpuImage
 {
 private:
     VmaAllocator allocator_ = nullptr;
@@ -66,11 +66,11 @@ private:
     uint32_t arrayLayers_ = 0;
     VkSampleCountFlagBits samples_ = VK_SAMPLE_COUNT_1_BIT;
 
-    void moveFrom(AllocatedImage& other) noexcept;
+    void moveFrom(GpuImage& other) noexcept;
 
 public:
-    AllocatedImage() noexcept = default;
-    AllocatedImage(
+    GpuImage() noexcept = default;
+    GpuImage(
         VmaAllocator allocator,
         VkDevice device,
         VkImage image,
@@ -83,12 +83,12 @@ public:
         VkSampleCountFlagBits samples
     ) noexcept;
 
-    ~AllocatedImage() noexcept;
+    ~GpuImage() noexcept;
 
-    AllocatedImage(const AllocatedImage&) = delete;
-    AllocatedImage& operator=(const AllocatedImage&) = delete;
-    AllocatedImage(AllocatedImage&& other) noexcept;
-    AllocatedImage& operator=(AllocatedImage&& other) noexcept;
+    GpuImage(const GpuImage&) = delete;
+    GpuImage& operator=(const GpuImage&) = delete;
+    GpuImage(GpuImage&& other) noexcept;
+    GpuImage& operator=(GpuImage&& other) noexcept;
 
     explicit operator bool() const noexcept;
     VkImage get() const noexcept;

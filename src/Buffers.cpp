@@ -79,7 +79,7 @@ void TriangleApplication::createIndexBuffer()
     }
 
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-    AllocatedBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    GpuBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
     // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
@@ -102,7 +102,7 @@ void TriangleApplication::createVertexBuffer()
     }
 
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-    AllocatedBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    GpuBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *data = nullptr;
     // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
@@ -125,7 +125,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     }
 
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
-    AllocatedBuffer vertexStagingBuffer = context.createBuffer(
+    GpuBuffer vertexStagingBuffer = context.createBuffer(
         vertexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -146,7 +146,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
 
 
     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
-    AllocatedBuffer indexStagingBuffer = context.createBuffer(
+    GpuBuffer indexStagingBuffer = context.createBuffer(
         indexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -225,7 +225,7 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
 }
 
 
-void TriangleApplication::destroyBufferDeferred(AllocatedBuffer& buffer)
+void TriangleApplication::destroyBufferDeferred(GpuBuffer& buffer)
 {
     if (buffer.get() == VK_NULL_HANDLE)
     {

@@ -122,12 +122,12 @@ public:
     ) const noexcept;
 
 
-    AllocatedBuffer createBuffer(
+    GpuBuffer createBuffer(
         VkDeviceSize size,
         VkBufferUsageFlags usage,
         VkMemoryPropertyFlags properties) const;
 
-    AllocatedImage createImage(
+    GpuImage createImage(
         uint32_t width,
         uint32_t height,
         uint32_t mipLevels,

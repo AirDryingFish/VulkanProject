@@ -258,7 +258,7 @@ void VulkanContext::setDebugName(VkObjectType objectType, uint64_t handle, const
     }
 }
 
-AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) const
+GpuBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) const
 {
     VkBuffer rawBuffer = VK_NULL_HANDLE;
     VmaAllocation rawAllocation = nullptr;
@@ -282,7 +282,7 @@ AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlag
 
     VK_CHECK(vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
 
-    return AllocatedBuffer(
+    return GpuBuffer(
         allocator_,
         rawBuffer,
         rawAllocation,
@@ -292,9 +292,8 @@ AllocatedBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlag
     );
 }
 
-AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags) const
+GpuImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags) const
 {
-    // AllocatedImage allocatedImage{};
     VkImage image = VK_NULL_HANDLE;
     VmaAllocation allocation = nullptr;
 
@@ -326,9 +325,7 @@ AllocatedImage VulkanContext::createImage(uint32_t width, uint32_t height, uint3
     }
 
     VK_CHECK(vmaCreateImage(allocator_, &imageInfo, &allocInfo, &image, &allocation, nullptr));
-    // allocatedImage.mipLevels = mipLevels;
-
-    return AllocatedImage(
+    return GpuImage(
         allocator_,
         device_, 
         image, 

@@ -5,18 +5,18 @@
 #include <type_traits>
 #include <vector>
 
-static_assert(!std::is_copy_constructible_v<AllocatedBuffer>);
-static_assert(std::is_nothrow_move_constructible_v<AllocatedBuffer>);
-static_assert(!std::is_copy_constructible_v<AllocatedImage>);
-static_assert(std::is_nothrow_move_constructible_v<AllocatedImage>);
+static_assert(!std::is_copy_constructible_v<GpuBuffer>);
+static_assert(std::is_nothrow_move_constructible_v<GpuBuffer>);
+static_assert(!std::is_copy_constructible_v<GpuImage>);
+static_assert(std::is_nothrow_move_constructible_v<GpuImage>);
 static_assert(!std::is_copy_constructible_v<UniqueShaderModule>);
 static_assert(std::is_nothrow_move_constructible_v<UniqueShaderModule>);
 
-static_assert(!std::is_copy_assignable_v<AllocatedBuffer>);
-static_assert(std::is_nothrow_move_assignable_v<AllocatedBuffer>);
+static_assert(!std::is_copy_assignable_v<GpuBuffer>);
+static_assert(std::is_nothrow_move_assignable_v<GpuBuffer>);
 
-static_assert(!std::is_copy_assignable_v<AllocatedImage>);
-static_assert(std::is_nothrow_move_assignable_v<AllocatedImage>);
+static_assert(!std::is_copy_assignable_v<GpuImage>);
+static_assert(std::is_nothrow_move_assignable_v<GpuImage>);
 
 int main()
 {

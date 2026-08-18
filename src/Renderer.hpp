@@ -24,7 +24,7 @@ private:
         VkSemaphore imageAvailable = VK_NULL_HANDLE;
         VkFence renderFence = VK_NULL_HANDLE;
 
-        std::vector<AllocatedBuffer> retiredBuffers;
+        std::vector<GpuBuffer> retiredBuffers;
     };
 
     struct UploadContext
@@ -90,7 +90,7 @@ public:
     FrameStatus endFrame(const FrameToken &token);
 
     void waitForAllFrames();
-    void retireBuffer(AllocatedBuffer &&buffer);
+    void retireBuffer(GpuBuffer &&buffer);
 
     uint32_t currentFrameIndex() const noexcept;
 

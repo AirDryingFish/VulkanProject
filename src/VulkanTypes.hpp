@@ -131,19 +131,3 @@ struct UniformBufferObject
 
     GpuPointLight pointLights[MAX_POINT_LIGHTS];
 };
-
-
-// vma -- memory management related type
-// struct AllocatedBuffer
-// {
-//     VkBuffer buffer = VK_NULL_HANDLE;
-//     VmaAllocation allocation = nullptr;
-// };
-
-// struct AllocatedImage
-// {
-//     VkImage image = VK_NULL_HANDLE;
-//     VkImageView imageView = VK_NULL_HANDLE;
-//     VmaAllocation allocation = nullptr;
-//     uint32_t mipLevels = 1;
-// };
