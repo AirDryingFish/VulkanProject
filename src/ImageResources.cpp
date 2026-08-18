@@ -63,8 +63,9 @@ GpuImage TriangleApplication::createTextureImageFromFile(
     imageDesc.mipLevels = imageMipLevels;
     imageDesc.arrayLayers = 1;
     imageDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageDesc.format = format;
     imageDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageDesc.usage = 
+    imageDesc.usage =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
         VK_IMAGE_USAGE_TRANSFER_DST_BIT |
         VK_IMAGE_USAGE_SAMPLED_BIT;
