@@ -275,8 +275,7 @@ void TriangleApplication::createSkyboxImage()
         pixels = loadLdrFaceSkybox();
     }
     const uint32_t skyboxMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(pixels.width, pixels.height)))) + 1;
-    
-    std::string stagingDebugName = SKYBOX_HDR_PATH + " skybox";
+    std::string stagingDebugName = SKYBOX_HDR_PATH + " staging buffer";
     BufferDesc stagingDesc{};
     stagingDesc.size = pixels.imageSize();
     stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -284,7 +283,6 @@ void TriangleApplication::createSkyboxImage()
     stagingDesc.debugName = stagingDebugName.c_str();
     
     GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
-
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
     std::memcpy(data, pixels.pixels.data(), static_cast<size_t>(pixels.imageSize()));

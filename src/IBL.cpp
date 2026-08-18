@@ -69,17 +69,23 @@ namespace
 
 void TriangleApplication::createIrradianceResources()
 {
-    irradianceImage = context.createImage(
+    ImageDesc irradianceDesc{};
+    irradianceDesc.extent = {
         irradianceDimension,
         irradianceDimension,
-        1,
-        VK_SAMPLE_COUNT_1_BIT,
-        irradianceFormat,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        6,
-        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+        1
+    };
+    irradianceDesc.mipLevels = 1;
+    irradianceDesc.arrayLayers = 6;
+    irradianceDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    irradianceDesc.format = irradianceFormat;
+    irradianceDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
+    irradianceDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    irradianceDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    irradianceDesc.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    irradianceDesc.debugName = "irradiance cubemap";
+
+    irradianceImage = context.createImage(irradianceDesc);
 
     irradianceImage.setView(context.createImageView(
         irradianceImage.get(),
@@ -421,17 +427,23 @@ void TriangleApplication::renderIrradianceCubemap()
 
 void TriangleApplication::createPrefilterResources()
 {
-    prefilterImage = context.createImage(
+    ImageDesc prefilterDesc{};
+    prefilterDesc.extent = {
         prefilterDimension,
         prefilterDimension,
-        prefilterMipLevels,
-        VK_SAMPLE_COUNT_1_BIT,
-        prefilterFormat,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        6,
-        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+        1
+    };
+    prefilterDesc.mipLevels = prefilterMipLevels; // 表示不同 roughness
+    prefilterDesc.arrayLayers = 6;
+    prefilterDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    prefilterDesc.format = prefilterFormat;
+    prefilterDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
+    prefilterDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    prefilterDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    prefilterDesc.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    prefilterDesc.debugName = "prefilter cubemap";
+
+    prefilterImage = context.createImage(prefilterDesc);
 
     prefilterImage.setView(context.createImageView(
         prefilterImage.get(),
@@ -790,16 +802,23 @@ void TriangleApplication::renderPrefilterCubemap()
 
 void TriangleApplication::createBRDFLUTResources()
 {
+    ImageDesc brdfLUTDesc{};
+    brdfLUTDesc.extent = {
+        brdfLUTDimension,
+        brdfLUTDimension,
+        1
+    };
+    brdfLUTDesc.mipLevels = 1;
+    brdfLUTDesc.arrayLayers = 1;
+    brdfLUTDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    brdfLUTDesc.format = brdfLUTFormat;
+    brdfLUTDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
+    brdfLUTDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    brdfLUTDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    brdfLUTDesc.flags = 0;
+    brdfLUTDesc.debugName = "BRDF LUT";
     // 创建BRDF LUT纹理
-    brdfLUTImage = context.createImage(
-        brdfLUTDimension,
-        brdfLUTDimension,
-        1,
-        VK_SAMPLE_COUNT_1_BIT,
-        brdfLUTFormat,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    brdfLUTImage = context.createImage(brdfLUTDesc);
 
     brdfLUTImage.setView(context.createImageView(
         brdfLUTImage.get(),
