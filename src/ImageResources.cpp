@@ -39,23 +39,40 @@ GpuImage TriangleApplication::createTextureImageFromFile(
     const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * static_cast<VkDeviceSize>(texHeight) * 4;
     const uint32_t imageMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-    GpuBuffer stagingBuffer = context.createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    const std::string stagingDebugName = path + " staging buffer";
+    BufferDesc stagingDesc{};
+    stagingDesc.size = imageSize;
+    stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    stagingDesc.debugName = stagingDebugName.c_str();
+
+    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
 
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
     memcpy(data, pixels, static_cast<size_t>(imageSize));
     stagingBuffer.unmap();
 
-
-    GpuImage image = context.createImage(
+    const std::string imageDebugName = path + " image";
+    ImageDesc imageDesc{};
+    imageDesc.extent = {
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight),
-        imageMipLevels,
-        VK_SAMPLE_COUNT_1_BIT,
-        format,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        1
+    };
+    imageDesc.mipLevels = imageMipLevels;
+    imageDesc.arrayLayers = 1;
+    imageDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageDesc.usage = 
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    imageDesc.flags = 0;
+    imageDesc.debugName = imageDebugName.c_str();
+
+    GpuImage image = context.createImage(imageDesc);
 
     transitionImageLayout(image.get(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageMipLevels);
     copyBufferToImage(stagingBuffer.get(), image.get(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));

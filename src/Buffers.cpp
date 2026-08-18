@@ -176,7 +176,7 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     indexStagingDesc.size = indexBufferSize;
     indexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     indexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    indexStagingDesc.debugName = "scene object vertex staging buffer";
+    indexStagingDesc.debugName = "scene object index staging buffer";
 
     GpuBuffer indexStagingBuffer = context.createBuffer(indexStagingDesc);
 
