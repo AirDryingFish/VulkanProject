@@ -65,6 +65,70 @@ namespace
         VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
         return imageView;
     }
+
+    VkRenderPass createSingleColorRenderPass(VkDevice device, VkFormat format)
+    {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = format;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorAttachmentRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
+
+        VkRenderPass renderPass = VK_NULL_HANDLE;
+        VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
+        return renderPass;
+    }
+
+    VkFramebuffer createSingleAttachmentFramebuffer(
+        VkDevice device,
+        VkRenderPass renderPass,
+        VkImageView attachment,
+        uint32_t width,
+        uint32_t height
+    )
+    {
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = renderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = &attachment;
+        framebufferInfo.width = width;
+        framebufferInfo.height = height;
+        framebufferInfo.layers = 1;
+        VkFramebuffer framebuffer = VK_NULL_HANDLE;
+        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffer));
+        return framebuffer;
+    }
 }
 
 void TriangleApplication::createIrradianceResources()
@@ -102,82 +166,36 @@ void TriangleApplication::createIrradianceResources()
                                        { vkDestroyImageView(context.device(), imageView, nullptr); });
     }
 
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
 
-    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &irradianceSampler));
-    mainDeletionQueue.pushFunction([this, sampler = irradianceSampler]()
-                                   { vkDestroySampler(context.device(), sampler, nullptr); });
+    SamplerDesc samplerDesc{};
+    samplerDesc.magFilter = VK_FILTER_LINEAR;
+    samplerDesc.minFilter = VK_FILTER_LINEAR;
+    samplerDesc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.anisotropyEnable = VK_TRUE;
+    samplerDesc.maxAnisotropy = 16.0f;
+    samplerDesc.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerDesc.unnormalizedCoordinates = VK_FALSE;
+    samplerDesc.compareEnable = VK_FALSE;
+    samplerDesc.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerDesc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerDesc.mipLodBias = 0.0f;
+    samplerDesc.minLod = 0.0f;
+    samplerDesc.maxLod = 0.0f;
+    samplerDesc.debugName = "irradiance sampler";
+    irradianceSampler = context.createSampler(samplerDesc);
 
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = irradianceFormat;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
-
-    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &irradianceRenderPass));
-    mainDeletionQueue.pushFunction([this, renderPass = irradianceRenderPass]()
-                                   { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
+    irradianceRenderPass = createSingleColorRenderPass(context.device(), irradianceFormat);
 
     for (uint32_t face = 0; face < irradianceFramebuffers.size(); face++)
     {
-        VkImageView attachment = irradianceFaceImageViews[face];
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = irradianceRenderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = &attachment;
-        framebufferInfo.width = irradianceDimension;
-        framebufferInfo.height = irradianceDimension;
-        framebufferInfo.layers = 1;
-
-        VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &irradianceFramebuffers[face]));
-        mainDeletionQueue.pushFunction([this, framebuffer = irradianceFramebuffers[face]]()
-                                       { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
+        irradianceFramebuffers[face] = createSingleAttachmentFramebuffer(
+            context.device(), 
+            irradianceRenderPass, 
+            irradianceFaceImageViews[face], 
+            irradianceDimension, 
+            irradianceDimension);
     }
 
     VkDescriptorSetLayoutBinding environmentMapBinding{};
@@ -218,7 +236,7 @@ void TriangleApplication::createIrradianceResources()
     VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &irradianceDescriptorSet));
 
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.sampler = skyboxSampler;
+    imageInfo.sampler = skyboxSampler.get();
     imageInfo.imageView = skyboxImage.view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -463,26 +481,25 @@ void TriangleApplication::createPrefilterResources()
         }
     }
 
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = float(prefilterMipLevels - 1);
+    SamplerDesc samplerDesc{};
+    samplerDesc.magFilter = VK_FILTER_LINEAR;
+    samplerDesc.minFilter = VK_FILTER_LINEAR;
+    samplerDesc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.anisotropyEnable = VK_FALSE;
+    samplerDesc.maxAnisotropy = 16.0f;
+    samplerDesc.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerDesc.unnormalizedCoordinates = VK_FALSE;
+    samplerDesc.compareEnable = VK_FALSE;
+    samplerDesc.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerDesc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerDesc.mipLodBias = 0.0f;
+    samplerDesc.minLod = 0.0f;
+    samplerDesc.maxLod = float(prefilterMipLevels - 1);
+    samplerDesc.debugName = "prefilter sampler";
 
-    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &prefilterSampler));
-    mainDeletionQueue.pushFunction([this, sampler = prefilterSampler]()
-                                   { vkDestroySampler(context.device(), sampler, nullptr); });
+    prefilterSampler = context.createSampler(samplerDesc);
 
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = prefilterFormat;
@@ -582,7 +599,7 @@ void TriangleApplication::createPrefilterResources()
     VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &prefilterDescriptorSet));
 
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.sampler = skyboxSampler;
+    imageInfo.sampler = skyboxSampler.get();
     imageInfo.imageView = skyboxImage.view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -838,9 +855,18 @@ void TriangleApplication::createBRDFLUTResources()
     samplerInfo.maxLod = 0.0f;
     samplerInfo.maxAnisotropy = 1.0f;
 
-    VK_CHECK(vkCreateSampler(context.device(), &samplerInfo, nullptr, &brdfLUTSampler));
-    mainDeletionQueue.pushFunction([this, sampler = brdfLUTSampler]()
-                                   { vkDestroySampler(context.device(), sampler, nullptr); });
+    SamplerDesc samplerDesc{};
+    samplerDesc.magFilter = VK_FILTER_LINEAR;
+    samplerDesc.minFilter = VK_FILTER_LINEAR;
+    samplerDesc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerDesc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.minLod = 0.0f;
+    samplerDesc.maxLod = 0.0f;
+    samplerDesc.debugName = "BUDFLut sampler";
+
+    brdfLUTSampler = context.createSampler(samplerDesc);
 
     // 创建颜色附件描述: 这张附件是什么，渲染前后怎么处理
     VkAttachmentDescription colorAttachment{};

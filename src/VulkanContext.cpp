@@ -442,6 +442,34 @@ VkImageView VulkanContext::createImageView(VkImage image, VkFormat format, uint3
     return imageView;
 }
 
+GpuSampler VulkanContext::createSampler(const SamplerDesc &desc) const
+{
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = desc.magFilter;
+    samplerInfo.minFilter = desc.minFilter;
+    samplerInfo.addressModeU = desc.addressModeU;
+    samplerInfo.addressModeV = desc.addressModeV;
+    samplerInfo.addressModeW = desc.addressModeW;
+    samplerInfo.anisotropyEnable = desc.anisotropyEnable;
+    samplerInfo.maxAnisotropy = desc.maxAnisotropy;
+    samplerInfo.borderColor = desc.borderColor;
+    samplerInfo.unnormalizedCoordinates = desc.unnormalizedCoordinates;
+    samplerInfo.compareEnable = desc.compareEnable;
+    samplerInfo.compareOp = desc.compareOp;
+    samplerInfo.mipmapMode = desc.mipmapMode;
+    samplerInfo.mipLodBias = desc.mipLodBias;
+    samplerInfo.minLod = desc.minLod;
+    samplerInfo.maxLod = desc.maxLod;
+
+    VkSampler sampler = VK_NULL_HANDLE;
+    VK_CHECK(vkCreateSampler(device_, &samplerInfo, nullptr, &sampler));
+
+    setDebugName(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<uint64_t>(sampler), desc.debugName);
+
+    return GpuSampler(device_, sampler);
+}
+
 UniqueShaderModule VulkanContext::createShaderModule(const std::vector<char> &code) const
 {
     VkShaderModuleCreateInfo createInfo{};

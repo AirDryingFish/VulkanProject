@@ -305,3 +305,53 @@ void UniqueShaderModule::reset() noexcept
 
     device_ = VK_NULL_HANDLE;
 }
+
+
+GpuSampler::GpuSampler(VkDevice device, VkSampler sampler) noexcept:
+    device_(device), sampler_(sampler)
+{
+}
+
+GpuSampler::~GpuSampler() noexcept
+{
+    reset();
+}
+
+GpuSampler::GpuSampler(GpuSampler &&other) noexcept : 
+    device_(std::exchange(other.device_, VK_NULL_HANDLE)),
+    sampler_(std::exchange(other.sampler_, VK_NULL_HANDLE))
+{
+
+}
+
+GpuSampler &GpuSampler::operator=(GpuSampler &&other) noexcept
+{
+    if (this != &other)
+    {
+        reset();
+        device_ = std::exchange(other.device_, VK_NULL_HANDLE);
+        sampler_ = std::exchange(other.sampler_, VK_NULL_HANDLE);
+    }
+    return *this;
+}
+
+GpuSampler::operator bool() const noexcept
+{
+    return sampler_ != VK_NULL_HANDLE;
+}
+
+VkSampler GpuSampler::get() const noexcept
+{
+    return sampler_;
+}
+
+void GpuSampler::reset() noexcept
+{
+    if (sampler_ != VK_NULL_HANDLE)
+    {
+        assert(device_ != VK_NULL_HANDLE);
+        vkDestroySampler(device_, sampler_, nullptr);
+        sampler_ = VK_NULL_HANDLE;
+    }
+    device_ = VK_NULL_HANDLE;
+}

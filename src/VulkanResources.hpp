@@ -26,6 +26,26 @@ struct ImageDesc
     const char* debugName = nullptr;
 };
 
+struct SamplerDesc
+{
+    VkFilter magFilter = VK_FILTER_LINEAR;
+    VkFilter minFilter = VK_FILTER_LINEAR;
+    VkSamplerAddressMode addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VkSamplerAddressMode addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VkSamplerAddressMode addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VkBool32 anisotropyEnable = VK_TRUE;
+    float maxAnisotropy = 16.0f;
+    VkBorderColor borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    VkBool32 unnormalizedCoordinates = VK_FALSE;
+    VkBool32 compareEnable = VK_FALSE;
+    VkCompareOp compareOp = VK_COMPARE_OP_ALWAYS;
+    VkSamplerMipmapMode mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    float mipLodBias = 0.0f;
+    float minLod = 0.0f;
+    float maxLod = 0.0f;
+    const char* debugName = nullptr;
+};
+
 class GpuBuffer
 {
 private:
@@ -123,6 +143,26 @@ public:
     VkSampleCountFlagBits samples() const noexcept;
 
     void setView(VkImageView imageView) noexcept;
+    void reset() noexcept;
+};
+
+class GpuSampler
+{
+private:
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkSampler sampler_ = VK_NULL_HANDLE;
+public:
+    GpuSampler() noexcept = default;
+    GpuSampler(VkDevice device, VkSampler sampler) noexcept;
+    ~GpuSampler() noexcept;
+
+    GpuSampler(const GpuSampler&) = delete;
+    GpuSampler& operator=(const GpuSampler&) = delete;
+    GpuSampler(GpuSampler&& other) noexcept;
+    GpuSampler& operator=(GpuSampler&& other) noexcept;
+
+    explicit operator bool() const noexcept;
+    VkSampler get() const noexcept;
     void reset() noexcept;
 };
 

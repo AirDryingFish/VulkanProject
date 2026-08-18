@@ -151,6 +151,8 @@ public:
         uint32_t layerCount = 1
     ) const;
 
+    GpuSampler createSampler(const SamplerDesc& desc) const;
+
     UniqueShaderModule createShaderModule(const std::vector<char> &code) const;
 
 };

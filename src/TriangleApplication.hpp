@@ -187,7 +187,7 @@ private:
     GpuImage metallicImage;
     GpuImage roughnessImage;
     GpuImage aoImage;
-    VkSampler textureSampler = VK_NULL_HANDLE;
+    GpuSampler textureSampler{};
 
     DeletionQueue mainDeletionQueue;
 
@@ -231,12 +231,12 @@ private:
 
     // skybox member
     GpuImage skyboxImage;
-    VkSampler skyboxSampler = VK_NULL_HANDLE;
+    GpuSampler skyboxSampler{};
     std::vector<VkDescriptorSet> skyboxDescriptorSets;
 
     // diffuse IBL irradiance cubemap
     GpuImage irradianceImage;
-    VkSampler irradianceSampler = VK_NULL_HANDLE;
+    GpuSampler irradianceSampler{};
     VkRenderPass irradianceRenderPass = VK_NULL_HANDLE;
     VkDescriptorSetLayout irradianceDescriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool irradianceDescriptorPool = VK_NULL_HANDLE;
@@ -248,7 +248,7 @@ private:
 
     // prefilter cubemap
     GpuImage prefilterImage;
-    VkSampler prefilterSampler = VK_NULL_HANDLE;
+    GpuSampler prefilterSampler{};
     VkRenderPass prefilterRenderpass = VK_NULL_HANDLE;
     VkPipeline prefilterPipeline = VK_NULL_HANDLE;
     VkPipelineLayout prefilterPipelineLayout = VK_NULL_HANDLE;
@@ -262,7 +262,7 @@ private:
 
     // Split-sum BRDF Integration LUT
     GpuImage brdfLUTImage;
-    VkSampler brdfLUTSampler = VK_NULL_HANDLE;
+    GpuSampler brdfLUTSampler{};
     VkRenderPass brdfLUTRenderPass = VK_NULL_HANDLE;
     VkPipeline brdfLUTPipeline = VK_NULL_HANDLE;
     VkPipelineLayout brdfLUTPipelineLayout = VK_NULL_HANDLE;

@@ -79,15 +79,15 @@ void TriangleApplication::createTextureDescriptorSets(
 void TriangleApplication::createDescriptorSets()
 {
     std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> imageInfos{};
-    imageInfos[0] = {textureSampler, textureImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[1] = {textureSampler, normalImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[2] = {textureSampler, metallicImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[3] = {textureSampler, roughnessImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[4] = {textureSampler, aoImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[5] = {skyboxSampler, skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[6] = {irradianceSampler, irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[7] = {prefilterSampler, prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[8] = {brdfLUTSampler, brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[0] = {textureSampler.get(), textureImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[1] = {textureSampler.get(), normalImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[2] = {textureSampler.get(), metallicImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[3] = {textureSampler.get(), roughnessImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[4] = {textureSampler.get(), aoImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[5] = {skyboxSampler.get(), skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[6] = {irradianceSampler.get(), irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[7] = {prefilterSampler.get(), prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[8] = {brdfLUTSampler.get(), brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     createTextureDescriptorSets(imageInfos, descriptorSets);
 }
@@ -95,15 +95,15 @@ void TriangleApplication::createDescriptorSets()
 void TriangleApplication::createSkyboxDescriptorSets()
 {
     std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> imageInfos{};
-    imageInfos[0] = {skyboxSampler, skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[1] = {textureSampler, normalImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[2] = {textureSampler, metallicImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[3] = {textureSampler, roughnessImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[4] = {textureSampler, aoImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[5] = {skyboxSampler, skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[6] = {irradianceSampler, irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[7] = {prefilterSampler, prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[8] = {brdfLUTSampler, brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[0] = {skyboxSampler.get(), skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[1] = {textureSampler.get(), normalImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[2] = {textureSampler.get(), metallicImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[3] = {textureSampler.get(), roughnessImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[4] = {textureSampler.get(), aoImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[5] = {skyboxSampler.get(), skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[6] = {irradianceSampler.get(), irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[7] = {prefilterSampler.get(), prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[8] = {brdfLUTSampler.get(), brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     createTextureDescriptorSets(imageInfos, skyboxDescriptorSets);
 }
