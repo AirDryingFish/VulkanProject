@@ -79,16 +79,27 @@ void TriangleApplication::createIndexBuffer()
     }
 
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-    GpuBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    BufferDesc stagingDesc{};
+    stagingDesc.size = bufferSize;
+    stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    stagingDesc.debugName = "index staging buffer";
+
+    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
 
     void *data = nullptr;
-    // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
     VK_CHECK(stagingBuffer.map(&data));
     memcpy(data, indices.data(), static_cast<size_t>(bufferSize));
     stagingBuffer.unmap();
-    // vmaUnmapMemory(allocator, stagingBuffer.allocation);
 
-    indexBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    BufferDesc indexDesc{};
+    indexDesc.size = bufferSize;
+    indexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    indexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    indexDesc.debugName = "index buffer";
+
+    indexBuffer = context.createBuffer(indexDesc);
 
     copyBuffer(stagingBuffer.get(), indexBuffer.get(), bufferSize);
 
@@ -102,16 +113,27 @@ void TriangleApplication::createVertexBuffer()
     }
 
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-    GpuBuffer stagingBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    BufferDesc stagingDesc{};
+    stagingDesc.size = bufferSize;
+    stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    stagingDesc.debugName = "vertex staging buffer";
+
+    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
 
     void *data = nullptr;
-    // VK_CHECK(vmaMapMemory(allocator, stagingBuffer.allocation, &data));
     VK_CHECK(stagingBuffer.map(&data));
     memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
     stagingBuffer.unmap();
-    // vmaUnmapMemory(allocator, stagingBuffer.allocation);
 
-    vertexBuffer = context.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    BufferDesc vertexDesc{};
+    vertexDesc.size = bufferSize;
+    vertexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    vertexDesc.debugName = "vertex buffer";
+
+    vertexBuffer = context.createBuffer(vertexDesc);
 
     copyBuffer(stagingBuffer.get(), vertexBuffer.get(), bufferSize);
 
@@ -125,42 +147,50 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     }
 
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
-    GpuBuffer vertexStagingBuffer = context.createBuffer(
-        vertexBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    BufferDesc vertexStagingDesc{};
+    vertexStagingDesc.size = vertexBufferSize;
+    vertexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    vertexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    vertexStagingDesc.debugName = "scene object vertex staging buffer";
+
+    GpuBuffer vertexStagingBuffer = context.createBuffer(vertexStagingDesc);
 
     void *data = nullptr;
-    // VK_CHECK(vmaMapMemory(allocator, vertexStagingBuffer.allocation, &data));
     VK_CHECK(vertexStagingBuffer.map(&data));
     memcpy(data, meshData.vertices.data(), static_cast<size_t>(vertexBufferSize));
-    // vmaUnmapMemory(allocator, vertexStagingBuffer.allocation);
     vertexStagingBuffer.unmap();
 
-    object.vertexBuffer = context.createBuffer(
-        vertexBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    BufferDesc vertexDesc{};
+    vertexDesc.size = vertexBufferSize;
+    vertexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    vertexDesc.debugName = "scene object vertex buffer";
+
+    object.vertexBuffer = context.createBuffer(vertexDesc);
 
     copyBuffer(vertexStagingBuffer.get(), object.vertexBuffer.get(), vertexBufferSize);
 
-
     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
-    GpuBuffer indexStagingBuffer = context.createBuffer(
-        indexBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    BufferDesc indexStagingDesc{};
+    indexStagingDesc.size = indexBufferSize;
+    indexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    indexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    indexStagingDesc.debugName = "scene object vertex staging buffer";
 
-    // VK_CHECK(vmaMapMemory(allocator, indexStagingBuffer.allocation, &data));
+    GpuBuffer indexStagingBuffer = context.createBuffer(indexStagingDesc);
+
     VK_CHECK(indexStagingBuffer.map(&data));
     memcpy(data, meshData.indices.data(), static_cast<size_t>(indexBufferSize));
-    // vmaUnmapMemory(allocator, indexStagingBuffer.allocation);
     indexStagingBuffer.unmap();
 
-    object.indexBuffer = context.createBuffer(
-        indexBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    BufferDesc indexDesc{};
+    indexDesc.size = indexBufferSize;
+    indexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    indexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    indexDesc.debugName = "scene object index buffer";
+
+    object.indexBuffer = context.createBuffer(indexDesc);
 
     copyBuffer(indexStagingBuffer.get(), object.indexBuffer.get(), indexBufferSize);
 
@@ -174,9 +204,15 @@ void TriangleApplication::createUniformBuffer()
     uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     uniformBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
 
+    BufferDesc uniformDesc{};
+    uniformDesc.size = bufferSize;
+    uniformDesc.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    uniformDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    uniformDesc.debugName = "frame uniform buffer";
+
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
-        uniformBuffers[i] = context.createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        uniformBuffers[i] = context.createBuffer(uniformDesc);
         VK_CHECK(uniformBuffers[i].map(&uniformBufferMapped[i]));
     }
 }

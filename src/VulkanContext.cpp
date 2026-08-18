@@ -293,7 +293,7 @@ GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
 
     if (desc.size == 0)
     {
-        throw std::invalid_argument("buffer size must greater than zero");
+        throw std::invalid_argument("buffer size must be greater than zero");
     }
 
     if (desc.usage == 0)
