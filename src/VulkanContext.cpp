@@ -286,6 +286,20 @@ GpuImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mi
 
 GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
 {
+    if (allocator_ == nullptr)
+    {
+        throw std::logic_error("cannot create buffer before allocator initialization");
+    }
+
+    if (desc.size == 0)
+    {
+        throw std::invalid_argument("buffer size must greater than zero");
+    }
+
+    if (desc.usage == 0)
+    {
+        throw std::invalid_argument("buffer usage must not be empty");
+    }
 
     VkBuffer rawBuffer = VK_NULL_HANDLE;
     VmaAllocation rawAllocation = nullptr;
@@ -308,6 +322,11 @@ GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
     }
 
     VK_CHECK(vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
+
+    setDebugName(
+        VK_OBJECT_TYPE_BUFFER,
+        reinterpret_cast<uint64_t>(rawBuffer),
+        desc.debugName);
 
     return GpuBuffer(
         allocator_,
@@ -389,7 +408,7 @@ GpuImage VulkanContext::createImage(const ImageDesc &desc) const
         VK_OBJECT_TYPE_IMAGE,
         reinterpret_cast<uint64_t>(image),
         desc.debugName);
-        
+
     return GpuImage(
         allocator_,
         device_, 
