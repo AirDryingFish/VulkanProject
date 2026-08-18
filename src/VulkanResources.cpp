@@ -217,18 +217,24 @@ void AllocatedImage::reset() noexcept
     {
         assert(device_ != VK_NULL_HANDLE);
         vkDestroyImageView(device_, imageView_, nullptr);
-        imageView_ = VK_NULL_HANDLE;
     }
     if (image_ != VK_NULL_HANDLE)
     {
         assert(allocator_ != nullptr);
         vmaDestroyImage(allocator_, image_, allocation_);
-        image_ = VK_NULL_HANDLE;
-        allocation_ = nullptr;
     }
     allocator_ = nullptr;
+    imageView_ = VK_NULL_HANDLE;
+    image_ = VK_NULL_HANDLE;
+    allocation_ = nullptr;
     device_ = VK_NULL_HANDLE;
-    mipLevels_ = 1;
+
+    extent_ = {0, 0, 0};
+    format_ = VK_FORMAT_UNDEFINED;
+    usage_ = 0;
+    mipLevels_ = 0;
+    arrayLayers_ = 0;
+    samples_ = VK_SAMPLE_COUNT_1_BIT;
 }
 
 void AllocatedImage::moveFrom(AllocatedImage &other) noexcept

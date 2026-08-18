@@ -12,6 +12,12 @@ static_assert(std::is_nothrow_move_constructible_v<AllocatedImage>);
 static_assert(!std::is_copy_constructible_v<UniqueShaderModule>);
 static_assert(std::is_nothrow_move_constructible_v<UniqueShaderModule>);
 
+static_assert(!std::is_copy_assignable_v<AllocatedBuffer>);
+static_assert(std::is_nothrow_move_assignable_v<AllocatedBuffer>);
+
+static_assert(!std::is_copy_assignable_v<AllocatedImage>);
+static_assert(std::is_nothrow_move_assignable_v<AllocatedImage>);
+
 int main()
 {
     DeletionQueue queue;
