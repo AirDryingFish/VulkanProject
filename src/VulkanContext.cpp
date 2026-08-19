@@ -258,32 +258,6 @@ void VulkanContext::setDebugName(VkObjectType objectType, uint64_t handle, const
     }
 }
 
-GpuBuffer VulkanContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) const
-{
-    BufferDesc desc{};
-    desc.size = size;
-    desc.usage = usage;
-    desc.requiredMemoryProperties = properties;
-
-    return createBuffer(desc);
-}
-
-GpuImage VulkanContext::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, uint32_t arrayLayers, VkImageCreateFlags flags) const
-{
-    ImageDesc desc{};
-    desc.extent = {width, height, 1};
-    desc.mipLevels = mipLevels;
-    desc.arrayLayers = arrayLayers;
-    desc.samples = numSamples;
-    desc.format = format;
-    desc.tiling = tiling;
-    desc.usage = usage;
-    desc.requiredMemoryProperties = properties;
-    desc.flags = flags;
-
-    return createImage(desc);
-}
-
 GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
 {
     if (allocator_ == nullptr)
