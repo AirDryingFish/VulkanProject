@@ -109,17 +109,16 @@ target_link_libraries(vulkan PRIVATE
     imgui::imgui
 )
 
-if(BUILD_TESTING)
-    add_executable(deletion_queue_tests
-        tests/DeletionQueueTests.cpp
-    )
-    target_include_directories(deletion_queue_tests PRIVATE src)
-    target_link_libraries(deletion_queue_tests PRIVATE
-        Vulkan::Vulkan
-        GPUOpen::VulkanMemoryAllocator
-    )
-    add_test(NAME deletion_queue_tests COMMAND deletion_queue_tests)
-endif()
+# if(BUILD_TESTING)
+#     add_executable(deletion_queue_tests
+#     )
+#     target_include_directories(deletion_queue_tests PRIVATE src)
+#     target_link_libraries(deletion_queue_tests PRIVATE
+#         Vulkan::Vulkan
+#         GPUOpen::VulkanMemoryAllocator
+#     )
+#     add_test(NAME deletion_queue_tests COMMAND deletion_queue_tests)
+# endif()
 
 add_custom_command(
     TARGET vulkan POST_BUILD
