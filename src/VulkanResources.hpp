@@ -33,8 +33,8 @@ struct SamplerDesc
     VkSamplerAddressMode addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     VkSamplerAddressMode addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     VkSamplerAddressMode addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    VkBool32 anisotropyEnable = VK_TRUE;
-    float maxAnisotropy = 16.0f;
+    VkBool32 anisotropyEnable = VK_FALSE;
+    float maxAnisotropy = 1.0f;
     VkBorderColor borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     VkBool32 unnormalizedCoordinates = VK_FALSE;
     VkBool32 compareEnable = VK_FALSE;

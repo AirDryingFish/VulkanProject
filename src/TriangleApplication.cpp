@@ -128,6 +128,12 @@ void TriangleApplication::cleanup() noexcept
     indexBuffer.reset();
     vertexBuffer.reset();
 
+    brdfLUTSampler.reset();
+    prefilterSampler.reset();
+    irradianceSampler.reset();
+    skyboxSampler.reset();
+    textureSampler.reset();
+
     textureImage.reset();
     normalImage.reset();
     metallicImage.reset();

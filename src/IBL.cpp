@@ -188,6 +188,13 @@ void TriangleApplication::createIrradianceResources()
 
     irradianceRenderPass = createSingleColorRenderPass(context.device(), irradianceFormat);
 
+    const VkDevice device = context.device();
+    const VkRenderPass renderPass = irradianceRenderPass;
+
+    mainDeletionQueue.pushFunction([device, renderPass]() noexcept{
+        vkDestroyRenderPass(device, renderPass, nullptr);
+    });
+
     for (uint32_t face = 0; face < irradianceFramebuffers.size(); face++)
     {
         irradianceFramebuffers[face] = createSingleAttachmentFramebuffer(
@@ -196,6 +203,12 @@ void TriangleApplication::createIrradianceResources()
             irradianceFaceImageViews[face], 
             irradianceDimension, 
             irradianceDimension);
+        
+        VkFramebuffer framebuffer = irradianceFramebuffers[face];
+
+        mainDeletionQueue.pushFunction([device, framebuffer]() noexcept {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        });
     }
 
     VkDescriptorSetLayoutBinding environmentMapBinding{};
@@ -842,19 +855,6 @@ void TriangleApplication::createBRDFLUTResources()
         brdfLUTFormat,
         1));
 
-    // 创建纹理采样器
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
-    samplerInfo.maxAnisotropy = 1.0f;
-
     SamplerDesc samplerDesc{};
     samplerDesc.magFilter = VK_FILTER_LINEAR;
     samplerDesc.minFilter = VK_FILTER_LINEAR;
@@ -864,7 +864,7 @@ void TriangleApplication::createBRDFLUTResources()
     samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerDesc.minLod = 0.0f;
     samplerDesc.maxLod = 0.0f;
-    samplerDesc.debugName = "BUDFLut sampler";
+    samplerDesc.debugName = "BUDF LUT sampler";
 
     brdfLUTSampler = context.createSampler(samplerDesc);
 
