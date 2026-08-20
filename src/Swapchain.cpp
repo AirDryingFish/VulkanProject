@@ -376,15 +376,22 @@ void Swapchain::createAttachments()
 
     const VkFormat depthFormat = context_->findDepthFormat();
 
-    depthImage_ = context_->createImage(
+    ImageDesc depthDesc{};
+    depthDesc.extent = {
         extent_.width,
         extent_.height,
-        1,
-        context_->msaaSamples(),
-        depthFormat,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        1
+    };
+    depthDesc.mipLevels = 1;
+    depthDesc.samples = context_->msaaSamples();
+    depthDesc.format = depthFormat;
+    depthDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
+    depthDesc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    depthDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    depthDesc.flags = 0;
+    depthDesc.debugName = "swapchain depth attchment";
+
+    depthImage_ = context_->createImage(depthDesc);
 
     depthImage_.setView(
         context_->createImageView(
@@ -393,15 +400,26 @@ void Swapchain::createAttachments()
             1,
             VK_IMAGE_ASPECT_DEPTH_BIT));
 
-    colorImage_ = context_->createImage(
+    ImageDesc colorDesc{};
+    colorDesc.extent = {
         extent_.width,
         extent_.height,
-        1,
-        context_->msaaSamples(),
-        format_,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        1
+    };
+
+    colorDesc.mipLevels = 1;
+    colorDesc.arrayLayers = 1;
+    colorDesc.samples = context_->msaaSamples();
+    colorDesc.format = format_;
+    colorDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
+    colorDesc.usage = 
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    colorDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    colorDesc.flags = 0;
+    colorDesc.debugName = "swapchain MSAA color attachment";
+
+    colorImage_ = context_->createImage(colorDesc);
 
     colorImage_.setView(
         context_->createImageView(

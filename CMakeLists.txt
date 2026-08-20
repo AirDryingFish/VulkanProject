@@ -86,6 +86,7 @@ add_executable(vulkan
     src/Swapchain.cpp
     src/Renderer.cpp
     src/FileUtils.cpp
+    src/UploadCommands.cpp
 )
 
 target_include_directories(vulkan PRIVATE

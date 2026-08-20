@@ -23,7 +23,7 @@ inline const std::string PBR_NORMAL_PATH = assetPath("textures/pbr/rustediron2_n
 inline const std::string PBR_METALLIC_PATH = assetPath("textures/pbr/rustediron2_metallic.png");
 inline const std::string PBR_ROUGHNESS_PATH = assetPath("textures/pbr/rustediron2_roughness.png");
 inline const std::string PBR_AO_PATH = assetPath("textures/pbr/rustediron2_ao.png");
-inline const std::string SKYBOX_HDR_PATH = assetPath("textures/pbr/newport_loft.hdr");
+inline const std::string SKYBOX_HDR_PATH = assetPath("textures/pbr/studio_small_09_1k.hdr");
 
 inline const std::array<std::string, 6> SKYBOX_FACE_PATHS = {
     assetPath("textures/skybox/right.jpg"),
