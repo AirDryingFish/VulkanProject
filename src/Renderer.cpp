@@ -404,9 +404,6 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
     // 确认上一次使用的UploadContext已经完成
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
 
-    // Fence必须回到 unsignaled 才能交给下一次 submit
-    VK_CHECK(vkResetFences(context_->device(), 1, &uploadContext_.fence));
-
     // Fence 已经证明上一轮 command buffer 不再 pending，因此可以安全reset command pool
     VK_CHECK(vkResetCommandPool(context_->device(), uploadContext_.commandPool, 0));
 
@@ -424,6 +421,10 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &uploadContext_.commandBuffer;
+
+    // Fence必须回到 unsignaled 才能交给下一次 submit
+    VK_CHECK(vkResetFences(context_->device(), 1, &uploadContext_.fence));
+
 
     VK_CHECK(vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, uploadContext_.fence));
 

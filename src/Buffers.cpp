@@ -1,4 +1,5 @@
 #include "TriangleApplication.hpp"
+#include "UploadCommands.hpp"
 
 #include <algorithm>
 #include <array>
@@ -63,12 +64,9 @@ const TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObj
 void TriangleApplication::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
-                             {
-        VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = 0;
-        copyRegion.dstOffset = 0;
-        copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion); });
+    {
+        upload::recordBufferCopy(commandBuffer, srcBuffer, dstBuffer, size);
+    });
 }
 
 void TriangleApplication::createIndexBuffer()
