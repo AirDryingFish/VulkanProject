@@ -5,6 +5,7 @@
 > - [阶段 1：资源生命周期与异常安全](stage-1-resource-lifetime.md)
 > - [阶段 2：应用层拆分](stage-2-application-split.md)
 > - [阶段 3：通用 GPU 资源层](stage-3-gpu-resource-layer.md)
+> - [阶段 4：Scene、Mesh 与 Material 解耦](stage-4-scene-mesh-material.md)
 
 本文档记录 VulkanProject 从当前 PBR Renderer 继续演进为可扩展 Vulkan
 渲染引擎的开发计划。任务按依赖关系和风险排序，而不是单纯按照视觉效果排序。
@@ -236,6 +237,8 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 ## 阶段 4：Scene、Mesh 与 Material 解耦
 
 目标：从“每个对象直接持有 Buffer、全场景共享一套材质”升级为真正的场景资源模型。
+
+> 当前工程评估、所有权约束、提交拆分与手敲顺序见：[阶段 4：Scene、Mesh 与 Material 解耦实施指南](stage-4-scene-mesh-material.md)。
 
 ### 4.1 Mesh
 
@@ -523,14 +526,16 @@ Dynamic Rendering / Bindless / Render Graph
 
 ## 当前最近任务
 
-Stage 1 的 RAII 基础和 Stage 2 的核心模块拆分已经基本落地。接下来进入 Stage 3，但仍按小提交推进：
+Stage 1～3 的核心生产代码已经落地，当前进入 Stage 4。自动测试和故障注入在初版开发期间
+暂时延期，但每个提交仍需完成 Debug 构建和手动启动验证。近期按以下顺序推进：
 
-1. **P0** 在当前提交上记录一次 Stage 2 Debug/Release、测试和 Validation 运行基线；
-2. **P0** 为现有 buffer/image 包装类型补齐 metadata，并检查 move/reset 是否同步处理 metadata；
-3. **P0** 在不改变行为的独立提交中重命名为 `GpuBuffer` / `GpuImage`；
-4. **P0** 增加 `BufferDesc` / `ImageDesc`，逐模块迁移并删除旧长参数接口；
-5. **P0** 分离 command recording 与 queue submission；
-6. **P0** 先把 vertex/index 合并为一次同步上传，再处理 texture 上传；
-7. **P1** 最后统一 sampler 和 IBL 的窄创建 helper。
+1. **P0** 删除未使用的旧单 Mesh 全局状态和注释实现；
+2. **P0** 建立拥有 vertex/index Buffer、count 和 local bounds 的 `Mesh` 类型；
+3. **P0** 提取 `Transform` 与高层 `SceneObject`；
+4. **P0** 让多个 SceneObject 安全共享 Mesh，并保留最后引用的 frame retirement；
+5. **P0** 建立 Texture/Material 资源模型和缺失纹理；
+6. **P0** 先分离 Skybox descriptor，再拆 Frame/Material descriptor；
+7. **P0** 证明两个对象可以共享 Mesh、使用不同 Material；
+8. **P1** 完成 Release、Validation 和窗口交互的手动验收。
 
-在 Stage 3 的 P0 项完成前，不把 Scene、Material、EnvironmentLighting 拆分、异步上传或 dedicated transfer queue 混入当前改动。
+本阶段不同时接入 glTF、Node 层级、异步加载、bindless descriptor 或通用 Asset Manager。
