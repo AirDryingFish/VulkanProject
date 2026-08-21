@@ -232,6 +232,7 @@ namespace
         depthStencil.depthWriteEnable = VK_FALSE;
         depthStencil.stencilTestEnable = VK_FALSE;
 
+        // 告诉vulkan: viewport/scissor 不属于 pipeline 固定配置，之后 command buffer 会提供。
         const std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR
