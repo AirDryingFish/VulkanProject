@@ -76,13 +76,6 @@ GpuImage TriangleApplication::createTextureImageFromFile(
 
     GpuImage image = context.createImage(imageDesc);
 
-    // // 准备 image：准备 image 接受数据
-    // transitionImageLayout(image.get(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageMipLevels);
-    // // 复制原始像素到 mip 0
-    // copyBufferToImage(stagingBuffer.get(), image.get(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    // // 生成其他 mip
-    // generateMipmaps(image.get(), format, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), imageMipLevels);
-    
     VkFormatProperties formatProperties{};
     vkGetPhysicalDeviceFormatProperties(context.physicalDevice(), image.format(), &formatProperties);
 

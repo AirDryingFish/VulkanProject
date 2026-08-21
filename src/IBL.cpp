@@ -23,6 +23,15 @@ namespace
         float roughness;
     };
 
+    struct SingleColorRenderPassDesc{
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        VkImageLayout initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkImageLayout finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkSubpassDependency dependency{};
+    };
+
     VkImageView createIrradianceFaceImageView(
         VkDevice device,
         VkImage image,
@@ -66,17 +75,27 @@ namespace
         return imageView;
     }
 
-    VkRenderPass createSingleColorRenderPass(VkDevice device, VkFormat format)
+    VkRenderPass createSingleColorRenderPass(VkDevice device, const SingleColorRenderPassDesc& desc)
     {
+        if (device == VK_NULL_HANDLE)
+        {
+            throw std::invalid_argument("render pass device must not be null");
+        }
+
+        if (desc.format == VK_FORMAT_UNDEFINED)
+        {
+            throw std::invalid_argument("render pass format must be defined");
+        }
+
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = format;
+        colorAttachment.format = desc.format;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.loadOp = desc.loadOp;
+        colorAttachment.storeOp = desc.storeOp;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachment.initialLayout = desc.initialLayout;
+        colorAttachment.finalLayout = desc.finalLayout;
 
         VkAttachmentReference colorAttachmentRef{};
         colorAttachmentRef.attachment = 0;
@@ -87,14 +106,6 @@ namespace
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
 
-        VkSubpassDependency dependency{};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
         renderPassInfo.attachmentCount = 1;
@@ -102,10 +113,14 @@ namespace
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
         renderPassInfo.dependencyCount = 1;
-        renderPassInfo.pDependencies = &dependency;
+        renderPassInfo.pDependencies = &desc.dependency;
 
         VkRenderPass renderPass = VK_NULL_HANDLE;
-        VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
+        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass))
+        {
+            throw std::runtime_error("failed to create single color render pass");
+        }
+
         return renderPass;
     }
 
@@ -113,8 +128,8 @@ namespace
         VkDevice device,
         VkRenderPass renderPass,
         VkImageView attachment,
-        uint32_t width,
-        uint32_t height
+        VkExtent2D extent,
+        uint32_t layers = 1
     )
     {
         VkFramebufferCreateInfo framebufferInfo{};
@@ -122,11 +137,14 @@ namespace
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = 1;
         framebufferInfo.pAttachments = &attachment;
-        framebufferInfo.width = width;
-        framebufferInfo.height = height;
-        framebufferInfo.layers = 1;
+        framebufferInfo.width = extent.width;
+        framebufferInfo.height = extent.height;
+        framebufferInfo.layers = layers;
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
-        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffer));
+        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffer))
+        {
+            throw std::runtime_error("failed to create single attchment framebuffer");
+        }
         return framebuffer;
     }
 }
@@ -186,7 +204,21 @@ void TriangleApplication::createIrradianceResources()
     samplerDesc.debugName = "irradiance sampler";
     irradianceSampler = context.createSampler(samplerDesc);
 
-    irradianceRenderPass = createSingleColorRenderPass(context.device(), irradianceFormat);
+    VkSubpassDependency irradianceDependency{};
+    irradianceDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    irradianceDependency.dstSubpass = 0;
+    irradianceDependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    irradianceDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    irradianceDependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    irradianceDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    SingleColorRenderPassDesc irradianceRenderPassDesc{};
+    irradianceRenderPassDesc.format = irradianceFormat;
+    irradianceRenderPassDesc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    irradianceRenderPassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    irradianceRenderPassDesc.dependency = irradianceDependency;
+
+    irradianceRenderPass = createSingleColorRenderPass(context.device(), irradianceRenderPassDesc);
 
     const VkDevice device = context.device();
     const VkRenderPass renderPass = irradianceRenderPass;
@@ -201,8 +233,11 @@ void TriangleApplication::createIrradianceResources()
             context.device(), 
             irradianceRenderPass, 
             irradianceFaceImageViews[face], 
-            irradianceDimension, 
-            irradianceDimension);
+            {
+                irradianceDimension, 
+                irradianceDimension
+            }
+        );
         
         VkFramebuffer framebuffer = irradianceFramebuffers[face];
 
@@ -514,43 +549,22 @@ void TriangleApplication::createPrefilterResources()
 
     prefilterSampler = context.createSampler(samplerDesc);
 
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = prefilterFormat;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkSubpassDependency prefilterDependency{};
+    prefilterDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    prefilterDependency.dstSubpass = 0;
+    prefilterDependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    prefilterDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    prefilterDependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    prefilterDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    SingleColorRenderPassDesc prefilterRenderPassDesc{};
+    prefilterRenderPassDesc.format = prefilterFormat;
+    prefilterRenderPassDesc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    prefilterRenderPassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    prefilterRenderPassDesc.dependency = prefilterDependency;
 
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
+    prefilterRenderpass = createSingleColorRenderPass(context.device(), prefilterRenderPassDesc);
 
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
-
-    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &prefilterRenderpass));
     mainDeletionQueue.pushFunction([this, renderPass = prefilterRenderpass]()
                                    { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
 
@@ -558,17 +572,17 @@ void TriangleApplication::createPrefilterResources()
     {
         for (uint32_t face = 0; face < prefilterFramebuffers[mip].size(); face++)
         {
-            VkImageView attachment = prefilterFaceImageViews[mip][face];
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = prefilterRenderpass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = &attachment;
-            framebufferInfo.width = prefilterDimension >> mip;
-            framebufferInfo.height = prefilterDimension >> mip;
-            framebufferInfo.layers = 1;
-
-            VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &prefilterFramebuffers[mip][face]));
+            const uint32_t mipDimension = prefilterDimension >> mip;
+            prefilterFramebuffers[mip][face] = createSingleAttachmentFramebuffer(
+                context.device(),
+                prefilterRenderpass,
+                prefilterFaceImageViews[mip][face],
+                {
+                    mipDimension,
+                    mipDimension
+                }
+            );
+            
             mainDeletionQueue.pushFunction([this, framebuffer = prefilterFramebuffers[mip][face]]()
                                            { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
         }
@@ -868,63 +882,38 @@ void TriangleApplication::createBRDFLUTResources()
 
     brdfLUTSampler = context.createSampler(samplerDesc);
 
-    // 创建颜色附件描述: 这张附件是什么，渲染前后怎么处理
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = brdfLUTFormat;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    // 子通道通过哪个索引用这个附件，使用时采用什么布局
-    VkAttachmentReference colorReference{};
-    colorReference.attachment = 0;
-    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    // 创建子通道描述：这个子通道会使用哪些附件、走哪些管线
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorReference;
-
     // 创建子通道依赖：这个子通道的执行依赖于哪些阶段、访问权限
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    VkSubpassDependency brdfDependency{};
+    brdfDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    brdfDependency.dstSubpass = 0;
+    brdfDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    brdfDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    brdfDependency.srcAccessMask = 0;
+    brdfDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-    // 创建子渲染通道：这个渲染通道包含哪些附件、子通道、依赖
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
+    SingleColorRenderPassDesc brdfRenderpassDesc{};
+    brdfRenderpassDesc.format = brdfLUTFormat;
+    brdfRenderpassDesc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    brdfRenderpassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VK_CHECK(vkCreateRenderPass(context.device(), &renderPassInfo, nullptr, &brdfLUTRenderPass));
+    brdfLUTRenderPass = createSingleColorRenderPass(
+        context.device(),
+        brdfRenderpassDesc
+    );
+    
     mainDeletionQueue.pushFunction([this, renderPass = brdfLUTRenderPass]()
                                    { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
 
     // 创建帧缓冲：这个帧缓冲会使用哪些附件、渲染通道、尺寸
-    VkImageView attachment = brdfLUTImage.view();
-    VkFramebufferCreateInfo framebufferInfo{};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = brdfLUTRenderPass;
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.pAttachments = &attachment;
-    framebufferInfo.width = brdfLUTDimension;
-    framebufferInfo.height = brdfLUTDimension;
-    framebufferInfo.layers = 1;
-
-    VK_CHECK(vkCreateFramebuffer(context.device(), &framebufferInfo, nullptr, &brdfLUTFramebuffer));
+    brdfLUTFramebuffer = createSingleAttachmentFramebuffer(
+        context.device(),
+        brdfLUTRenderPass,
+        brdfLUTImage.view(),
+        {
+            brdfLUTDimension,
+            brdfLUTDimension
+        }
+    );
     mainDeletionQueue.pushFunction([this, framebuffer = brdfLUTFramebuffer]()
                                    { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
 
