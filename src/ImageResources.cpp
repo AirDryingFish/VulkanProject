@@ -76,9 +76,55 @@ GpuImage TriangleApplication::createTextureImageFromFile(
 
     GpuImage image = context.createImage(imageDesc);
 
-    transitionImageLayout(image.get(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageMipLevels);
-    copyBufferToImage(stagingBuffer.get(), image.get(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    generateMipmaps(image.get(), format, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), imageMipLevels);
+    // // 准备 image：准备 image 接受数据
+    // transitionImageLayout(image.get(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageMipLevels);
+    // // 复制原始像素到 mip 0
+    // copyBufferToImage(stagingBuffer.get(), image.get(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    // // 生成其他 mip
+    // generateMipmaps(image.get(), format, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), imageMipLevels);
+    
+    VkFormatProperties formatProperties{};
+    vkGetPhysicalDeviceFormatProperties(context.physicalDevice(), image.format(), &formatProperties);
+
+    if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+    {
+        throw std::runtime_error("texture image format does not support linear blitting");
+    }
+
+    const VkExtent3D imageExtent = image.extent();
+
+    // 连续录制
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer){
+        upload::recordImageTransition(
+            commandBuffer,
+            image.get(),
+            image.format(),
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            image.mipLevels(),
+            image.arrayLayers()
+        );
+
+        upload::recordBufferToImageCopy(
+            commandBuffer,
+            stagingBuffer.get(),
+            image.get(),
+            imageExtent,
+            image.arrayLayers()
+        );
+        upload::recordGenerateMipmaps(
+            commandBuffer,
+            image.get(),
+            VkExtent2D{
+                imageExtent.width,
+                imageExtent.height
+            },
+            image.mipLevels(),
+            image.arrayLayers()
+        );
+    });
+    
+
     return image;
 }
 
@@ -120,22 +166,6 @@ void TriangleApplication::generateMipmaps(VkImage image, VkFormat imageFormat, u
 
 void TriangleApplication::createTextureImageView()
 {
-    // textureImage.imageView = createImageView(textureImage.image, VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels);
-    // normalImage.imageView = createImageView(normalImage.image, VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels);
-    // metallicImage.imageView = createImageView(metallicImage.image, VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels);
-    // roughnessImage.imageView = createImageView(roughnessImage.image, VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels);
-    // aoImage.imageView = createImageView(aoImage.image, VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels);
-
-    // mainDeletionQueue.pushFunction([this, image = textureImage]() mutable
-    //                                { destroyImage(image); });
-    // mainDeletionQueue.pushFunction([this, image = normalImage]() mutable
-    //                                { destroyImage(image); });
-    // mainDeletionQueue.pushFunction([this, image = metallicImage]() mutable
-    //                                { destroyImage(image); });
-    // mainDeletionQueue.pushFunction([this, image = roughnessImage]() mutable
-    //                                { destroyImage(image); });
-    // mainDeletionQueue.pushFunction([this, image = aoImage]() mutable
-    //                                { destroyImage(image); });
     textureImage.setView(context.createImageView(textureImage.get(), VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels()));
     normalImage.setView(context.createImageView(normalImage.get(), VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels()));
     metallicImage.setView(context.createImageView(metallicImage.get(), VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels()));
@@ -177,24 +207,6 @@ void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, 
             newLayout,
             mipLevels,
             layerCount
-        );
-    });
-}
-
-void TriangleApplication::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
-{
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
-    {
-        upload::recordBufferToImageCopy(
-            commandBuffer,
-            buffer,
-            image,
-            VkExtent3D{
-                width,
-                height,
-                1
-            },
-            1
         );
     });
 }
