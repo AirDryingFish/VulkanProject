@@ -220,16 +220,6 @@ TriangleApplication::MeshBuildData TriangleApplication::buildMeshData(MeshSource
     return meshData;
 }
 
-void TriangleApplication::loadModel()
-{
-    MeshBuildData meshData = buildMeshData(meshSource, MODEL_PATH);
-    vertices = meshData.vertices;
-    indices = meshData.indices;
-    modelLocalBoundsMin = meshData.boundsMin;
-    modelLocalBoundsMax = meshData.boundsMax;
-    modelBoundsValid = meshData.boundsValid;
-}
-
 void TriangleApplication::addMeshObject(MeshSource source, const std::string &path)
 {
     const std::string objPath = source == MeshSource::Obj ? (path.empty() ? MODEL_PATH : path) : std::string();
@@ -254,9 +244,6 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     object.localBoundsMin = meshData.boundsMin;
     object.localBoundsMax = meshData.boundsMax;
     object.boundsValid = meshData.boundsValid;
-    object.vertexCount = static_cast<uint32_t>(meshData.vertices.size());
-    object.indexCount = static_cast<uint32_t>(meshData.indices.size());
-
     createObjectBuffers(object, meshData);
     sceneObjects.push_back(std::move(object));
 
@@ -264,17 +251,4 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     selectedObject = SceneSelection::Model;
     selectedModel = true;
     selectedPointLightIndex = -1;
-}
-
-void TriangleApplication::rebuildMesh(MeshSource source)
-{
-    for (SceneObject &object : sceneObjects)
-    {
-        destroyBufferDeferred(object.indexBuffer);
-        destroyBufferDeferred(object.vertexBuffer);
-    }
-    sceneObjects.clear();
-
-    meshSource = source;
-    addMeshObject(source);
 }

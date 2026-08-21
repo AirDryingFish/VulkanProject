@@ -125,8 +125,6 @@ void TriangleApplication::cleanup() noexcept
     uniformBufferMapped.clear();
     uniformBuffers.clear();
     sceneObjects.clear();
-    indexBuffer.reset();
-    vertexBuffer.reset();
 
     brdfLUTSampler.reset();
     prefilterSampler.reset();

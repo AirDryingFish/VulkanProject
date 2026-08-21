@@ -69,26 +69,6 @@ void transformAabb(const glm::mat4 &transform, const glm::vec3 &localMin, const 
 }
 }
 
-void TriangleApplication::computeModelBounds()
-{
-    if (vertices.empty())
-    {
-        modelBoundsValid = false;
-        return;
-    }
-
-    modelLocalBoundsMin = vertices[0].pos;
-    modelLocalBoundsMax = vertices[0].pos;
-
-    for (const Vertex &vertex : vertices)
-    {
-        modelLocalBoundsMin = glm::min(modelLocalBoundsMin, vertex.pos);
-        modelLocalBoundsMax = glm::max(modelLocalBoundsMax, vertex.pos);
-    }
-
-    modelBoundsValid = true;
-}
-
 void TriangleApplication::processModelPicking()
 {
     const bool leftMouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;

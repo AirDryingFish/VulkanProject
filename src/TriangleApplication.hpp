@@ -79,19 +79,15 @@ private:
         float autoRotateSpeed = 90.0f;
     };
 
-    void loadModel();
-    void rebuildMesh(MeshSource source);
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
     void addMeshObject(MeshSource source, const std::string &path = std::string());
     void createObjectBuffers(SceneObject &object, const MeshBuildData &meshData);
     SceneObject *getSelectedSceneObject();
     const SceneObject *getSelectedSceneObject() const;
-    void computeModelBounds();
     void createUniformBuffer();
     void updateUniformBuffer(uint32_t currentImage, float deltaTime);
     void processCameraInput(float deltaTime);
     void processModelPicking();
-    glm::mat4 getModelMatrix() const;
     glm::mat4 getObjectMatrix(const SceneObject &object) const;
 
     void createDescriptorPool();
@@ -143,15 +139,10 @@ private:
 
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
     std::vector<SceneObject> sceneObjects;
     int selectedSceneObjectIndex = -1;
     char importModelPath[1024]{};
     std::string sceneStatusMessage;
-    glm::vec3 modelLocalBoundsMin = {0.0f, 0.0f, 0.0f};
-    glm::vec3 modelLocalBoundsMax = {0.0f, 0.0f, 0.0f};
-    bool modelBoundsValid = false;
     bool selectedModel = false;
     bool sceneClickConsumed = false;
     SceneSelection selectedObject = SceneSelection::None;
@@ -165,8 +156,6 @@ private:
     glm::vec3 gizmoDragAxis = {0.0f, 0.0f, 0.0f};
     glm::vec3 gizmoDragPlaneNormal = {0.0f, 0.0f, 0.0f};
     glm::vec3 gizmoDragStartHitPoint = {0.0f, 0.0f, 0.0f};
-    GpuBuffer vertexBuffer;
-    GpuBuffer indexBuffer;
 
     std::vector<GpuBuffer> uniformBuffers;
     std::vector<void *> uniformBufferMapped;
@@ -209,19 +198,12 @@ private:
     bool firstMouse = true;
     int cameraControlMode = 0;
 
-    bool rotateModel = false;
     bool showDemoWindow = false;
-    glm::vec3 modelPosition = {0.0f, 0.0f, 0.0f};
-    glm::vec3 modelRotation = {0.0f, 0.0f, 0.0f};
-    glm::vec3 modelScale = {1.0f, 1.0f, 1.0f};
-    float modelAutoRotation = 0.0f;
-    float modelAutoRotateSpeed = 90.0f;
     glm::vec4 clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
     std::vector<PointLight> pointLights;
     glm::vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
     float ambientLightIntensity = 0.0f;
     float iblIntensity = 1.0f;
-    MeshSource meshSource = MeshSource::Sphere;
 
     // skybox member
     GpuImage skyboxImage;

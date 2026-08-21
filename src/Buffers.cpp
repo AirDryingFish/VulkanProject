@@ -13,25 +13,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-glm::mat4 TriangleApplication::getModelMatrix() const
-{
-    const SceneObject *object = getSelectedSceneObject();
-    if (object != nullptr)
-    {
-        return getObjectMatrix(*object);
-    }
-
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), modelPosition);
-
-    model = glm::rotate(model, glm::radians(modelRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(modelRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(modelRotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::rotate(model, glm::radians(modelAutoRotation), glm::vec3(0.0f, 0.0f, 1.0f));
-
-    model = glm::scale(model, modelScale);
-    return model;
-}
-
 glm::mat4 TriangleApplication::getObjectMatrix(const SceneObject &object) const
 {
     glm::mat4 model = glm::translate(glm::mat4(1.0f), object.position);
@@ -70,54 +51,9 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     }
 
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
-
-    // BufferDesc vertexStagingDesc{};
-    // vertexStagingDesc.size = vertexBufferSize;
-    // vertexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    // vertexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    // vertexStagingDesc.debugName = "scene object vertex staging buffer";
-
-    // GpuBuffer vertexStagingBuffer = context.createBuffer(vertexStagingDesc);
-
-    // void *data = nullptr;
-    // VK_CHECK(vertexStagingBuffer.map(&data));
-    // memcpy(data, meshData.vertices.data(), static_cast<size_t>(vertexBufferSize));
-    // vertexStagingBuffer.unmap();
-
-    // BufferDesc vertexDesc{};
-    // vertexDesc.size = vertexBufferSize;
-    // vertexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    // vertexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    // vertexDesc.debugName = "scene object vertex buffer";
-
-    // object.vertexBuffer = context.createBuffer(vertexDesc);
-
-    // copyBuffer(vertexStagingBuffer.get(), object.vertexBuffer.get(), vertexBufferSize);
-
     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
-    // BufferDesc indexStagingDesc{};
-    // indexStagingDesc.size = indexBufferSize;
-    // indexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    // indexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    // indexStagingDesc.debugName = "scene object index staging buffer";
 
-    // GpuBuffer indexStagingBuffer = context.createBuffer(indexStagingDesc);
-
-    // VK_CHECK(indexStagingBuffer.map(&data));
-    // memcpy(data, meshData.indices.data(), static_cast<size_t>(indexBufferSize));
-    // indexStagingBuffer.unmap();
-
-    // BufferDesc indexDesc{};
-    // indexDesc.size = indexBufferSize;
-    // indexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    // indexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    // indexDesc.debugName = "scene object index buffer";
-
-    // object.indexBuffer = context.createBuffer(indexDesc);
-
-    // copyBuffer(indexStagingBuffer.get(), object.indexBuffer.get(), indexBufferSize);
-
-    // ----------上面是旧的实现，vertex和index都要分两次上传-----------
+    // ----------旧的实现，vertex和index都要分两次上传---------
     std::vector<BufferUploadRequest> requests;
     requests.reserve(2);
     BufferUploadRequest vertexRequest{};
