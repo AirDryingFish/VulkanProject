@@ -13,7 +13,7 @@
 class VulkanContext;
 class Swapchain;
 
-struct BufferuploadRequest
+struct BufferUploadRequest
 {
     const void* data = nullptr;
     VkDeviceSize size = 0;
@@ -110,5 +110,5 @@ public:
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 
-    std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferuploadRequest>& requests);
+    std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferUploadRequest>& requests);
 };

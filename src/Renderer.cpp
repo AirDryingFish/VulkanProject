@@ -434,7 +434,7 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
 }
 
-std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadRequest> &requests)
+std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadRequest> &requests)
 {
 
     // 1. 检查 renderer/context 初始化
@@ -449,7 +449,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadReq
     }
 
     // 2. 检查每个请求的 data/size/destinationUsage
-    for (BufferuploadRequest request : requests)
+    for (BufferUploadRequest request : requests)
     {
         if (request.data == nullptr)
         {
@@ -474,7 +474,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadReq
     destinationBuffers.reserve(requests.size());
 
     // 5. 将每个 request.data memcpy 到对应 staging
-    for (const BufferuploadRequest& request : requests)
+    for (const BufferUploadRequest& request : requests)
     {
         BufferDesc stagingDesc{};
         stagingDesc.size = request.size;
@@ -495,7 +495,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadReq
     }
 
     // 创建 gpu 本地的目标 buffers
-    for (const BufferuploadRequest& request : requests)
+    for (const BufferUploadRequest& request : requests)
     {
         BufferDesc destinationDesc{};
         destinationDesc.size = request.size;

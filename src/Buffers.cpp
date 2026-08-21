@@ -118,16 +118,16 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     // copyBuffer(indexStagingBuffer.get(), object.indexBuffer.get(), indexBufferSize);
 
     // ----------上面是旧的实现，vertex和index都要分两次上传-----------
-    std::vector<BufferuploadRequest> requests;
+    std::vector<BufferUploadRequest> requests;
     requests.reserve(2);
-    BufferuploadRequest vertexRequest{};
+    BufferUploadRequest vertexRequest{};
     vertexRequest.size = vertexBufferSize;
     vertexRequest.data = meshData.vertices.data();
     vertexRequest.destinationUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     vertexRequest.debugName = "scene object vertex buffer";
     requests.push_back(vertexRequest);
 
-    BufferuploadRequest indexRequest{};
+    BufferUploadRequest indexRequest{};
     indexRequest.size = indexBufferSize;
     indexRequest.data = meshData.indices.data();
     indexRequest.destinationUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
