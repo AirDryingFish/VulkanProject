@@ -878,7 +878,7 @@ void TriangleApplication::createBRDFLUTResources()
     samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerDesc.minLod = 0.0f;
     samplerDesc.maxLod = 0.0f;
-    samplerDesc.debugName = "BUDF LUT sampler";
+    samplerDesc.debugName = "BRDF LUT sampler";
 
     brdfLUTSampler = context.createSampler(samplerDesc);
 
@@ -895,6 +895,7 @@ void TriangleApplication::createBRDFLUTResources()
     brdfRenderpassDesc.format = brdfLUTFormat;
     brdfRenderpassDesc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     brdfRenderpassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    brdfRenderpassDesc.dependency = brdfDependency;
 
     brdfLUTRenderPass = createSingleColorRenderPass(
         context.device(),
