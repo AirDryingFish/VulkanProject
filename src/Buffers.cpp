@@ -61,81 +61,6 @@ const TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObj
     return &sceneObjects[selectedSceneObjectIndex];
 }
 
-void TriangleApplication::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-{
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
-    {
-        upload::recordBufferCopy(commandBuffer, srcBuffer, dstBuffer, size);
-    });
-}
-
-void TriangleApplication::createIndexBuffer()
-{
-    if (indices.empty())
-    {
-        return;
-    }
-
-    VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-    BufferDesc stagingDesc{};
-    stagingDesc.size = bufferSize;
-    stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    stagingDesc.debugName = "index staging buffer";
-
-    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
-
-    void *data = nullptr;
-    VK_CHECK(stagingBuffer.map(&data));
-    memcpy(data, indices.data(), static_cast<size_t>(bufferSize));
-    stagingBuffer.unmap();
-
-    BufferDesc indexDesc{};
-    indexDesc.size = bufferSize;
-    indexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    indexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    indexDesc.debugName = "index buffer";
-
-    indexBuffer = context.createBuffer(indexDesc);
-
-    copyBuffer(stagingBuffer.get(), indexBuffer.get(), bufferSize);
-
-}
-
-void TriangleApplication::createVertexBuffer()
-{
-    if (vertices.empty())
-    {
-        return;
-    }
-
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-    BufferDesc stagingDesc{};
-    stagingDesc.size = bufferSize;
-    stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    stagingDesc.debugName = "vertex staging buffer";
-
-    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
-
-    void *data = nullptr;
-    VK_CHECK(stagingBuffer.map(&data));
-    memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
-    stagingBuffer.unmap();
-
-    BufferDesc vertexDesc{};
-    vertexDesc.size = bufferSize;
-    vertexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    vertexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    vertexDesc.debugName = "vertex buffer";
-
-    vertexBuffer = context.createBuffer(vertexDesc);
-
-    copyBuffer(stagingBuffer.get(), vertexBuffer.get(), bufferSize);
-
-}
 
 void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBuildData &meshData)
 {
@@ -146,52 +71,78 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
 
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
 
-    BufferDesc vertexStagingDesc{};
-    vertexStagingDesc.size = vertexBufferSize;
-    vertexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    vertexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    vertexStagingDesc.debugName = "scene object vertex staging buffer";
+    // BufferDesc vertexStagingDesc{};
+    // vertexStagingDesc.size = vertexBufferSize;
+    // vertexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    // vertexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    // vertexStagingDesc.debugName = "scene object vertex staging buffer";
 
-    GpuBuffer vertexStagingBuffer = context.createBuffer(vertexStagingDesc);
+    // GpuBuffer vertexStagingBuffer = context.createBuffer(vertexStagingDesc);
 
-    void *data = nullptr;
-    VK_CHECK(vertexStagingBuffer.map(&data));
-    memcpy(data, meshData.vertices.data(), static_cast<size_t>(vertexBufferSize));
-    vertexStagingBuffer.unmap();
+    // void *data = nullptr;
+    // VK_CHECK(vertexStagingBuffer.map(&data));
+    // memcpy(data, meshData.vertices.data(), static_cast<size_t>(vertexBufferSize));
+    // vertexStagingBuffer.unmap();
 
-    BufferDesc vertexDesc{};
-    vertexDesc.size = vertexBufferSize;
-    vertexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    vertexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    vertexDesc.debugName = "scene object vertex buffer";
+    // BufferDesc vertexDesc{};
+    // vertexDesc.size = vertexBufferSize;
+    // vertexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    // vertexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    // vertexDesc.debugName = "scene object vertex buffer";
 
-    object.vertexBuffer = context.createBuffer(vertexDesc);
+    // object.vertexBuffer = context.createBuffer(vertexDesc);
 
-    copyBuffer(vertexStagingBuffer.get(), object.vertexBuffer.get(), vertexBufferSize);
+    // copyBuffer(vertexStagingBuffer.get(), object.vertexBuffer.get(), vertexBufferSize);
 
     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
-    BufferDesc indexStagingDesc{};
-    indexStagingDesc.size = indexBufferSize;
-    indexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    indexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    indexStagingDesc.debugName = "scene object index staging buffer";
+    // BufferDesc indexStagingDesc{};
+    // indexStagingDesc.size = indexBufferSize;
+    // indexStagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    // indexStagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    // indexStagingDesc.debugName = "scene object index staging buffer";
 
-    GpuBuffer indexStagingBuffer = context.createBuffer(indexStagingDesc);
+    // GpuBuffer indexStagingBuffer = context.createBuffer(indexStagingDesc);
 
-    VK_CHECK(indexStagingBuffer.map(&data));
-    memcpy(data, meshData.indices.data(), static_cast<size_t>(indexBufferSize));
-    indexStagingBuffer.unmap();
+    // VK_CHECK(indexStagingBuffer.map(&data));
+    // memcpy(data, meshData.indices.data(), static_cast<size_t>(indexBufferSize));
+    // indexStagingBuffer.unmap();
 
-    BufferDesc indexDesc{};
-    indexDesc.size = indexBufferSize;
-    indexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    indexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    indexDesc.debugName = "scene object index buffer";
+    // BufferDesc indexDesc{};
+    // indexDesc.size = indexBufferSize;
+    // indexDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    // indexDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    // indexDesc.debugName = "scene object index buffer";
 
-    object.indexBuffer = context.createBuffer(indexDesc);
+    // object.indexBuffer = context.createBuffer(indexDesc);
 
-    copyBuffer(indexStagingBuffer.get(), object.indexBuffer.get(), indexBufferSize);
+    // copyBuffer(indexStagingBuffer.get(), object.indexBuffer.get(), indexBufferSize);
 
+    // ----------上面是旧的实现，vertex和index都要分两次上传-----------
+    std::vector<BufferuploadRequest> requests;
+    requests.reserve(2);
+    BufferuploadRequest vertexRequest{};
+    vertexRequest.size = vertexBufferSize;
+    vertexRequest.data = meshData.vertices.data();
+    vertexRequest.destinationUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertexRequest.debugName = "scene object vertex buffer";
+    requests.push_back(vertexRequest);
+
+    BufferuploadRequest indexRequest{};
+    indexRequest.size = indexBufferSize;
+    indexRequest.data = meshData.indices.data();
+    indexRequest.destinationUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    indexRequest.debugName = "scene object index buffer";
+    requests.push_back(indexRequest);
+    
+    std::vector<GpuBuffer> uploadedBuffers = renderer.uploadBuffers(requests);
+
+    if (uploadedBuffers.size() != 2)
+    {
+        throw std::logic_error("mesh buffer upload returned an unexpected buffer count");
+    }
+
+    object.vertexBuffer = std::move(uploadedBuffers[0]);
+    object.indexBuffer = std::move(uploadedBuffers[1]);
     object.vertexCount = static_cast<uint32_t>(meshData.vertices.size());
     object.indexCount = static_cast<uint32_t>(meshData.indices.size());
 }

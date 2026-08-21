@@ -13,6 +13,14 @@
 class VulkanContext;
 class Swapchain;
 
+struct BufferuploadRequest
+{
+    const void* data = nullptr;
+    VkDeviceSize size = 0;
+    VkBufferUsageFlags destinationUsage = 0;
+    const char* debugName = nullptr;
+};
+
 class Renderer
 {
 private:
@@ -101,4 +109,6 @@ public:
     VkDescriptorSetLayout descriptorSetLayout() const noexcept;
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
+
+    std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferuploadRequest>& requests);
 };

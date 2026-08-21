@@ -2,11 +2,13 @@
 #include "VulkanContext.hpp"
 #include "Swapchain.hpp"
 #include "VulkanCheck.hpp"
+#include "UploadCommands.hpp"
 
 #include <cassert>
 #include <stdexcept>
 #include <utility>
 #include <imgui_impl_vulkan.h>
+#include <cstring>
 
 Renderer::~Renderer() noexcept
 {
@@ -430,6 +432,98 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
 
     // 提交后立即等待
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
+}
+
+std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadRequest> &requests)
+{
+
+    // 1. 检查 renderer/context 初始化
+    if (!initialized_ || context_ == nullptr)
+    {
+        throw std::logic_error("cannot upload buffers before Renderer initialization");
+    }
+
+    if (requests.empty())
+    {
+        throw std::invalid_argument("buffer upload requests must not be empty");
+    }
+
+    // 2. 检查每个请求的 data/size/destinationUsage
+    for (BufferuploadRequest request : requests)
+    {
+        if (request.data == nullptr)
+        {
+            throw std::invalid_argument("buffer upload data must not be null");
+        }
+        if (request.size == 0)
+        {
+            throw std::invalid_argument("buffer upload size must be greater than zero");
+        }
+        if (request.destinationUsage == 0)
+        {
+            throw std::invalid_argument("buffer destination usage must not be empty");
+        }
+    }
+
+    // 3. 创建stagingBuffers vector
+    std::vector<GpuBuffer> stagingBuffers;
+    stagingBuffers.reserve(requests.size());
+
+    // 4. 创建destinationBuffers vector
+    std::vector<GpuBuffer> destinationBuffers;
+    destinationBuffers.reserve(requests.size());
+
+    // 5. 将每个 request.data memcpy 到对应 staging
+    for (const BufferuploadRequest& request : requests)
+    {
+        BufferDesc stagingDesc{};
+        stagingDesc.size = request.size;
+        stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        // GPU 内存可以映射到 CPU 地址空间，并且 CPU 写入后不需要手动 flush (不需要 vmaFlushAllocation，gpu 就能看到数据)
+        stagingDesc.requiredMemoryProperties = 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        stagingDesc.debugName = "synchronous upload staging buffer";
+
+        GpuBuffer stagingBuffer = context_->createBuffer(stagingDesc);
+
+        void* mappedData = nullptr;
+        VK_CHECK(stagingBuffer.map(&mappedData));
+        std::memcpy(mappedData, request.data, static_cast<size_t>(request.size));
+        stagingBuffer.unmap();
+        stagingBuffers.push_back(std::move(stagingBuffer));
+    }
+
+    // 创建 gpu 本地的目标 buffers
+    for (const BufferuploadRequest& request : requests)
+    {
+        BufferDesc destinationDesc{};
+        destinationDesc.size = request.size;
+        destinationDesc.usage = 
+            request.destinationUsage;
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        destinationDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        destinationDesc.debugName = request.debugName;
+        
+        destinationBuffers.push_back(context_->createBuffer(destinationDesc));
+    }
+
+    // 6. 一次 immediateSubmit
+    immediateSubmit([&](VkCommandBuffer commandBuffer){
+        // 7. callback 中循环调用 upload::recoredBufferCopy()
+        for (std::size_t index = 0; index < requests.size(); ++index)
+        {
+            upload::recordBufferCopy(
+                commandBuffer,
+                stagingBuffers[index].get(),
+                destinationBuffers[index].get(),
+                requests[index].size
+            );
+        }
+    });
+
+    // 8. 返回 destinationBuffers
+    return destinationBuffers;
 }
 
 BeginFrameResult Renderer::beginFrame()

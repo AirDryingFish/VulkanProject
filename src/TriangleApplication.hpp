@@ -79,8 +79,6 @@ private:
         float autoRotateSpeed = 90.0f;
     };
 
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-
     void loadModel();
     void rebuildMesh(MeshSource source);
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
@@ -89,8 +87,6 @@ private:
     SceneObject *getSelectedSceneObject();
     const SceneObject *getSelectedSceneObject() const;
     void computeModelBounds();
-    void createVertexBuffer();
-    void createIndexBuffer();
     void createUniformBuffer();
     void updateUniformBuffer(uint32_t currentImage, float deltaTime);
     void processCameraInput(float deltaTime);
