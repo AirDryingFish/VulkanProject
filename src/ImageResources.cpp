@@ -138,32 +138,6 @@ void TriangleApplication::createTextureImage()
     mipLevels = textureImage.mipLevels();
 }
 
-void TriangleApplication::generateMipmaps(VkImage image, VkFormat imageFormat, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, uint32_t layerCount)
-{
-    VkFormatProperties formatProperties;
-    vkGetPhysicalDeviceFormatProperties(context.physicalDevice(), imageFormat, &formatProperties);
-
-    if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
-    {
-        throw std::runtime_error("texture image format does not support linear blitting!");
-    }
-
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
-    {
-        upload::recordGenerateMipmaps(
-            commandBuffer,
-            image,
-            VkExtent2D{
-                texWidth,
-                texHeight,
-            },
-            mipLevels,
-            layerCount
-        );
-    });
-}
-
-
 void TriangleApplication::createTextureImageView()
 {
     textureImage.setView(context.createImageView(textureImage.get(), VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels()));

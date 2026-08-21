@@ -1,4 +1,5 @@
 #include "TriangleApplication.hpp"
+#include "UploadCommands.hpp"
 
 #include <stb_image.h>
 
@@ -10,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 
 #include <glm/gtc/packing.hpp>
 
@@ -307,15 +309,30 @@ void TriangleApplication::createSkyboxImage()
 
     skyboxImage = context.createImage(skyboxDecs);
 
-    transitionImageLayout(
-        skyboxImage.get(),
-        skyboxFormat,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        skyboxMipLevels,
-        6);
+    VkFormatProperties formatProperties{};
+    vkGetPhysicalDeviceFormatProperties(context.physicalDevice(), skyboxImage.format(), &formatProperties);
+
+    if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+    {
+        throw std::runtime_error("skybox image format does not support linear blitting");
+    }
+    
+    const VkExtent3D skyboxExtent = skyboxImage.extent();
 
     renderer.immediateSubmit([&](VkCommandBuffer commandBuffer) {
+
+        // 1. 6 个 face 的所有 mip 都先作为复制目标
+        upload::recordImageTransition(
+            commandBuffer,
+            skyboxImage.get(),
+            skyboxImage.format(),
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            skyboxImage.mipLevels(),
+            skyboxImage.arrayLayers()
+        );
+
+        // 2. 将 staging buffer 中的六张图片分别复制到 cubemap 的六个 array layer 的 mip 0
         std::array<VkBufferImageCopy, 6> regions{};
         for (uint32_t i = 0; i < regions.size(); i++)
         {
@@ -337,23 +354,19 @@ void TriangleApplication::createSkyboxImage()
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             static_cast<uint32_t>(regions.size()),
             regions.data());
-    });
 
-    // transitionImageLayout(
-    //     skyboxImage.image,
-    //     skyboxFormat,
-    //     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-    //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    //     skyboxMipLevels,
-    //     6);
-    generateMipmaps(
-        skyboxImage.get(),
-        skyboxFormat,
-        pixels.width,
-        pixels.height,
-        skyboxMipLevels, 
-        6
-    );
+        // 3. 同时为 6 个 face 逐级生成 mipmap，最终将所有 face/mip 转成 shader read only
+        upload::recordGenerateMipmaps(
+            commandBuffer,
+            skyboxImage.get(),
+            VkExtent2D{
+                skyboxExtent.width,
+                skyboxExtent.height
+            },
+            skyboxImage.mipLevels(),
+            skyboxImage.arrayLayers()
+        );
+    });
 
     skyboxImage.setView(context.createImageView(
         skyboxImage.get(),
