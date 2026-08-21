@@ -478,7 +478,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadReq
     {
         BufferDesc stagingDesc{};
         stagingDesc.size = request.size;
-        stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         // GPU 内存可以映射到 CPU 地址空间，并且 CPU 写入后不需要手动 flush (不需要 vmaFlushAllocation，gpu 就能看到数据)
         stagingDesc.requiredMemoryProperties = 
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -500,7 +500,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferuploadReq
         BufferDesc destinationDesc{};
         destinationDesc.size = request.size;
         destinationDesc.usage = 
-            request.destinationUsage;
+            request.destinationUsage |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         destinationDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         destinationDesc.debugName = request.debugName;

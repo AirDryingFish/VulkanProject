@@ -123,14 +123,14 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
     BufferuploadRequest vertexRequest{};
     vertexRequest.size = vertexBufferSize;
     vertexRequest.data = meshData.vertices.data();
-    vertexRequest.destinationUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertexRequest.destinationUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     vertexRequest.debugName = "scene object vertex buffer";
     requests.push_back(vertexRequest);
 
     BufferuploadRequest indexRequest{};
     indexRequest.size = indexBufferSize;
     indexRequest.data = meshData.indices.data();
-    indexRequest.destinationUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    indexRequest.destinationUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     indexRequest.debugName = "scene object index buffer";
     requests.push_back(indexRequest);
     
