@@ -9,6 +9,7 @@
 #include "Renderer.hpp"
 #include "RenderTypes.hpp"
 #include "Swapchain.hpp"
+#include "Mesh.hpp"
 
 #include <array>
 #include <functional>
@@ -36,13 +37,6 @@ private:
     static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
     static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-    enum class MeshSource
-    {
-        Obj,
-        Cube,
-        Sphere,
-    };
-
     enum class SceneSelection
     {
         None,
@@ -50,30 +44,18 @@ private:
         PointLight,
     };
 
-    struct MeshBuildData
-    {
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
-        glm::vec3 boundsMin = {0.0f, 0.0f, 0.0f};
-        glm::vec3 boundsMax = {0.0f, 0.0f, 0.0f};
-        bool boundsValid = false;
-    };
-
     struct SceneObject
     {
         std::string name;
         MeshSource source = MeshSource::Obj;
         std::string sourcePath;
-        GpuBuffer vertexBuffer;
-        GpuBuffer indexBuffer;
-        uint32_t vertexCount = 0;
-        uint32_t indexCount = 0;
-        glm::vec3 localBoundsMin = {0.0f, 0.0f, 0.0f};
-        glm::vec3 localBoundsMax = {0.0f, 0.0f, 0.0f};
-        bool boundsValid = false;
+
+        Mesh mesh;
+
         glm::vec3 position = {0.0f, 0.0f, 0.0f};
         glm::vec3 rotation = {0.0f, 0.0f, 0.0f};
         glm::vec3 scale = {1.0f, 1.0f, 1.0f};
+
         bool autoRotate = false;
         float autoRotation = 0.0f;
         float autoRotateSpeed = 90.0f;
@@ -81,7 +63,7 @@ private:
 
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
     void addMeshObject(MeshSource source, const std::string &path = std::string());
-    void createObjectBuffers(SceneObject &object, const MeshBuildData &meshData);
+    Mesh createMesh(const MeshBuildData& meshData);
     SceneObject *getSelectedSceneObject();
     const SceneObject *getSelectedSceneObject() const;
     void createUniformBuffer();

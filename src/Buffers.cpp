@@ -43,7 +43,47 @@ const TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObj
 }
 
 
-void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBuildData &meshData)
+// Mesh TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBuildData &meshData)
+// {
+//     if (meshData.vertices.empty() || meshData.indices.empty())
+//     {
+//         throw std::runtime_error("cannot create object buffers from empty mesh data!");
+//     }
+
+//     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
+//     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
+
+//     // ----------旧的实现，vertex和index都要分两次上传---------
+//     std::vector<BufferUploadRequest> requests;
+//     requests.reserve(2);
+//     BufferUploadRequest vertexRequest{};
+//     vertexRequest.size = vertexBufferSize;
+//     vertexRequest.data = meshData.vertices.data();
+//     vertexRequest.destinationUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+//     vertexRequest.debugName = "scene object vertex buffer";
+//     requests.push_back(vertexRequest);
+
+//     BufferUploadRequest indexRequest{};
+//     indexRequest.size = indexBufferSize;
+//     indexRequest.data = meshData.indices.data();
+//     indexRequest.destinationUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+//     indexRequest.debugName = "scene object index buffer";
+//     requests.push_back(indexRequest);
+    
+//     std::vector<GpuBuffer> uploadedBuffers = renderer.uploadBuffers(requests);
+
+//     if (uploadedBuffers.size() != 2)
+//     {
+//         throw std::logic_error("mesh buffer upload returned an unexpected buffer count");
+//     }
+
+//     object.vertexBuffer = std::move(uploadedBuffers[0]);
+//     object.indexBuffer = std::move(uploadedBuffers[1]);
+//     object.vertexCount = static_cast<uint32_t>(meshData.vertices.size());
+//     object.indexCount = static_cast<uint32_t>(meshData.indices.size());
+// }
+
+Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
 {
     if (meshData.vertices.empty() || meshData.indices.empty())
     {
@@ -77,10 +117,15 @@ void TriangleApplication::createObjectBuffers(SceneObject &object, const MeshBui
         throw std::logic_error("mesh buffer upload returned an unexpected buffer count");
     }
 
-    object.vertexBuffer = std::move(uploadedBuffers[0]);
-    object.indexBuffer = std::move(uploadedBuffers[1]);
-    object.vertexCount = static_cast<uint32_t>(meshData.vertices.size());
-    object.indexCount = static_cast<uint32_t>(meshData.indices.size());
+    Mesh mesh{};
+    mesh.vertexBuffer = std::move(uploadedBuffers[0]);
+    mesh.indexBuffer = std::move(uploadedBuffers[1]);
+    mesh.vertexCount = static_cast<uint32_t>(meshData.vertices.size());
+    mesh.indexCount = static_cast<uint32_t>(meshData.indices.size());
+    mesh.boundsMin = meshData.boundsMin;
+    mesh.boundsMax = meshData.boundsMax;
+
+    return mesh;
 }
 
 void TriangleApplication::createUniformBuffer()

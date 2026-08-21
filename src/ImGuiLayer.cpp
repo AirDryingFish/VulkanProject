@@ -345,8 +345,8 @@ void TriangleApplication::drawImGui()
         if (ImGui::Button("Delete Selected"))
         {
             SceneObject& object = sceneObjects[selectedSceneObjectIndex];
-            destroyBufferDeferred(object.indexBuffer);
-            destroyBufferDeferred(object.vertexBuffer);
+            destroyBufferDeferred(object.mesh.indexBuffer);
+            destroyBufferDeferred(object.mesh.vertexBuffer);
 
             sceneObjects.erase(sceneObjects.begin() + selectedSceneObjectIndex);
             selectedSceneObjectIndex = -1;
@@ -415,10 +415,11 @@ void TriangleApplication::drawImGui()
     ImGui::Text("Objects: %zu", sceneObjects.size());
     if (selectedSceneObject != nullptr)
     {
-        ImGui::Text("Vertices: %u", selectedSceneObject->vertexCount);
-        ImGui::Text("Indices: %u", selectedSceneObject->indexCount);
-        ImGui::Text("AABB Min: %.2f %.2f %.2f", selectedSceneObject->localBoundsMin.x, selectedSceneObject->localBoundsMin.y, selectedSceneObject->localBoundsMin.z);
-        ImGui::Text("AABB Max: %.2f %.2f %.2f", selectedSceneObject->localBoundsMax.x, selectedSceneObject->localBoundsMax.y, selectedSceneObject->localBoundsMax.z);
+        const Mesh& mesh = selectedSceneObject->mesh;
+        ImGui::Text("Vertices: %u", mesh.vertexCount);
+        ImGui::Text("Indices: %u", mesh.indexCount);
+        ImGui::Text("AABB Min: %.2f %.2f %.2f", mesh.boundsMin.x, mesh.boundsMin.y, mesh.boundsMin.z);
+        ImGui::Text("AABB Max: %.2f %.2f %.2f", mesh.boundsMax.x, mesh.boundsMax.y, mesh.boundsMax.z);
     }
     ImGui::Text("Mip Levels: %u", mipLevels);
     ImGui::Text("Texture Image: 0x%p", (void *)textureImage.get());

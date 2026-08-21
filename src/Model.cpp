@@ -22,7 +22,7 @@ std::string fileNameFromPath(const std::string &path)
 }
 }
 
-TriangleApplication::MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::string &path)
+MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::string &path)
 {
     MeshBuildData meshData{};
     auto computeBounds = [&]() {
@@ -241,10 +241,7 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     }
     object.source = source;
     object.sourcePath = objPath;
-    object.localBoundsMin = meshData.boundsMin;
-    object.localBoundsMax = meshData.boundsMax;
-    object.boundsValid = meshData.boundsValid;
-    createObjectBuffers(object, meshData);
+    object.mesh = createMesh(meshData);
     sceneObjects.push_back(std::move(object));
 
     selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;

@@ -253,15 +253,16 @@ void TriangleApplication::drawFrame()
 
     for (const SceneObject& object : sceneObjects)
     {
-        if (object.indexCount == 0 || !object.vertexBuffer || !object.indexBuffer)
+        const Mesh& mesh = object.mesh;
+        if (!mesh.valid())
         {
             continue;
         }
 
         RenderObjectView view{};
-        view.vertexBuffer = object.vertexBuffer.get();
-        view.indexBuffer = object.indexBuffer.get();
-        view.indexCount = object.indexCount;
+        view.vertexBuffer = mesh.vertexBuffer.get();
+        view.indexBuffer = mesh.indexBuffer.get();
+        view.indexCount = mesh.indexCount;
         view.model = getObjectMatrix(object);
 
         renderObjects.push_back(view);

@@ -113,14 +113,15 @@ void TriangleApplication::processModelPicking()
     for (size_t i = 0; i < sceneObjects.size(); i++)
     {
         const SceneObject &object = sceneObjects[i];
-        if (!object.boundsValid)
+        const Mesh& mesh = object.mesh;
+        if (!mesh.boundsValid)
         {
             continue;
         }
 
         glm::vec3 worldBoundsMin;
         glm::vec3 worldBoundsMax;
-        transformAabb(getObjectMatrix(object), object.localBoundsMin, object.localBoundsMax, worldBoundsMin, worldBoundsMax);
+        transformAabb(getObjectMatrix(object), mesh.boundsMin, mesh.boundsMax, worldBoundsMin, worldBoundsMax);
 
         float hitDistance = 0.0f;
         if (intersectRayAabb(rayOrigin, rayDirection, worldBoundsMin, worldBoundsMax, hitDistance) && hitDistance < bestHitDistance)
