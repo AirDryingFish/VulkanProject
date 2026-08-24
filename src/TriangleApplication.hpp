@@ -10,6 +10,7 @@
 #include "RenderTypes.hpp"
 #include "Swapchain.hpp"
 #include "Mesh.hpp"
+#include "SceneTypes.hpp"
 
 #include <array>
 #include <functional>
@@ -42,23 +43,6 @@ private:
         None,
         Model,
         PointLight,
-    };
-
-    struct SceneObject
-    {
-        std::string name;
-        MeshSource source = MeshSource::Obj;
-        std::string sourcePath;
-
-        Mesh mesh;
-
-        glm::vec3 position = {0.0f, 0.0f, 0.0f};
-        glm::vec3 rotation = {0.0f, 0.0f, 0.0f};
-        glm::vec3 scale = {1.0f, 1.0f, 1.0f};
-
-        bool autoRotate = false;
-        float autoRotation = 0.0f;
-        float autoRotateSpeed = 90.0f;
     };
 
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);

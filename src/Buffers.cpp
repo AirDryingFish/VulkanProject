@@ -15,16 +15,17 @@
 
 glm::mat4 TriangleApplication::getObjectMatrix(const SceneObject &object) const
 {
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), object.position);
-    model = glm::rotate(model, glm::radians(object.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(object.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(object.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+    const Transform& transform = object.transform;
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
+    model = glm::rotate(model, glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+    model = glm::rotate(model, glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::rotate(model, glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
     model = glm::rotate(model, glm::radians(object.autoRotation), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::scale(model, object.scale);
+    model = glm::scale(model, transform.scale);
     return model;
 }
 
-TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObject()
+SceneObject *TriangleApplication::getSelectedSceneObject()
 {
     if (selectedSceneObjectIndex < 0 || selectedSceneObjectIndex >= static_cast<int>(sceneObjects.size()))
     {
@@ -33,7 +34,7 @@ TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObject()
     return &sceneObjects[selectedSceneObjectIndex];
 }
 
-const TriangleApplication::SceneObject *TriangleApplication::getSelectedSceneObject() const
+const SceneObject *TriangleApplication::getSelectedSceneObject() const
 {
     if (selectedSceneObjectIndex < 0 || selectedSceneObjectIndex >= static_cast<int>(sceneObjects.size()))
     {
@@ -46,7 +47,7 @@ Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
 {
     if (meshData.vertices.empty() || meshData.indices.empty())
     {
-        throw std::runtime_error("cannot create meshy from empty build data!");
+        throw std::runtime_error("cannot create mesh from empty build data!");
     }
 
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();

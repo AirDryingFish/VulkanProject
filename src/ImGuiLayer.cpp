@@ -329,17 +329,18 @@ void TriangleApplication::drawImGui()
     ImGui::Text("Selected: %s", selectedSceneObject != nullptr ? selectedSceneObject->name.c_str() : "None");
     if (selectedObject == SceneSelection::Model && selectedSceneObject != nullptr)
     {
+        Transform& transform = selectedSceneObject->transform;
         ImGui::Text("Pick Distance: %.3f", modelPickDistance);
         ImGui::Checkbox("Auto Rotate", &selectedSceneObject->autoRotate);
         ImGui::DragFloat("Auto Rotate Speed", &selectedSceneObject->autoRotateSpeed, 1.0f, -720.0f, 720.0f);
-        ImGui::DragFloat3("Position", &selectedSceneObject->position.x, 0.05f);
-        ImGui::DragFloat3("Rotation", &selectedSceneObject->rotation.x, 0.5f, -360.0f, 360.0f);
-        ImGui::DragFloat3("Scale", &selectedSceneObject->scale.x, 0.02f, 0.01f, 20.0f);
+        ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
+        ImGui::DragFloat3("Rotation", &transform.rotation.x, 0.5f, -360.0f, 360.0f);
+        ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f, 0.01f, 20.0f);
         if (ImGui::Button("Reset Transform"))
         {
-            selectedSceneObject->position = glm::vec3(0.0f);
-            selectedSceneObject->rotation = glm::vec3(0.0f);
-            selectedSceneObject->scale = glm::vec3(1.0f);
+            transform.position = glm::vec3(0.0f);
+            transform.rotation = glm::vec3(0.0f);
+            transform.scale = glm::vec3(1.0f);
             selectedSceneObject->autoRotation = 0.0f;
         }
         if (ImGui::Button("Delete Selected"))
@@ -545,7 +546,7 @@ void TriangleApplication::drawTransformGizmo()
             return;
         }
 
-        selectedPosition = &object->position;
+        selectedPosition = &object->transform.position;
         glm::mat4 model = getObjectMatrix(*object);
         originWorld = glm::vec3(model * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
         axisDirections[0] = glm::normalize(glm::vec3(model * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)));
