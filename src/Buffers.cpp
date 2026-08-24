@@ -151,6 +151,20 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     memcpy(uniformBufferMapped[currentImage], &ubo, sizeof(ubo));
 }
 
+void TriangleApplication::releaseMesh(MeshHandle& mesh)
+{
+    if (!mesh)
+    {
+        return;
+    }
+
+    if (mesh.use_count() == 1)
+    {
+        destroyBufferDeferred(mesh->indexBuffer);
+        destroyBufferDeferred(mesh->vertexBuffer);
+    }
+    mesh.reset();
+}
 
 void TriangleApplication::destroyBufferDeferred(GpuBuffer& buffer)
 {

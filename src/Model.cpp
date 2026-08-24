@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
+#include <filesystem>
+#include <memory>
 
 namespace
 {
@@ -19,6 +21,23 @@ std::string fileNameFromPath(const std::string &path)
         return path;
     }
     return path.substr(slash + 1);
+}
+
+std::string makeMeshCacheKey(MeshSource source, const std::string& path)
+{
+    if (source == MeshSource::Cube)
+    {
+        return "builtin:cubde";
+    }
+    if (source == MeshSource::Sphere)
+    {
+        return "builtin:sphere";
+    }
+
+    const std::filesystem::path sourcePath = path.empty() ? std::filesystem::path(MODEL_PATH) : std::filesystem::path(path);
+    const std::filesystem::path normalizedPath = std::filesystem::absolute(sourcePath).lexically_normal();
+
+    return "obj:" + normalizedPath.generic_string();
 }
 }
 
@@ -223,8 +242,6 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
 void TriangleApplication::addMeshObject(MeshSource source, const std::string &path)
 {
     const std::string objPath = source == MeshSource::Obj ? (path.empty() ? MODEL_PATH : path) : std::string();
-    MeshBuildData meshData = buildMeshData(source, objPath);
-
     SceneObject object{};
     if (source == MeshSource::Cube)
     {
@@ -241,11 +258,31 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     }
     object.source = source;
     object.sourcePath = objPath;
-    object.mesh = createMesh(meshData);
+    object.mesh = getOrCreateMesh(source, path);
     sceneObjects.push_back(std::move(object));
 
     selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;
     selectedObject = SceneSelection::Model;
     selectedModel = true;
     selectedPointLightIndex = -1;
+}
+
+MeshHandle TriangleApplication::getOrCreateMesh(MeshSource source, const std::string &path)
+{
+    const std::string key = makeMeshCacheKey(source, path);
+    const auto cacheIt = meshCache.find(key);
+    if (cacheIt != meshCache.end())
+    {
+        if (MeshHandle existingMesh = cacheIt->second.lock())
+        {
+            return existingMesh;
+        }
+        meshCache.erase(cacheIt);
+    }
+
+    MeshBuildData meshData = buildMeshData(source, path);
+    Mesh uploadedMesh = createMesh(meshData);
+    MeshHandle mesh = std::make_shared<Mesh>(std::move(uploadedMesh));
+    meshCache[key] = mesh;
+    return mesh;
 }

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <memory>
 
 enum class MeshSource
 {
@@ -38,3 +39,5 @@ struct Mesh
         return vertexBuffer && indexBuffer && vertexCount > 0 && indexCount > 0;
     }
 };
+
+using MeshHandle = std::shared_ptr<Mesh>;

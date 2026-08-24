@@ -16,6 +16,8 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <memory>
+#include <unordered_map>
 
 #include <vk_mem_alloc.h>
 
@@ -48,6 +50,8 @@ private:
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
     void addMeshObject(MeshSource source, const std::string &path = std::string());
     Mesh createMesh(const MeshBuildData& meshData);
+    MeshHandle getOrCreateMesh(MeshSource source, const std::string &path);
+    void releaseMesh(MeshHandle& mesh);
     SceneObject *getSelectedSceneObject();
     const SceneObject *getSelectedSceneObject() const;
     void createUniformBuffer();
@@ -106,6 +110,7 @@ private:
     VkDescriptorPool imguiDescriptorPool = VK_NULL_HANDLE;
 
     std::vector<SceneObject> sceneObjects;
+    std::unordered_map<std::string, std::weak_ptr<Mesh>> meshCache;
     int selectedSceneObjectIndex = -1;
     char importModelPath[1024]{};
     std::string sceneStatusMessage;

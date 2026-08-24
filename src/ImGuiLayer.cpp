@@ -346,9 +346,8 @@ void TriangleApplication::drawImGui()
         if (ImGui::Button("Delete Selected"))
         {
             SceneObject& object = sceneObjects[selectedSceneObjectIndex];
-            destroyBufferDeferred(object.mesh.indexBuffer);
-            destroyBufferDeferred(object.mesh.vertexBuffer);
-
+            releaseMesh(object.mesh);
+            selectedSceneObject = nullptr;
             sceneObjects.erase(sceneObjects.begin() + selectedSceneObjectIndex);
             selectedSceneObjectIndex = -1;
             selectedObject = SceneSelection::None;
@@ -416,7 +415,8 @@ void TriangleApplication::drawImGui()
     ImGui::Text("Objects: %zu", sceneObjects.size());
     if (selectedSceneObject != nullptr)
     {
-        const Mesh& mesh = selectedSceneObject->mesh;
+        const Mesh& mesh = *selectedSceneObject->mesh;
+        ImGui::Text("Mesh References: %ld", selectedSceneObject->mesh.use_count());
         ImGui::Text("Vertices: %u", mesh.vertexCount);
         ImGui::Text("Indices: %u", mesh.indexCount);
         ImGui::Text("AABB Min: %.2f %.2f %.2f", mesh.boundsMin.x, mesh.boundsMin.y, mesh.boundsMin.z);

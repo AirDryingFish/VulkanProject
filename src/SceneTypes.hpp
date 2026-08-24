@@ -17,7 +17,7 @@ struct SceneObject
     MeshSource source = MeshSource::Obj;
     std::string sourcePath;
 
-    Mesh mesh;
+    MeshHandle mesh;
     Transform transform;
 
     bool autoRotate = false;

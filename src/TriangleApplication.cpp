@@ -125,6 +125,7 @@ void TriangleApplication::cleanup() noexcept
     uniformBufferMapped.clear();
     uniformBuffers.clear();
     sceneObjects.clear();
+    meshCache.clear();
 
     brdfLUTSampler.reset();
     prefilterSampler.reset();
@@ -253,7 +254,7 @@ void TriangleApplication::drawFrame()
 
     for (const SceneObject& object : sceneObjects)
     {
-        const Mesh& mesh = object.mesh;
+        const Mesh& mesh = *object.mesh;
         if (!mesh.valid())
         {
             continue;
