@@ -254,6 +254,10 @@ void TriangleApplication::drawFrame()
 
     for (const SceneObject& object : sceneObjects)
     {
+        if (!object.mesh || !object.mesh->valid())
+        {
+            continue;
+        }
         const Mesh& mesh = *object.mesh;
         if (!mesh.valid())
         {

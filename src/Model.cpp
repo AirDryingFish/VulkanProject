@@ -27,7 +27,7 @@ std::string makeMeshCacheKey(MeshSource source, const std::string& path)
 {
     if (source == MeshSource::Cube)
     {
-        return "builtin:cubde";
+        return "builtin:cubd";
     }
     if (source == MeshSource::Sphere)
     {

@@ -413,7 +413,7 @@ void TriangleApplication::drawImGui()
     ImGui::SeparatorText("Resources");
 
     ImGui::Text("Objects: %zu", sceneObjects.size());
-    if (selectedSceneObject != nullptr)
+    if (selectedSceneObject != nullptr && selectedSceneObject->mesh)
     {
         const Mesh& mesh = *selectedSceneObject->mesh;
         ImGui::Text("Mesh References: %ld", selectedSceneObject->mesh.use_count());
