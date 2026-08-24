@@ -70,6 +70,16 @@ private:
         const std::string &path,
         VkFormat format,
         const std::array<unsigned char, 4> &fallbackPixel);
+
+    TextureHandle createTextureResource(
+        const std::string& name,
+        const std::string& path,
+        VkFormat format,
+        const std::array<unsigned char, 4>& fallbackPixels
+    );
+
+    void createMaterialResources();
+
     void createTextureImage();
     void createTextureImageView();
     void createTextureSampler();
@@ -134,13 +144,19 @@ private:
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> descriptorSets;
 
-    uint32_t mipLevels;
+    uint32_t mipLevels = 1;
 
-    GpuImage textureImage;
-    GpuImage normalImage;
-    GpuImage metallicImage;
-    GpuImage roughnessImage;
-    GpuImage aoImage;
+    TextureHandle defaultBaseColorTexture;
+    TextureHandle defaultNormalTexture;
+    TextureHandle defaultMetallicTexture;
+    TextureHandle defaultRoughnessTexture;
+    TextureHandle defaultAoTexture;
+    TextureHandle defaultEmissiveTexture;
+
+    std::vector<TextureHandle> textureLibrary;
+    std::vector<MaterialHandle> materialLibrary;
+    MaterialHandle defaultMaterial;
+
     GpuSampler textureSampler{};
 
     DeletionQueue mainDeletionQueue;
@@ -214,10 +230,4 @@ private:
     VkPipeline brdfLUTPipeline = VK_NULL_HANDLE;
     VkPipelineLayout brdfLUTPipelineLayout = VK_NULL_HANDLE;
     VkFramebuffer brdfLUTFramebuffer = VK_NULL_HANDLE;
-
-    // pbr params
-    glm::vec3 materialAlbedo = {1.0f, 1.0f, 1.0f};
-    float materialMetallic = 1.0f;
-    float materialRoughness = 1.0f;
-    float materialAo = 1.0f;
 };

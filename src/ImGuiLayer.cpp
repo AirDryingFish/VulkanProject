@@ -416,20 +416,65 @@ void TriangleApplication::drawImGui()
     if (selectedSceneObject != nullptr && selectedSceneObject->mesh)
     {
         const Mesh& mesh = *selectedSceneObject->mesh;
+
+        if (selectedSceneObject->material)
+        {
+            ImGui::Text("Material: %s", selectedSceneObject->material->name.c_str());
+        }
         ImGui::Text("Mesh References: %ld", selectedSceneObject->mesh.use_count());
         ImGui::Text("Vertices: %u", mesh.vertexCount);
         ImGui::Text("Indices: %u", mesh.indexCount);
         ImGui::Text("AABB Min: %.2f %.2f %.2f", mesh.boundsMin.x, mesh.boundsMin.y, mesh.boundsMin.z);
         ImGui::Text("AABB Max: %.2f %.2f %.2f", mesh.boundsMax.x, mesh.boundsMax.y, mesh.boundsMax.z);
     }
+
+
+    ImGui::Text("Textures: %zu", textureLibrary.size());
+    ImGui::Text("Materials: %zu", materialLibrary.size());
     ImGui::Text("Mip Levels: %u", mipLevels);
-    ImGui::Text("Texture Image: 0x%p", (void *)textureImage.get());
 
     ImGui::SeparatorText("PBR Material");
-    ImGui::ColorEdit3("Albedo Tint", &materialAlbedo.x);
-    ImGui::SliderFloat("Metallic Multiplier", &materialMetallic, 0.0f, 1.0f);
-    ImGui::SliderFloat("Roughness Multiplier", &materialRoughness, 0.04f, 1.0f);
-    ImGui::SliderFloat("AO Multiplier", &materialAo, 0.0f, 1.0f);
+
+    if (defaultMaterial && defaultMaterial->baseColorTexture)
+    {
+        ImGui::Text("Base Color Image: 0x%p", (void *)defaultMaterial->baseColorTexture->image.get());
+        
+    
+    }
+    if (defaultMaterial)
+    {
+        Material &material =
+            *defaultMaterial;
+
+        ImGui::Text(
+            "Editing: %s",
+            material.name.c_str());
+
+        ImGui::ColorEdit3(
+            "Albedo Tint",
+            &material.baseColorFactor.x);
+
+        ImGui::SliderFloat(
+            "Metallic Multiplier",
+            &material.metallicFactor,
+            0.0f,
+            1.0f);
+
+        ImGui::SliderFloat(
+            "Roughness Multiplier",
+            &material.roughnessFactor,
+            0.04f,
+            1.0f);
+
+        ImGui::SliderFloat(
+            "AO Multiplier",
+            &material.aoFactor,
+            0.0f,
+            1.0f);
+
+        ImGui::TextDisabled(
+            "All objects currently share this material");
+    }
 
     ImDrawList *drawList = ImGui::GetForegroundDrawList();
     ImGuiViewport *viewport = ImGui::GetMainViewport();

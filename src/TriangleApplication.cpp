@@ -66,8 +66,8 @@ void TriangleApplication::InitVulkan()
 
     initImGui();
 
-    createTextureImage();
-    createTextureImageView();
+
+    createMaterialResources();
     createTextureSampler();
     createSkyboxImage();
     createSkyboxSampler();
@@ -126,6 +126,8 @@ void TriangleApplication::cleanup() noexcept
     uniformBuffers.clear();
     sceneObjects.clear();
     meshCache.clear();
+    materialLibrary.clear();
+    defaultMaterial.reset();
 
     brdfLUTSampler.reset();
     prefilterSampler.reset();
@@ -133,11 +135,16 @@ void TriangleApplication::cleanup() noexcept
     skyboxSampler.reset();
     textureSampler.reset();
 
-    textureImage.reset();
-    normalImage.reset();
-    metallicImage.reset();
-    roughnessImage.reset();
-    aoImage.reset();
+
+    defaultBaseColorTexture.reset();
+    defaultNormalTexture.reset();
+    defaultMetallicTexture.reset();
+    defaultRoughnessTexture.reset();
+    defaultAoTexture.reset();
+    defaultEmissiveTexture.reset();
+
+    textureLibrary.clear();
+
     skyboxImage.reset();
     irradianceImage.reset();
     prefilterImage.reset();

@@ -78,12 +78,13 @@ void TriangleApplication::createTextureDescriptorSets(
 
 void TriangleApplication::createDescriptorSets()
 {
+    const Material& material = *defaultMaterial;
     std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> imageInfos{};
-    imageInfos[0] = {textureSampler.get(), textureImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[1] = {textureSampler.get(), normalImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[2] = {textureSampler.get(), metallicImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[3] = {textureSampler.get(), roughnessImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[4] = {textureSampler.get(), aoImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[0] = {textureSampler.get(), material.baseColorTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[1] = {textureSampler.get(), material.normalTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[2] = {textureSampler.get(), material.metallicTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[3] = {textureSampler.get(), material.roughnessTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[4] = {textureSampler.get(), material.aoTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[5] = {skyboxSampler.get(), skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[6] = {irradianceSampler.get(), irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[7] = {prefilterSampler.get(), prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
@@ -94,12 +95,13 @@ void TriangleApplication::createDescriptorSets()
 
 void TriangleApplication::createSkyboxDescriptorSets()
 {
+    const Material& material = *defaultMaterial;
     std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> imageInfos{};
     imageInfos[0] = {skyboxSampler.get(), skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[1] = {textureSampler.get(), normalImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[2] = {textureSampler.get(), metallicImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[3] = {textureSampler.get(), roughnessImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[4] = {textureSampler.get(), aoImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[1] = {textureSampler.get(), material.normalTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[2] = {textureSampler.get(), material.metallicTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[3] = {textureSampler.get(), material.roughnessTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[4] = {textureSampler.get(), material.aoTexture->image.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[5] = {skyboxSampler.get(), skyboxImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[6] = {irradianceSampler.get(), irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[7] = {prefilterSampler.get(), prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};

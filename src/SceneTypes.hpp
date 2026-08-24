@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Mesh.hpp"
+#include "Material.hpp"
+
 #include <glm/glm.hpp>
 #include <string>
 
@@ -18,6 +20,7 @@ struct SceneObject
     std::string sourcePath;
 
     MeshHandle mesh;
+    MaterialHandle material;
     Transform transform;
 
     bool autoRotate = false;

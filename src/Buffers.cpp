@@ -124,6 +124,8 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
         }
     }
 
+    const Material& material = *defaultMaterial;
+
     UniformBufferObject ubo{};
     ubo.model = glm::mat4(1.0f);
     ubo.view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
@@ -132,11 +134,11 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.cameraPosition = glm::vec4(cameraPos, 1.0f);
     ubo.ambientLight = glm::vec4(ambientLightColor, ambientLightIntensity);
     ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
-    ubo.materialAlbedo = glm::vec4(materialAlbedo, 1.0f);
+    ubo.materialAlbedo = material.baseColorFactor;
     ubo.materialParams = glm::vec4(
-        materialMetallic,
-        materialRoughness,
-        materialAo,
+        material.metallicFactor,
+        material.roughnessFactor,
+        material.aoFactor,
         iblIntensity
     );
 

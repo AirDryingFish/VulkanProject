@@ -23,7 +23,7 @@ GpuImage TriangleApplication::createTextureImageFromFile(
     int texHeight = 0;
     int texChannels = 0;
     std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> loadedPixels(
-        stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha),
+        path.empty() ? nullptr : stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha),
         &stbi_image_free
     );
     const stbi_uc* pixels = loadedPixels.get();
@@ -121,23 +121,117 @@ GpuImage TriangleApplication::createTextureImageFromFile(
     return image;
 }
 
-void TriangleApplication::createTextureImage()
+TextureHandle TriangleApplication::createTextureResource(
+    const std::string& name,
+    const std::string& path,
+    VkFormat format,
+    const std::array<unsigned char, 4>& fallbackPixels
+)
 {
-    textureImage = createTextureImageFromFile(PBR_ALBEDO_PATH, VK_FORMAT_R8G8B8A8_SRGB, {255, 255, 255, 255});
-    normalImage = createTextureImageFromFile(PBR_NORMAL_PATH, VK_FORMAT_R8G8B8A8_UNORM, {128, 128, 255, 255});
-    metallicImage = createTextureImageFromFile(PBR_METALLIC_PATH, VK_FORMAT_R8G8B8A8_UNORM, {0, 0, 0, 255});
-    roughnessImage = createTextureImageFromFile(PBR_ROUGHNESS_PATH, VK_FORMAT_R8G8B8A8_UNORM, {128, 128, 128, 255});
-    aoImage = createTextureImageFromFile(PBR_AO_PATH, VK_FORMAT_R8G8B8A8_UNORM, {255, 255, 255, 255});
-    mipLevels = textureImage.mipLevels();
+    TextureHandle texture = std::make_shared<TextureResource>();
+    texture->name = name;
+    texture->image = createTextureImageFromFile(path, format, fallbackPixels);
+
+    GpuImage& image = texture->image;
+    image.setView(context.createImageView(image.get(), image.format(),image.mipLevels()));
+    
+    textureLibrary.push_back(texture);
+
+    return texture;
 }
 
-void TriangleApplication::createTextureImageView()
+void TriangleApplication::createMaterialResources()
 {
-    textureImage.setView(context.createImageView(textureImage.get(), VK_FORMAT_R8G8B8A8_SRGB, textureImage.mipLevels()));
-    normalImage.setView(context.createImageView(normalImage.get(), VK_FORMAT_R8G8B8A8_UNORM, normalImage.mipLevels()));
-    metallicImage.setView(context.createImageView(metallicImage.get(), VK_FORMAT_R8G8B8A8_UNORM, metallicImage.mipLevels()));
-    roughnessImage.setView(context.createImageView(roughnessImage.get(), VK_FORMAT_R8G8B8A8_UNORM, roughnessImage.mipLevels()));
-    aoImage.setView(context.createImageView(aoImage.get(), VK_FORMAT_R8G8B8A8_UNORM, aoImage.mipLevels()));
+    const TextureHandle rustedBaseColorTexture = createTextureResource(
+        "Rusted Iron Base Color",
+        PBR_ALBEDO_PATH,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        {255, 255, 255, 255}
+    );
+
+    const TextureHandle rustedNormalTexture =
+        createTextureResource(
+            "Rusted Iron Normal",
+            PBR_NORMAL_PATH,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {128, 128, 255, 255});
+
+    const TextureHandle rustedMetallicTexture =
+        createTextureResource(
+            "Rusted Iron Metallic",
+            PBR_METALLIC_PATH,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {0, 0, 0, 255});
+
+    const TextureHandle rustedRoughnessTexture =
+        createTextureResource(
+            "Rusted Iron Roughness",
+            PBR_ROUGHNESS_PATH,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {255, 255, 255, 255});
+
+    const TextureHandle rustedAoTexture =
+        createTextureResource(
+            "Rusted Iron AO",
+            PBR_AO_PATH,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {255, 255, 255, 255});
+
+    defaultBaseColorTexture = createTextureResource(
+        "Default Base Color",
+        std::string(),
+        VK_FORMAT_R8G8B8A8_SRGB,
+        {255, 255, 255, 255}
+    );
+
+    defaultNormalTexture =
+        createTextureResource(
+            "Default Normal",
+            std::string(),
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {128, 128, 255, 255});
+
+    defaultMetallicTexture =
+        createTextureResource(
+            "Default Metallic",
+            std::string(),
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {0, 0, 0, 255});
+
+    defaultRoughnessTexture =
+        createTextureResource(
+            "Default Roughness",
+            std::string(),
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {255, 255, 255, 255});
+
+    defaultAoTexture =
+        createTextureResource(
+            "Default AO",
+            std::string(),
+            VK_FORMAT_R8G8B8A8_UNORM,
+            {255, 255, 255, 255});
+
+    defaultEmissiveTexture =
+        createTextureResource(
+            "Default Emissive",
+            std::string(),
+            VK_FORMAT_R8G8B8A8_SRGB,
+            {0, 0, 0, 255});
+
+    defaultMaterial = std::make_shared<Material>();
+
+    defaultMaterial->baseColorTexture = rustedBaseColorTexture;
+    defaultMaterial->normalTexture = rustedNormalTexture;
+    defaultMaterial->metallicTexture = rustedMetallicTexture;
+    defaultMaterial->roughnessTexture = rustedRoughnessTexture;
+    defaultMaterial->aoTexture = rustedAoTexture;
+    defaultMaterial->emissiveTexture = defaultEmissiveTexture;
+
+    materialLibrary.push_back(defaultMaterial);
+
+    mipLevels = defaultMaterial->baseColorTexture->image.mipLevels();
+
 }
 
 void TriangleApplication::createTextureSampler()

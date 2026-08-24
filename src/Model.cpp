@@ -259,6 +259,8 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     object.source = source;
     object.sourcePath = objPath;
     object.mesh = getOrCreateMesh(source, objPath);
+    object.material = defaultMaterial;
+    
     sceneObjects.push_back(std::move(object));
 
     selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;
