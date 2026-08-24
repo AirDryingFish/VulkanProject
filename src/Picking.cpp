@@ -113,12 +113,12 @@ void TriangleApplication::processModelPicking()
     for (size_t i = 0; i < sceneObjects.size(); i++)
     {
         const SceneObject &object = sceneObjects[i];
-
-        const Mesh& mesh = *object.mesh;
         if (!object.mesh || !object.mesh->valid())
         {
             continue;
         }
+
+        const Mesh& mesh = *object.mesh;
         if (!mesh.boundsValid)
         {
             continue;

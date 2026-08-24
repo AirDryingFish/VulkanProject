@@ -27,7 +27,7 @@ std::string makeMeshCacheKey(MeshSource source, const std::string& path)
 {
     if (source == MeshSource::Cube)
     {
-        return "builtin:cubd";
+        return "builtin:cube";
     }
     if (source == MeshSource::Sphere)
     {
@@ -258,7 +258,7 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     }
     object.source = source;
     object.sourcePath = objPath;
-    object.mesh = getOrCreateMesh(source, path);
+    object.mesh = getOrCreateMesh(source, objPath);
     sceneObjects.push_back(std::move(object));
 
     selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;

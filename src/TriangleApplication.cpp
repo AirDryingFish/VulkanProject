@@ -259,10 +259,6 @@ void TriangleApplication::drawFrame()
             continue;
         }
         const Mesh& mesh = *object.mesh;
-        if (!mesh.valid())
-        {
-            continue;
-        }
 
         RenderObjectView view{};
         view.vertexBuffer = mesh.vertexBuffer.get();
