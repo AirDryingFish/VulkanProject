@@ -124,6 +124,7 @@ Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
     mesh.indexCount = static_cast<uint32_t>(meshData.indices.size());
     mesh.boundsMin = meshData.boundsMin;
     mesh.boundsMax = meshData.boundsMax;
+    mesh.boundsValid = meshData.boundsValid;
 
     return mesh;
 }
