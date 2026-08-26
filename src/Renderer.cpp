@@ -28,7 +28,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         swapchain_ = &swapchain;
 
         createRenderPass();
-        createDescriptorSetLayout();
+        createDescriptorSetLayouts();
+        createPipelineLayouts();
         createGraphicsPipeline();
         createSkyboxPipeline();
 
@@ -302,14 +303,24 @@ void Renderer::shutdown() noexcept
                 vkDestroyPipeline(device, graphicsPipeline_, nullptr);
             }
 
-            if (pipelineLayout_ != VK_NULL_HANDLE)
+            if (skyboxPipelineLayout_ != VK_NULL_HANDLE)
             {
-                vkDestroyPipelineLayout(device, pipelineLayout_, nullptr);
+                vkDestroyPipelineLayout(device, skyboxPipelineLayout_, nullptr);
             }
 
-            if (descriptorSetLayout_ != VK_NULL_HANDLE)
+            if (scenePipelineLayout_ != VK_NULL_HANDLE)
             {
-                vkDestroyDescriptorSetLayout(device, descriptorSetLayout_, nullptr);
+                vkDestroyPipelineLayout(device, scenePipelineLayout_, nullptr);
+            }
+
+            if (skyboxDescriptorSetLayout_ != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(device, skyboxDescriptorSetLayout_, nullptr);
+            }
+
+            if (sceneDescriptorSetLayout_ != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(device, sceneDescriptorSetLayout_, nullptr);
             }
 
             if (renderPass_ != VK_NULL_HANDLE)
@@ -325,8 +336,10 @@ void Renderer::shutdown() noexcept
 
     skyboxPipeline_ = VK_NULL_HANDLE;
     graphicsPipeline_ = VK_NULL_HANDLE;
-    pipelineLayout_ = VK_NULL_HANDLE;
-    descriptorSetLayout_ = VK_NULL_HANDLE;
+    scenePipelineLayout_ = VK_NULL_HANDLE;
+    skyboxPipelineLayout_ = VK_NULL_HANDLE;
+    sceneDescriptorSetLayout_ = VK_NULL_HANDLE;
+    skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
     renderPass_ = VK_NULL_HANDLE;
 
     currentFrame_ = 0;
@@ -386,9 +399,14 @@ VkRenderPass Renderer::renderPass() const noexcept
     return renderPass_;
 }
 
-VkDescriptorSetLayout Renderer::descriptorSetLayout() const noexcept
+VkDescriptorSetLayout Renderer::sceneDescriptorSetLayout() const noexcept
 {
-    return descriptorSetLayout_;
+    return sceneDescriptorSetLayout_;
+}
+
+VkDescriptorSetLayout Renderer::skyboxDescriptorSetLayout() const noexcept
+{
+    return skyboxDescriptorSetLayout_;
 }
 
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
@@ -648,7 +666,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     vkCmdBindDescriptorSets(
         token.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
-        pipelineLayout_,
+        skyboxPipelineLayout_,
         0,
         1,
         &data.skyboxDescriptorSet,
@@ -666,7 +684,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     vkCmdBindDescriptorSets(
         token.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
-        pipelineLayout_,
+        scenePipelineLayout_,
         0,
         1,
         &data.sceneDescriptorSet,
@@ -684,7 +702,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
             }
             vkCmdPushConstants(
                 token.commandBuffer,
-                pipelineLayout_,
+                scenePipelineLayout_,
                 VK_SHADER_STAGE_VERTEX_BIT,
                 0,
                 sizeof(glm::mat4),

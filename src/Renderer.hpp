@@ -46,6 +46,7 @@ private:
     {
         std::string vertShaderPath;
         std::string fragShaderPath;
+        VkPipelineLayout layout = VK_NULL_HANDLE;
         bool useVertexInput = true;
         VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
         bool depthTest = true;
@@ -58,8 +59,12 @@ private:
 
     VkRenderPass renderPass_ = VK_NULL_HANDLE;
 
-    VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
-    VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+    // VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
+    // VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout sceneDescriptorSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout scenePipelineLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout skyboxPipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
     VkPipeline skyboxPipeline_ = VK_NULL_HANDLE;
 
@@ -75,7 +80,9 @@ private:
     void createUploadContext();
     void createRenderPass();
 
-    void createDescriptorSetLayout();
+    void createDescriptorSetLayouts();
+    void createPipelineLayouts();
+
     void createGraphicsPipeline();
     void createSkyboxPipeline();
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
@@ -106,7 +113,9 @@ public:
 
     VkRenderPass renderPass() const noexcept;
 
-    VkDescriptorSetLayout descriptorSetLayout() const noexcept;
+    // VkDescriptorSetLayout descriptorSetLayout() const noexcept;
+    VkDescriptorSetLayout sceneDescriptorSetLayout() const noexcept;
+    VkDescriptorSetLayout skyboxDescriptorSetLayout() const noexcept;
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 

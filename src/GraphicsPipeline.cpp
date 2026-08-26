@@ -16,35 +16,83 @@
 #include <stdexcept>
 #include <unordered_map>
 
-void Renderer::createDescriptorSetLayout()
+void Renderer::createDescriptorSetLayouts()
 {
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // binding 0上只有1个descriptor
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    uboLayoutBinding.pImmutableSamplers = nullptr;
+    // UBO, vertex和fragement shader都可见
+    std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> sceneBindings{};
+    sceneBindings[0].binding = 0;
+    sceneBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    sceneBindings[0].descriptorCount = 1;
+    sceneBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> bindings{};
-    bindings[0] = uboLayoutBinding;
-    for (uint32_t binding = 1; binding < static_cast<uint32_t>(bindings.size()); binding++)
+    // VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    // uboLayoutBinding.binding = 0;
+    // uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // // binding 0上只有1个descriptor
+    // uboLayoutBinding.descriptorCount = 1;
+    // uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    // uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    // std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> bindings{};
+    // bindings[0] = uboLayoutBinding;
+    for (uint32_t binding = 1; binding < static_cast<uint32_t>(sceneBindings.size()); binding++)
     {
-        bindings[binding].binding = binding;
-        bindings[binding].descriptorCount = 1;
-        bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        bindings[binding].pImmutableSamplers = nullptr;
-        bindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        sceneBindings[binding].binding = binding;
+        sceneBindings[binding].descriptorCount = 1;
+        sceneBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        sceneBindings[binding].pImmutableSamplers = nullptr;
+        sceneBindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+    layoutInfo.bindingCount = static_cast<uint32_t>(sceneBindings.size());
+    layoutInfo.pBindings = sceneBindings.data();
 
-    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &layoutInfo, nullptr, &descriptorSetLayout_));
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &layoutInfo, nullptr, &sceneDescriptorSetLayout_));
     // mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable
     //                                { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
+
+    std::array<VkDescriptorSetLayoutBinding, 2> skyboxBindings{};
+    skyboxBindings[0].binding = 0;
+    skyboxBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    skyboxBindings[0].descriptorCount = 1;
+    skyboxBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    skyboxBindings[1].binding = 1;
+    skyboxBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    skyboxBindings[1].descriptorCount = 1;
+    skyboxBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    
+    VkDescriptorSetLayoutCreateInfo skyboxLayoutInfo{};
+    skyboxLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    skyboxLayoutInfo.bindingCount = static_cast<uint32_t>(skyboxBindings.size());
+    skyboxLayoutInfo.pBindings = skyboxBindings.data();
+
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &skyboxLayoutInfo, nullptr, &skyboxDescriptorSetLayout_));
+}
+
+void Renderer::createPipelineLayouts()
+{
+    VkPushConstantRange modelPushConstant{};
+    modelPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    modelPushConstant.offset = 0;
+    modelPushConstant.size = sizeof(glm::mat4);
+
+    VkPipelineLayoutCreateInfo sceneLayoutInfo{};
+    sceneLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    sceneLayoutInfo.setLayoutCount = 1;
+    sceneLayoutInfo.pSetLayouts = &sceneDescriptorSetLayout_;
+    sceneLayoutInfo.pushConstantRangeCount = 1;
+    sceneLayoutInfo.pPushConstantRanges = &modelPushConstant;
+
+    VK_CHECK(vkCreatePipelineLayout(context_->device(), &sceneLayoutInfo, nullptr, &scenePipelineLayout_));
+
+    VkPipelineLayoutCreateInfo skyboxLayoutInfo{};
+    skyboxLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    skyboxLayoutInfo.setLayoutCount = 1;
+    skyboxLayoutInfo.pSetLayouts = &skyboxDescriptorSetLayout_;
+
+    VK_CHECK(vkCreatePipelineLayout(context_->device(), &skyboxLayoutInfo, nullptr, &skyboxPipelineLayout_));
 }
 
 void Renderer::createGraphicsPipeline()
@@ -52,6 +100,7 @@ void Renderer::createGraphicsPipeline()
     GraphicsPipelineConfig config{};
     config.vertShaderPath = MAIN_VERTEX_SHADER_PATH;
     config.fragShaderPath = MAIN_FRAGMENT_SHADER_PATH;
+    config.layout = scenePipelineLayout_;
     config.useVertexInput = true;
     config.cullMode = VK_CULL_MODE_BACK_BIT;
     config.depthTest = true;
@@ -68,6 +117,7 @@ void Renderer::createSkyboxPipeline()
     GraphicsPipelineConfig config{};
     config.vertShaderPath = SKYBOX_VERTEX_SHADER_PATH;
     config.fragShaderPath = SKYBOX_FRAGMENT_SHADER_PATH;
+    config.layout = skyboxPipelineLayout_;
     config.useVertexInput = false;
     config.cullMode = VK_CULL_MODE_NONE;
     config.depthTest = true;
@@ -81,6 +131,16 @@ void Renderer::createSkyboxPipeline()
 
 VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config)
 {
+    if (context_ == nullptr || renderPass_ == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("graphics pipeline requires an initialized renderer");
+    }
+
+    if (config.layout == VK_NULL_HANDLE)
+    {
+        throw std::invalid_argument("graphics pipeline requires an explicit pipeline layout");
+    }
+
     auto vertShaderCode = readBinaryFile(config.vertShaderPath);
     auto fragShaderCode = readBinaryFile(config.fragShaderPath);
 
@@ -159,26 +219,6 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
 
-    if (pipelineLayout_ == VK_NULL_HANDLE)
-    {
-        VkPushConstantRange modelPushConstant{};
-        modelPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        modelPushConstant.offset = 0;
-        modelPushConstant.size = sizeof(glm::mat4);
-
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout_;
-        pipelineLayoutInfo.pushConstantRangeCount = 1;
-        pipelineLayoutInfo.pPushConstantRanges = &modelPushConstant;
-
-        VK_CHECK(vkCreatePipelineLayout(context_->device(), &pipelineLayoutInfo, nullptr, &pipelineLayout_));
-
-        // mainDeletionQueue.pushFunction([this, layout = pipelineLayout]() mutable
-        //                                { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
-    }
-
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = config.depthTest ? VK_TRUE : VK_FALSE;
@@ -199,7 +239,7 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = pipelineLayout_;
+    pipelineInfo.layout = config.layout;
     pipelineInfo.renderPass = renderPass_;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
