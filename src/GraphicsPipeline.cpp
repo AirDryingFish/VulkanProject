@@ -73,17 +73,25 @@ void Renderer::createDescriptorSetLayouts()
 
 void Renderer::createPipelineLayouts()
 {
-    VkPushConstantRange modelPushConstant{};
-    modelPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    modelPushConstant.offset = 0;
-    modelPushConstant.size = sizeof(glm::mat4);
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(context_->physicalDevice(), &properties);
+    if (sizeof(DrawPushConstants) > properties.limits.maxPushConstantsSize)
+    {
+        throw std::runtime_error("DrawPushConstants exceeds maxPushConstantSize");
+    }
+
+
+    VkPushConstantRange drawPushConstant{};
+    drawPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    drawPushConstant.offset = 0;
+    drawPushConstant.size = sizeof(DrawPushConstants);
 
     VkPipelineLayoutCreateInfo sceneLayoutInfo{};
     sceneLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     sceneLayoutInfo.setLayoutCount = 1;
     sceneLayoutInfo.pSetLayouts = &sceneDescriptorSetLayout_;
     sceneLayoutInfo.pushConstantRangeCount = 1;
-    sceneLayoutInfo.pPushConstantRanges = &modelPushConstant;
+    sceneLayoutInfo.pPushConstantRanges = &drawPushConstant;
 
     VK_CHECK(vkCreatePipelineLayout(context_->device(), &sceneLayoutInfo, nullptr, &scenePipelineLayout_));
 

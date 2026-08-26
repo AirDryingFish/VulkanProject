@@ -117,17 +117,26 @@ struct GpuPointLight
     alignas(16) glm::vec4 params;
 };
 
-struct UniformBufferObject
+struct alignas(16) UniformBufferObject
 {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+
     alignas(16) glm::vec4 cameraPosition;
     alignas(16) glm::vec4 ambientLight;
     alignas(16) glm::ivec4 lightCounts;
 
-    alignas(16) glm::vec4 materialAlbedo;
-    alignas(16) glm::vec4 materialParams;
+    // x = IBL intensity
+    // yzw = reserved
+    alignas(16) glm::vec4 renderParams;
 
     GpuPointLight pointLights[MAX_POINT_LIGHTS];
 };
+
+static_assert(offsetof(UniformBufferObject, proj) == 64);
+static_assert(offsetof(UniformBufferObject, cameraPosition) == 128);
+static_assert(offsetof(UniformBufferObject, ambientLight) == 144);
+static_assert(offsetof(UniformBufferObject, lightCounts) == 160);
+static_assert(offsetof(UniformBufferObject, renderParams) == 176);
+static_assert(offsetof(UniformBufferObject, pointLights) == 192);
+static_assert(sizeof(UniformBufferObject) == 960);

@@ -2,6 +2,7 @@
 
 #include "VulkanHeaders.hpp"
 #include <glm/mat4x4.hpp>
+#include <glm/glm.hpp>
 
 #include <cstdint>
 #include <vector>
@@ -11,12 +12,57 @@ inline constexpr std::size_t pbrImageDescriptorCount = 9;
 
 struct ImDrawData;
 
+struct alignas(16) DrawPushConstants
+{
+    alignas(16) glm::mat4 model{1.0f};
+
+    alignas(16) glm::vec4 baseColorFactor{1.0f};
+
+    // x: metallic
+    // y: roughness
+    // z: AO
+    // w: reserved
+    alignas(16) glm::vec4 materialFactors{
+        1.0f,
+        1.0f,
+        1.0f,
+        0.0f
+    };
+    alignas(16) glm::vec4 emissiveFactor{0.0f};
+};
+
+// offset
+// 0
+// │
+// ├── model                    64 bytes
+// │   offset 0 ~ 63
+// │
+// 64
+// ├── baseColorFactor          16 bytes
+// │   offset 64 ~ 79
+// │
+// 80
+// ├── materialFactors          16 bytes
+// │   offset 80 ~ 95
+// │
+// 96
+// ├── emissiveFactor           16 bytes
+// │   offset 96 ~ 111
+// │
+// 112
+static_assert(offsetof(DrawPushConstants, baseColorFactor) == 64);
+static_assert(offsetof(DrawPushConstants, materialFactors) == 80);
+static_assert(offsetof(DrawPushConstants, emissiveFactor) == 96);
+static_assert(sizeof(DrawPushConstants) == 112);
+static_assert(sizeof(DrawPushConstants) <= 128);
+
 struct RenderObjectView
 {
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
     VkBuffer indexBuffer = VK_NULL_HANDLE;
     uint32_t indexCount = 0;
-    glm::mat4 model{1.0f};
+    // glm::mat4 model{1.0f};
+    DrawPushConstants pushConstants{};
 };
 
 struct RenderFrameData

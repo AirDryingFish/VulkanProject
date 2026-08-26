@@ -19,18 +19,29 @@ layout(location = 0) out vec4 outColor;
 
 layout(binding = 0) uniform UniformBufferObject
 {
-    mat4 model;
     mat4 view;
     mat4 proj;
     vec4 cameraPosition;
     vec4 ambientLight;
     ivec4 lightCounts;
-
-    vec4 materialAlbedo;
-    vec4 materialParams;
+    vec4 renderParams;
 
     PointLight pointLights[MAX_POINT_LIGHTS];
-} ubo;
+
+} frame;
+
+layout(push_constant) uniform DrawPushConstants
+{
+    mat4 model;
+    vec4 baseColorFactor;
+    // x: metallic
+    // y: roughness
+    // z: AO
+    // w: reserved
+    vec4 materialFactors;
+    vec4 emissiveFactor;
+
+} draw;
 
 layout(binding = 1) uniform sampler2D albedoMap;
 layout(binding = 2) uniform sampler2D normalMap;
@@ -119,21 +130,21 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 void main()
 {
-    float metallic = clamp(texture(metallicMap, fragTexCoord).r * ubo.materialParams.x, 0.0, 1.0);
-    float roughness = clamp(texture(roughnessMap, fragTexCoord).r * ubo.materialParams.y, 0.04, 1.0);
-    float ao = clamp(texture(aoMap, fragTexCoord).r * ubo.materialParams.z, 0.0, 1.0);
+    float metallic = clamp(texture(metallicMap, fragTexCoord).r * draw.materialFactors.x, 0.0, 1.0);
+    float roughness = clamp(texture(roughnessMap, fragTexCoord).r * draw.materialFactors.y, 0.04, 1.0);
+    float ao = clamp(texture(aoMap, fragTexCoord).r * draw.materialFactors.z, 0.0, 1.0);
 
-    vec3 albedo = fragColor * texture(albedoMap, fragTexCoord).rgb * ubo.materialAlbedo.rgb;
+    vec3 albedo = fragColor * texture(albedoMap, fragTexCoord).rgb * draw.baseColorFactor.rgb;
     vec3 normal = getNormalFromNormalMap();
-    vec3 viewDir = normalize(ubo.cameraPosition.xyz - fragWorldPos);
-    float iblIntensity = max(ubo.materialParams.w, 0.0);
+    vec3 viewDir = normalize(frame.cameraPosition.xyz - fragWorldPos);
+    float iblIntensity = max(frame.renderParams.x, 0.0);
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
-    for (int i = 0; i < ubo.lightCounts.x; i++)
+    for (int i = 0; i < frame.lightCounts.x; i++)
     {
-        PointLight light = ubo.pointLights[i];
+        PointLight light = frame.pointLights[i];
         if (light.params.y < 0.5)
         {
             continue;
@@ -166,7 +177,7 @@ void main()
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = ubo.ambientLight.rgb * ubo.ambientLight.a * albedo * ao;
+    vec3 ambient = frame.ambientLight.rgb * frame.ambientLight.a * albedo * ao;
     vec3 F = fresnelSchlickRoughness(max(dot(normal, viewDir), 0.0), F0, roughness);
     vec3 kS = F;
     vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);

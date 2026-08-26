@@ -1,11 +1,10 @@
 #version 450
 
-layout(binding = 0) uniform UniformBufferObject
+layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 {
-    mat4 model;
     mat4 view;
     mat4 proj;
-} ubo;
+} frame;
 
 layout(location = 0) out vec3 fragTexCoord;
 
@@ -34,7 +33,7 @@ void main()
     vec3 position = positions[gl_VertexIndex];
     fragTexCoord = vec3(position.x, position.z, position.y);
 
-    mat4 viewNoTranslation = mat4(mat3(ubo.view));
-    vec4 clipPosition = ubo.proj * viewNoTranslation * vec4(position, 1.0);
+    mat4 viewNoTranslation = mat4(mat3(frame.view));
+    vec4 clipPosition = frame.proj * viewNoTranslation * vec4(position, 1.0);
     gl_Position = clipPosition.xyww;
 }

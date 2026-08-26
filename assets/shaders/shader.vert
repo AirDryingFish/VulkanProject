@@ -21,16 +21,12 @@ layout(location = 3) out vec3 fragNormal;
 
 layout(binding = 0) uniform UniformBufferObject
 {
-    mat4 model;
     mat4 view;
     mat4 proj;
     vec4 cameraPosition;
     vec4 ambientLight;
-
     ivec4 lightCounts;
-
-    vec4 materialAlbedo;
-    vec4 materialParams;
+    vec4 renderParams;
 
     PointLight pointLights[MAX_POINT_LIGHTS];
 
@@ -39,6 +35,9 @@ layout(binding = 0) uniform UniformBufferObject
 layout(push_constant) uniform ModelPushConstants
 {
     mat4 model;
+    vec4 baseColorFactor;
+    vec4 materialFactors;
+    vec4 emissiveFactor;
 } pushConstants;
 
 void main() {

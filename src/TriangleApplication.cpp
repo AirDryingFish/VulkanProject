@@ -266,12 +266,16 @@ void TriangleApplication::drawFrame()
             continue;
         }
         const Mesh& mesh = *object.mesh;
+        const Material& material = *object.material;
 
         RenderObjectView view{};
         view.vertexBuffer = mesh.vertexBuffer.get();
         view.indexBuffer = mesh.indexBuffer.get();
         view.indexCount = mesh.indexCount;
-        view.model = getObjectMatrix(object);
+        view.pushConstants.model = getObjectMatrix(object);
+        view.pushConstants.baseColorFactor = material.baseColorFactor;
+        view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.aoFactor, 0.0f);
+        view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, 0.0f);
 
         renderObjects.push_back(view);
     }
