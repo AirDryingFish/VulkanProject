@@ -318,10 +318,16 @@ void Renderer::shutdown() noexcept
                 vkDestroyDescriptorSetLayout(device, skyboxDescriptorSetLayout_, nullptr);
             }
 
+            if (materialDescriptorSetLayout_ != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(device, materialDescriptorSetLayout_, nullptr);
+            }
+
             if (sceneDescriptorSetLayout_ != VK_NULL_HANDLE)
             {
                 vkDestroyDescriptorSetLayout(device, sceneDescriptorSetLayout_, nullptr);
             }
+
 
             if (renderPass_ != VK_NULL_HANDLE)
             {
@@ -338,6 +344,7 @@ void Renderer::shutdown() noexcept
     graphicsPipeline_ = VK_NULL_HANDLE;
     scenePipelineLayout_ = VK_NULL_HANDLE;
     skyboxPipelineLayout_ = VK_NULL_HANDLE;
+    materialDescriptorSetLayout_ = VK_NULL_HANDLE;
     sceneDescriptorSetLayout_ = VK_NULL_HANDLE;
     skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
     renderPass_ = VK_NULL_HANDLE;
@@ -407,6 +414,11 @@ VkDescriptorSetLayout Renderer::sceneDescriptorSetLayout() const noexcept
 VkDescriptorSetLayout Renderer::skyboxDescriptorSetLayout() const noexcept
 {
     return skyboxDescriptorSetLayout_;
+}
+
+VkDescriptorSetLayout Renderer::materialDescriptorSetLayout() const noexcept
+{
+    return materialDescriptorSetLayout_;
 }
 
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
@@ -696,10 +708,20 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         const VkDeviceSize offset = 0;
         for (const RenderObjectView &object : *data.objects)
         {
-            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE)
+            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE || object.materialDescriptor == VK_NULL_HANDLE)
             {
                 continue;
             }
+            vkCmdBindDescriptorSets(
+                token.commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                scenePipelineLayout_,
+                1, // 绑定 set 1
+                1,
+                &object.materialDescriptor,
+                0,
+                nullptr
+            );
             vkCmdPushConstants(
                 token.commandBuffer,
                 scenePipelineLayout_,

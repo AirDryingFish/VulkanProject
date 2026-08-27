@@ -17,7 +17,7 @@ layout(location = 2) in vec3 fragWorldPos;
 layout(location = 3) in vec3 fragNormal;
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 0) uniform UniformBufferObject
+layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 {
     mat4 view;
     mat4 proj;
@@ -43,15 +43,16 @@ layout(push_constant) uniform DrawPushConstants
 
 } draw;
 
-layout(binding = 1) uniform sampler2D albedoMap;
-layout(binding = 2) uniform sampler2D normalMap;
-layout(binding = 3) uniform sampler2D metallicMap;
-layout(binding = 4) uniform sampler2D roughnessMap;
-layout(binding = 5) uniform sampler2D aoMap;
-layout(binding = 6) uniform samplerCube environmentMap;
-layout(binding = 7) uniform samplerCube irradianceMap;
-layout(binding = 8) uniform samplerCube prefilterMap;
-layout(binding = 9) uniform sampler2D brdfLUT;
+layout(set = 1, binding = 0) uniform sampler2D albedoMap;
+layout(set = 1, binding = 1) uniform sampler2D normalMap;
+layout(set = 1, binding = 2) uniform sampler2D metallicMap;
+layout(set = 1, binding = 3) uniform sampler2D roughnessMap;
+layout(set = 1, binding = 4) uniform sampler2D aoMap;
+layout(set = 1, binding = 5) uniform sampler2D emissiveMap;
+layout(set = 0, binding = 6) uniform samplerCube environmentMap;
+layout(set = 0, binding = 7) uniform samplerCube irradianceMap;
+layout(set = 0, binding = 8) uniform samplerCube prefilterMap;
+layout(set = 0, binding = 9) uniform sampler2D brdfLUT;
 
 vec3 getNormalFromNormalMap()
 {
@@ -195,7 +196,10 @@ void main()
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
     vec3 ibl = (kD * diffuse + specular) * ao * iblIntensity;
-    vec3 color = ambient + ibl + Lo;
+
+    vec3 emissive = texture(emissiveMap, fragTexCoord).rgb * draw.emissiveFactor.rgb;
+
+    vec3 color = ambient + ibl + Lo + emissive;
     color = color / (color + vec3(1.0));
 
     outColor = vec4(color, 1.0);

@@ -19,7 +19,7 @@ layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragWorldPos;
 layout(location = 3) out vec3 fragNormal;
 
-layout(binding = 0) uniform UniformBufferObject
+layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 {
     mat4 view;
     mat4 proj;

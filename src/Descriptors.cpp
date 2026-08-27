@@ -7,16 +7,22 @@ namespace
 {
 constexpr uint32_t descriptorSetGroupCount = 2; // model + skybox
 constexpr uint32_t skyboxImageDescriptorCount = 1;
+constexpr uint32_t maxMaterialCount = 128;
 }
 
 void TriangleApplication::createDescriptorPool()
 {
+    const uint32_t frameCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // Frame 0：Scene set + Skybox set
     // Frame 1：Scene set + Skybox set  
     // 都需要ubo
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * descriptorSetGroupCount;
+    poolSizes[0].descriptorCount = 
+        frameCount * 
+        static_cast<uint32_t>(pbrImageDescriptorCount + skyboxImageDescriptorCount) + 
+        maxMaterialCount * static_cast<uint32_t>(materialImageDescriptorCount);
+
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     // imageDescriptor
     // 1  Base Color
@@ -30,13 +36,13 @@ void TriangleApplication::createDescriptorPool()
     // 9  BRDF LUT
     // skyboxDescriptor
     // 1  Skybox cubemap
-    poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * (pbrImageDescriptorCount + skyboxImageDescriptorCount);
+    poolSizes[1].descriptorCount = frameCount * (pbrImageDescriptorCount + skyboxImageDescriptorCount);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * descriptorSetGroupCount;
+    poolInfo.maxSets = frameCount * descriptorSetGroupCount + maxMaterialCount;
 
     VK_CHECK(vkCreateDescriptorPool(context.device(), &poolInfo, nullptr, &descriptorPool));
 
@@ -106,6 +112,94 @@ void TriangleApplication::createDescriptorSets()
     imageInfos[8] = {brdfLUTSampler.get(), brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     createTextureDescriptorSets(imageInfos, descriptorSets);
+}
+
+void TriangleApplication::createMaterialDescriptorSets()
+{
+    if (materialLibrary.size() > maxMaterialCount)
+    {
+        throw std::runtime_error("material descriptor capacity exceeded");
+    }
+    for (const MaterialHandle& material : materialLibrary)
+    {
+        if (!material)
+        {
+            throw std::runtime_error("material library contains null material");
+        }
+        createMaterialDescriptorSet(*material);
+    }
+}
+
+void TriangleApplication::createMaterialDescriptorSet(Material &material)
+{
+    if (material.descriptorSet != VK_NULL_HANDLE)
+    {
+        throw std::logic_error("material descriptor set already exists");
+    }
+    if (!material.baseColorTexture ||
+        !material.normalTexture ||
+        !material.metallicTexture ||
+        !material.roughnessTexture ||
+        !material.aoTexture ||
+        !material.emissiveTexture
+    )
+    {
+        throw std::runtime_error("material contains a null texture");
+    }
+
+    VkDescriptorSetLayout layout = renderer.materialDescriptorSetLayout();
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &layout;
+    
+    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &material.descriptorSet));
+
+    std::array<VkDescriptorImageInfo, materialImageDescriptorCount> imageInfos{};
+
+    imageInfos[0] = {
+        textureSampler.get(),
+        material.baseColorTexture->image.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    imageInfos[1] = {
+        textureSampler.get(),
+        material.normalTexture->image.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    imageInfos[2] = {
+        textureSampler.get(),
+        material.metallicTexture->image.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    imageInfos[3] = {
+        textureSampler.get(),
+        material.roughnessTexture->image.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    imageInfos[4] = {
+        textureSampler.get(),
+        material.aoTexture->image.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    imageInfos[5] = {
+        textureSampler.get(),
+        material.emissiveTexture->image.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+ 
+    std::array<VkWriteDescriptorSet, materialImageDescriptorCount> descriptorWrites{};
+    for (uint32_t binding = 0; binding < static_cast<uint32_t>(descriptorWrites.size()); binding++)
+    {
+        descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[binding].dstSet = material.descriptorSet;
+        descriptorWrites[binding].dstBinding = binding;
+        descriptorWrites[binding].dstArrayElement = 0;
+        descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[binding].descriptorCount = 1;
+        descriptorWrites[binding].pImageInfo = &imageInfos[binding];
+    }
+    vkUpdateDescriptorSets(context.device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 
 void TriangleApplication::createSkyboxDescriptorSets()

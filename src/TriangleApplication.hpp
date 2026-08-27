@@ -62,6 +62,8 @@ private:
 
     void createDescriptorPool();
     void createDescriptorSets();
+    void createMaterialDescriptorSets();
+    void createMaterialDescriptorSet(Material& material);
     void createTextureDescriptorSets(
         const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
         std::vector<VkDescriptorSet> &targetDescriptorSets);

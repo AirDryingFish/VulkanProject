@@ -53,6 +53,20 @@ void Renderer::createDescriptorSetLayouts()
     // mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable
     //                                { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
 
+    std::array<VkDescriptorSetLayoutBinding, materialImageDescriptorCount> materialBindings{};
+    for (uint32_t binding = 0; binding < static_cast<uint32_t>(materialBindings.size()); binding++)
+    {
+        materialBindings[binding].binding = binding;
+        materialBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        materialBindings[binding].descriptorCount = 1;
+        materialBindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    VkDescriptorSetLayoutCreateInfo materialLayoutInfo{};
+    materialLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    materialLayoutInfo.bindingCount = static_cast<uint32_t>(materialBindings.size());
+    materialLayoutInfo.pBindings = materialBindings.data();
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &materialLayoutInfo, nullptr, &materialDescriptorSetLayout_));
+    
     std::array<VkDescriptorSetLayoutBinding, 2> skyboxBindings{};
     skyboxBindings[0].binding = 0;
     skyboxBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -88,8 +102,12 @@ void Renderer::createPipelineLayouts()
 
     VkPipelineLayoutCreateInfo sceneLayoutInfo{};
     sceneLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    sceneLayoutInfo.setLayoutCount = 1;
-    sceneLayoutInfo.pSetLayouts = &sceneDescriptorSetLayout_;
+    const std::array<VkDescriptorSetLayout, 2> sceneLayouts{
+        sceneDescriptorSetLayout_,   // set 0
+        materialDescriptorSetLayout_ // set 1
+    };
+    sceneLayoutInfo.setLayoutCount = static_cast<uint32_t>(sceneLayouts.size());
+    sceneLayoutInfo.pSetLayouts = sceneLayouts.data();
     sceneLayoutInfo.pushConstantRangeCount = 1;
     sceneLayoutInfo.pPushConstantRanges = &drawPushConstant;
 

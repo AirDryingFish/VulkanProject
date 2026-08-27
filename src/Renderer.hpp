@@ -62,6 +62,7 @@ private:
     // VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
     // VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout sceneDescriptorSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout materialDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout scenePipelineLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout skyboxPipelineLayout_ = VK_NULL_HANDLE;
@@ -116,6 +117,7 @@ public:
     // VkDescriptorSetLayout descriptorSetLayout() const noexcept;
     VkDescriptorSetLayout sceneDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout skyboxDescriptorSetLayout() const noexcept;
+    VkDescriptorSetLayout materialDescriptorSetLayout() const noexcept;
 
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 

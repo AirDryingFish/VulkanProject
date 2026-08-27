@@ -80,6 +80,7 @@ void TriangleApplication::InitVulkan()
 
     createDescriptorPool();
     createDescriptorSets();
+    createMaterialDescriptorSets();
     createSkyboxDescriptorSets();
 
     rendererReady = true;
@@ -261,7 +262,7 @@ void TriangleApplication::drawFrame()
 
     for (const SceneObject& object : sceneObjects)
     {
-        if (!object.mesh || !object.mesh->valid())
+        if (!object.mesh || !object.mesh->valid() || !object.material || object.material->descriptorSet == VK_NULL_HANDLE)
         {
             continue;
         }
@@ -276,6 +277,7 @@ void TriangleApplication::drawFrame()
         view.pushConstants.baseColorFactor = material.baseColorFactor;
         view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.aoFactor, 0.0f);
         view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, 0.0f);
+        view.materialDescriptor = material.descriptorSet;
 
         renderObjects.push_back(view);
     }
