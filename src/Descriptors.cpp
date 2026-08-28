@@ -18,10 +18,8 @@ void TriangleApplication::createDescriptorPool()
     // Frame 0：Scene set + Skybox set
     // Frame 1：Scene set + Skybox set  
     // 都需要ubo
-    poolSizes[0].descriptorCount = 
-        frameCount * 
-        static_cast<uint32_t>(pbrImageDescriptorCount + skyboxImageDescriptorCount) + 
-        maxMaterialCount * static_cast<uint32_t>(materialImageDescriptorCount);
+    poolSizes[0].descriptorCount = frameCount * descriptorSetGroupCount;
+
 
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     // imageDescriptor
@@ -36,7 +34,10 @@ void TriangleApplication::createDescriptorPool()
     // 9  BRDF LUT
     // skyboxDescriptor
     // 1  Skybox cubemap
-    poolSizes[1].descriptorCount = frameCount * (pbrImageDescriptorCount + skyboxImageDescriptorCount);
+    poolSizes[1].descriptorCount =         
+        frameCount * 
+        static_cast<uint32_t>(pbrImageDescriptorCount + skyboxImageDescriptorCount) + 
+        maxMaterialCount * static_cast<uint32_t>(materialImageDescriptorCount);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
