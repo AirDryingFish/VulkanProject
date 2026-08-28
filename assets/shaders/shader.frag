@@ -90,11 +90,6 @@ vec3 environmentDirection(vec3 worldDirection)
     return vec3(worldDirection.x, worldDirection.z, worldDirection.y);
 }
 
-// vec3 sampleEnvironment(vec3 worldDirection)
-// {
-//     return texture(environmentMap, environmentDirection(normalize(worldDirection))).rgb;
-// }
-
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a = roughness * roughness;
@@ -187,9 +182,7 @@ void main()
 
     vec3 reflectionDir = reflect(-viewDir, normal);
 
-    // vec3 reflection = sampleEnvironment(reflectionDir);
     vec3 prefilteredColor = textureLod(prefilterMap, environmentDirection(reflectionDir), roughness * MAX_REFLECTION_LOD).rgb;
-    // float specularRoughness = mix(1.0, 0.2, roughness);
     float NdotV = max(dot(normal, viewDir), 0.0);
     vec2 brdf = texture(brdfLUT, vec2(NdotV, roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);

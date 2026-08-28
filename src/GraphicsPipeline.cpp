@@ -25,16 +25,6 @@ void Renderer::createDescriptorSetLayouts()
     frameBindings[0].descriptorCount = 1;
     frameBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    // VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    // uboLayoutBinding.binding = 0;
-    // uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // // binding 0上只有1个descriptor
-    // uboLayoutBinding.descriptorCount = 1;
-    // uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    // uboLayoutBinding.pImmutableSamplers = nullptr;
-
-    // std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> bindings{};
-    // bindings[0] = uboLayoutBinding;
     for (uint32_t binding = 1; binding < static_cast<uint32_t>(frameBindings.size()); binding++)
     {
         frameBindings[binding].binding = binding;
@@ -50,8 +40,6 @@ void Renderer::createDescriptorSetLayouts()
     layoutInfo.pBindings = frameBindings.data();
 
     VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &layoutInfo, nullptr, &frameDescriptorSetLayout_));
-    // mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable
-    //                                { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
 
     std::array<VkDescriptorSetLayoutBinding, materialImageDescriptorCount> materialBindings{};
     for (uint32_t binding = 0; binding < static_cast<uint32_t>(materialBindings.size()); binding++)
@@ -134,8 +122,6 @@ void Renderer::createGraphicsPipeline()
     config.depthCompareOp = VK_COMPARE_OP_LESS;
 
     graphicsPipeline_ = createGraphicsPipelineFromConfig(config);
-    // mainDeletionQueue.pushFunction([this, pipeline = graphicsPipeline]() mutable
-    //                                { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 }
 
 void Renderer::createSkyboxPipeline()
@@ -151,8 +137,6 @@ void Renderer::createSkyboxPipeline()
     config.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
     skyboxPipeline_ = createGraphicsPipelineFromConfig(config);
-    // mainDeletionQueue.pushFunction([this, pipeline = skyboxPipeline]() mutable
-    //                                { vkDestroyPipeline(context.device(), pipeline, nullptr); });
 }
 
 VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config)

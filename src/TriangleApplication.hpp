@@ -61,12 +61,8 @@ private:
     glm::mat4 getObjectMatrix(const SceneObject &object) const;
 
     void createDescriptorPool();
-    // void createDescriptorSets();
     void createMaterialDescriptorSets();
     void createMaterialDescriptorSet(Material& material);
-    // void createTextureDescriptorSets(
-    //     const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
-    //     std::vector<VkDescriptorSet> &targetDescriptorSets);
 
     void createFrameDescriptorSets();
 

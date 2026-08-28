@@ -8,7 +8,6 @@
 #include <vector>
 #include <cstddef>
 
-// inline constexpr std::size_t pbrImageDescriptorCount = 9;
 inline constexpr std::size_t frameImageDescriptorCount = 3;
 inline constexpr std::size_t materialImageDescriptorCount = 6;
 
@@ -63,7 +62,7 @@ struct RenderObjectView
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
     VkBuffer indexBuffer = VK_NULL_HANDLE;
     uint32_t indexCount = 0;
-    // glm::mat4 model{1.0f};
+
     VkDescriptorSet materialDescriptorSet = VK_NULL_HANDLE;
     DrawPushConstants pushConstants{};
 };
