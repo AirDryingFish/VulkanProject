@@ -8,7 +8,8 @@
 #include <vector>
 #include <cstddef>
 
-inline constexpr std::size_t pbrImageDescriptorCount = 9;
+// inline constexpr std::size_t pbrImageDescriptorCount = 9;
+inline constexpr std::size_t frameImageDescriptorCount = 3;
 inline constexpr std::size_t materialImageDescriptorCount = 6;
 
 struct ImDrawData;
@@ -63,14 +64,14 @@ struct RenderObjectView
     VkBuffer indexBuffer = VK_NULL_HANDLE;
     uint32_t indexCount = 0;
     // glm::mat4 model{1.0f};
-    VkDescriptorSet materialDescriptor = VK_NULL_HANDLE;
+    VkDescriptorSet materialDescriptorSet = VK_NULL_HANDLE;
     DrawPushConstants pushConstants{};
 };
 
 struct RenderFrameData
 {
     const std::vector<RenderObjectView>* objects = nullptr;
-    VkDescriptorSet sceneDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSet frameDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet skyboxDescriptorSet = VK_NULL_HANDLE;
 
     ImDrawData* imguiDrawData = nullptr;

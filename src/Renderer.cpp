@@ -323,9 +323,9 @@ void Renderer::shutdown() noexcept
                 vkDestroyDescriptorSetLayout(device, materialDescriptorSetLayout_, nullptr);
             }
 
-            if (sceneDescriptorSetLayout_ != VK_NULL_HANDLE)
+            if (frameDescriptorSetLayout_ != VK_NULL_HANDLE)
             {
-                vkDestroyDescriptorSetLayout(device, sceneDescriptorSetLayout_, nullptr);
+                vkDestroyDescriptorSetLayout(device, frameDescriptorSetLayout_, nullptr);
             }
 
 
@@ -345,7 +345,7 @@ void Renderer::shutdown() noexcept
     scenePipelineLayout_ = VK_NULL_HANDLE;
     skyboxPipelineLayout_ = VK_NULL_HANDLE;
     materialDescriptorSetLayout_ = VK_NULL_HANDLE;
-    sceneDescriptorSetLayout_ = VK_NULL_HANDLE;
+    frameDescriptorSetLayout_ = VK_NULL_HANDLE;
     skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
     renderPass_ = VK_NULL_HANDLE;
 
@@ -406,9 +406,9 @@ VkRenderPass Renderer::renderPass() const noexcept
     return renderPass_;
 }
 
-VkDescriptorSetLayout Renderer::sceneDescriptorSetLayout() const noexcept
+VkDescriptorSetLayout Renderer::frameDescriptorSetLayout() const noexcept
 {
-    return sceneDescriptorSetLayout_;
+    return frameDescriptorSetLayout_;
 }
 
 VkDescriptorSetLayout Renderer::skyboxDescriptorSetLayout() const noexcept
@@ -699,7 +699,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         scenePipelineLayout_,
         0,
         1,
-        &data.sceneDescriptorSet,
+        &data.frameDescriptorSet,
         0,
         nullptr);
 
@@ -708,7 +708,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         const VkDeviceSize offset = 0;
         for (const RenderObjectView &object : *data.objects)
         {
-            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE || object.materialDescriptor == VK_NULL_HANDLE)
+            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE || object.materialDescriptorSet == VK_NULL_HANDLE)
             {
                 continue;
             }
@@ -718,7 +718,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
                 scenePipelineLayout_,
                 1, // 绑定 set 1
                 1,
-                &object.materialDescriptor,
+                &object.materialDescriptorSet,
                 0,
                 nullptr
             );

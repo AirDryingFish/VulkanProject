@@ -49,10 +49,9 @@ layout(set = 1, binding = 2) uniform sampler2D metallicMap;
 layout(set = 1, binding = 3) uniform sampler2D roughnessMap;
 layout(set = 1, binding = 4) uniform sampler2D aoMap;
 layout(set = 1, binding = 5) uniform sampler2D emissiveMap;
-layout(set = 0, binding = 6) uniform samplerCube environmentMap;
-layout(set = 0, binding = 7) uniform samplerCube irradianceMap;
-layout(set = 0, binding = 8) uniform samplerCube prefilterMap;
-layout(set = 0, binding = 9) uniform sampler2D brdfLUT;
+layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
+layout(set = 0, binding = 2) uniform samplerCube prefilterMap;
+layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 
 vec3 getNormalFromNormalMap()
 {
@@ -91,10 +90,10 @@ vec3 environmentDirection(vec3 worldDirection)
     return vec3(worldDirection.x, worldDirection.z, worldDirection.y);
 }
 
-vec3 sampleEnvironment(vec3 worldDirection)
-{
-    return texture(environmentMap, environmentDirection(normalize(worldDirection))).rgb;
-}
+// vec3 sampleEnvironment(vec3 worldDirection)
+// {
+//     return texture(environmentMap, environmentDirection(normalize(worldDirection))).rgb;
+// }
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {

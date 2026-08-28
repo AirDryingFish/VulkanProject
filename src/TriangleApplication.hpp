@@ -61,12 +61,14 @@ private:
     glm::mat4 getObjectMatrix(const SceneObject &object) const;
 
     void createDescriptorPool();
-    void createDescriptorSets();
+    // void createDescriptorSets();
     void createMaterialDescriptorSets();
     void createMaterialDescriptorSet(Material& material);
-    void createTextureDescriptorSets(
-        const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
-        std::vector<VkDescriptorSet> &targetDescriptorSets);
+    // void createTextureDescriptorSets(
+    //     const std::array<VkDescriptorImageInfo, pbrImageDescriptorCount> &imageInfos,
+    //     std::vector<VkDescriptorSet> &targetDescriptorSets);
+
+    void createFrameDescriptorSets();
 
     GpuImage createTextureImageFromFile(
         const std::string &path,
@@ -144,7 +146,7 @@ private:
     std::vector<void *> uniformBufferMapped;
 
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-    std::vector<VkDescriptorSet> descriptorSets;
+    std::vector<VkDescriptorSet> frameDescriptorSets;
 
     uint32_t mipLevels = 1;
 

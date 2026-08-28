@@ -19,11 +19,11 @@
 void Renderer::createDescriptorSetLayouts()
 {
     // UBO, vertex和fragement shader都可见
-    std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> sceneBindings{};
-    sceneBindings[0].binding = 0;
-    sceneBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    sceneBindings[0].descriptorCount = 1;
-    sceneBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    std::array<VkDescriptorSetLayoutBinding, frameImageDescriptorCount + 1> frameBindings{};
+    frameBindings[0].binding = 0;
+    frameBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    frameBindings[0].descriptorCount = 1;
+    frameBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     // VkDescriptorSetLayoutBinding uboLayoutBinding{};
     // uboLayoutBinding.binding = 0;
@@ -35,21 +35,21 @@ void Renderer::createDescriptorSetLayouts()
 
     // std::array<VkDescriptorSetLayoutBinding, pbrImageDescriptorCount + 1> bindings{};
     // bindings[0] = uboLayoutBinding;
-    for (uint32_t binding = 1; binding < static_cast<uint32_t>(sceneBindings.size()); binding++)
+    for (uint32_t binding = 1; binding < static_cast<uint32_t>(frameBindings.size()); binding++)
     {
-        sceneBindings[binding].binding = binding;
-        sceneBindings[binding].descriptorCount = 1;
-        sceneBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        sceneBindings[binding].pImmutableSamplers = nullptr;
-        sceneBindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        frameBindings[binding].binding = binding;
+        frameBindings[binding].descriptorCount = 1;
+        frameBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        frameBindings[binding].pImmutableSamplers = nullptr;
+        frameBindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(sceneBindings.size());
-    layoutInfo.pBindings = sceneBindings.data();
+    layoutInfo.bindingCount = static_cast<uint32_t>(frameBindings.size());
+    layoutInfo.pBindings = frameBindings.data();
 
-    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &layoutInfo, nullptr, &sceneDescriptorSetLayout_));
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &layoutInfo, nullptr, &frameDescriptorSetLayout_));
     // mainDeletionQueue.pushFunction([this, layout = descriptorSetLayout]() mutable
     //                                { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
 
@@ -103,7 +103,7 @@ void Renderer::createPipelineLayouts()
     VkPipelineLayoutCreateInfo sceneLayoutInfo{};
     sceneLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     const std::array<VkDescriptorSetLayout, 2> sceneLayouts{
-        sceneDescriptorSetLayout_,   // set 0
+        frameDescriptorSetLayout_,   // set 0
         materialDescriptorSetLayout_ // set 1
     };
     sceneLayoutInfo.setLayoutCount = static_cast<uint32_t>(sceneLayouts.size());

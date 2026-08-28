@@ -79,7 +79,8 @@ void TriangleApplication::InitVulkan()
     createUniformBuffer();
 
     createDescriptorPool();
-    createDescriptorSets();
+    // createDescriptorSets();
+    createFrameDescriptorSets();
     createMaterialDescriptorSets();
     createSkyboxDescriptorSets();
 
@@ -277,14 +278,14 @@ void TriangleApplication::drawFrame()
         view.pushConstants.baseColorFactor = material.baseColorFactor;
         view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.aoFactor, 0.0f);
         view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, 0.0f);
-        view.materialDescriptor = material.descriptorSet;
+        view.materialDescriptorSet = material.descriptorSet;
 
         renderObjects.push_back(view);
     }
 
     RenderFrameData renderData{};
     renderData.objects = &renderObjects;
-    renderData.sceneDescriptorSet = descriptorSets.at(frame.frameIndex);
+    renderData.frameDescriptorSet = frameDescriptorSets.at(frame.frameIndex);
     renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);
     renderData.imguiDrawData = ImGui::GetDrawData();
     renderData.clearColor = clearColor;
