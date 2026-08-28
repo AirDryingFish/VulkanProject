@@ -80,8 +80,6 @@ private:
 
     void createMaterialResources();
 
-    void createTextureImage();
-    void createTextureImageView();
     void createTextureSampler();
 
     void createSkyboxImage();

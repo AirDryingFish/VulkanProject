@@ -59,8 +59,6 @@ private:
 
     VkRenderPass renderPass_ = VK_NULL_HANDLE;
 
-    // VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
-    // VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout frameDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout materialDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -114,7 +112,6 @@ public:
 
     VkRenderPass renderPass() const noexcept;
 
-    // VkDescriptorSetLayout descriptorSetLayout() const noexcept;
     VkDescriptorSetLayout frameDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout skyboxDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout materialDescriptorSetLayout() const noexcept;

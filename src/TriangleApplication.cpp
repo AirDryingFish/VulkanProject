@@ -80,7 +80,6 @@ void TriangleApplication::InitVulkan()
     createUniformBuffer();
 
     createDescriptorPool();
-    // createDescriptorSets();
     createFrameDescriptorSets();
     createMaterialDescriptorSets();
     createSkyboxDescriptorSets();

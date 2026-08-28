@@ -243,9 +243,8 @@ void TriangleApplication::createMaterialResources()
 
     materialLibrary.push_back(defaultMaterial);
     materialLibrary.push_back(variantMaterial);
-    
-    mipLevels = defaultMaterial->baseColorTexture->image.mipLevels();
 
+    mipLevels = defaultMaterial->baseColorTexture->image.mipLevels();
 }
 
 void TriangleApplication::createTextureSampler()

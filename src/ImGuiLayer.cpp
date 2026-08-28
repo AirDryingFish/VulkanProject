@@ -490,47 +490,6 @@ void TriangleApplication::drawImGui()
         }
     }
 
-    if (defaultMaterial && defaultMaterial->baseColorTexture)
-    {
-        ImGui::Text("Base Color Image: 0x%p", (void *)defaultMaterial->baseColorTexture->image.get());
-        
-    
-    }
-    if (defaultMaterial)
-    {
-        Material &material =
-            *defaultMaterial;
-
-        ImGui::Text(
-            "Editing: %s",
-            material.name.c_str());
-
-        ImGui::ColorEdit3(
-            "Albedo Tint",
-            &material.baseColorFactor.x);
-
-        ImGui::SliderFloat(
-            "Metallic Multiplier",
-            &material.metallicFactor,
-            0.0f,
-            1.0f);
-
-        ImGui::SliderFloat(
-            "Roughness Multiplier",
-            &material.roughnessFactor,
-            0.04f,
-            1.0f);
-
-        ImGui::SliderFloat(
-            "AO Multiplier",
-            &material.aoFactor,
-            0.0f,
-            1.0f);
-
-        ImGui::TextDisabled(
-            "All objects currently share this material");
-    }
-
     ImDrawList *drawList = ImGui::GetForegroundDrawList();
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float radius = 50.0f;
