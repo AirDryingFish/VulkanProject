@@ -220,7 +220,7 @@ void TriangleApplication::createMaterialResources()
             {0, 0, 0, 255});
 
     defaultMaterial = std::make_shared<Material>();
-
+    defaultMaterial->name = "Rusted Iron";
     defaultMaterial->baseColorTexture = rustedBaseColorTexture;
     defaultMaterial->normalTexture = rustedNormalTexture;
     defaultMaterial->metallicTexture = rustedMetallicTexture;
@@ -228,8 +228,22 @@ void TriangleApplication::createMaterialResources()
     defaultMaterial->aoTexture = rustedAoTexture;
     defaultMaterial->emissiveTexture = defaultEmissiveTexture;
 
-    materialLibrary.push_back(defaultMaterial);
+    MaterialHandle variantMaterial = std::make_shared<Material>();
+    variantMaterial->name = "Rusted Iron Variant";
+    variantMaterial->baseColorTexture = rustedBaseColorTexture;
+    variantMaterial->normalTexture = rustedNormalTexture;
+    variantMaterial->metallicTexture = rustedMetallicTexture;
+    variantMaterial->roughnessTexture = rustedRoughnessTexture;
+    variantMaterial->aoTexture = rustedAoTexture;
+    variantMaterial->emissiveTexture = defaultEmissiveTexture;
+    variantMaterial->baseColorFactor = glm::vec4(0.25f, 1.0f, 0.25f, 1.0f);
+    variantMaterial->metallicFactor = 0.25f;
+    variantMaterial->roughnessFactor = 0.30f;
+    variantMaterial->aoFactor = 1.0f;
 
+    materialLibrary.push_back(defaultMaterial);
+    materialLibrary.push_back(variantMaterial);
+    
     mipLevels = defaultMaterial->baseColorTexture->image.mipLevels();
 
 }

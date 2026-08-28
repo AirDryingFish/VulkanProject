@@ -435,6 +435,61 @@ void TriangleApplication::drawImGui()
 
     ImGui::SeparatorText("PBR Material");
 
+    if (selectedSceneObject == nullptr)
+    {
+        ImGui::TextDisabled("Select a scene object to edit its material");
+    }
+    else
+    {
+        MaterialHandle& selectedMaterial = selectedSceneObject->material;
+        const char* previewName = selectedMaterial && !selectedMaterial->name.empty() ? selectedMaterial->name.c_str() : "None";
+        if (ImGui::BeginCombo("Material", previewName))
+        {
+            for (std::size_t materialIndex = 0; materialIndex < materialLibrary.size(); ++materialIndex)
+            {
+                const MaterialHandle& candidate = materialLibrary[materialIndex];
+                if (!candidate)
+                {
+                    continue;
+                }
+                ImGui::PushID(static_cast<int>(materialIndex));
+                const bool isSelected = candidate == selectedMaterial;
+                if (ImGui::Selectable(candidate->name.c_str(), isSelected))
+                {
+                    selectedMaterial = candidate;
+                    sceneClickConsumed = true;
+                }
+
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+
+        if (selectedMaterial)
+        {
+            Material& material = *selectedMaterial;
+            ImGui::Text("Editing: %s", material.name.c_str());
+            ImGui::ColorEdit3("Albedo Tint", &material.baseColorFactor.x); // 修改从&material.baseColorFactor.x地址起的3个分量
+            ImGui::SliderFloat("Metallic multiplier", &material.metallicFactor, 0.0f, 1.0f);
+            ImGui::SliderFloat("Roughness multiplier", &material.roughnessFactor, 0.0f, 1.0f);
+            ImGui::SliderFloat("AO multiplier", &material.aoFactor, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Emissive Factor", &material.emissiveFactor.x);
+            std::size_t objectReferenceCount = 0;
+            for (const SceneObject& object : sceneObjects)
+            {
+                if (object.material == selectedMaterial)
+                {
+                    ++objectReferenceCount;
+                }
+            }
+            ImGui::TextDisabled("Used by %zu scene object(s)", objectReferenceCount);
+        }
+    }
+
     if (defaultMaterial && defaultMaterial->baseColorTexture)
     {
         ImGui::Text("Base Color Image: 0x%p", (void *)defaultMaterial->baseColorTexture->image.get());

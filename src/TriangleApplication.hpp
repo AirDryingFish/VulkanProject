@@ -105,6 +105,8 @@ private:
 
     void destroyBufferDeferred(GpuBuffer &buffer);
 
+    void testSceneInit();
+
     bool glfwInitialized = false;
 
     bool cleanedUp = false;

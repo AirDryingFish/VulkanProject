@@ -75,7 +75,8 @@ void TriangleApplication::InitVulkan()
     createPrefilterResources();
     createBRDFLUTResources();
 
-    addMeshObject(MeshSource::Sphere);
+    testSceneInit();
+
     createUniformBuffer();
 
     createDescriptorPool();
@@ -86,6 +87,19 @@ void TriangleApplication::InitVulkan()
 
     rendererReady = true;
 }
+
+void TriangleApplication::testSceneInit()
+{
+    addMeshObject(MeshSource::Sphere);
+    sceneObjects.back().name = "Rusted Iron Sphere";
+    sceneObjects.back().transform.position.x = -1.2f;
+
+    addMeshObject(MeshSource::Sphere);
+    sceneObjects.back().name = "Variant Sphere";
+    sceneObjects.back().material = materialLibrary.at(1);
+    sceneObjects.back().transform.position.x = 1.2f;
+}
+
 
 TriangleApplication::~TriangleApplication() noexcept
 {
