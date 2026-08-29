@@ -45,7 +45,9 @@ VulkanProject/
 │       ├── overview.md
 │       ├── stage-1-resource-lifetime.md
 │       ├── stage-2-application-split.md
-│       └── stage-3-gpu-resource-layer.md
+│       ├── stage-3-gpu-resource-layer.md
+│       ├── stage-4-scene-mesh-material.md
+│       └── stage-5-gltf-asset-pipeline.md
 ├── scripts/
 │   ├── compile-shaders.bat
 │   ├── compile-shaders.sh

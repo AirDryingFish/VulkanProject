@@ -1070,6 +1070,12 @@ Stage 4 只需要窄的 Mesh weak cache、Texture/Material library。generation 
 
 ## 16. Stage 4 完成标准
 
+> 2026-08-29 状态复核：以 `8bf1c83 Finish Stage 4 manual validation` 为基线，下面的 P0 生产代码、
+> Debug/Release 构建和提交序列均已落地，已满足进入 Stage 5 的条件。仓库提交记录表明已做手动验收，
+> 但本次只读复核没有独立观察运行画面和 Validation 输出；开始 Stage 5 前仍按
+> [Stage 5 第 7.3 节](stage-5-gltf-asset-pipeline.md#73-验证-stage-4-基线)再跑一次本机启动检查。
+> 下列未勾选项保留为可重复验收模板，不表示 P0 仍未实现。
+
 ### P0：初版必须完成
 
 - [ ] 已删除旧单 Mesh 全局状态和死代码；

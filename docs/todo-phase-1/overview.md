@@ -295,13 +295,15 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 
 目标：使用与 metallic-roughness PBR 工作流匹配的现代资产格式。
 
+> 当前工程评估、数据边界、提交拆分与手敲顺序见：[阶段 5：glTF 2.0 资产管线实施指南](stage-5-gltf-asset-pipeline.md)。
+
 ### 5.1 基础加载
 
 - [ ] `[P1]` 选择并集成 glTF 加载库，例如 fastgltf 或 tinygltf
 - [ ] `[P1]` 加载 glTF/GLB Buffer 和 accessor
 - [ ] `[P1]` 支持多个 Mesh primitive
-- [ ] `[P1]` 支持 vertex position、normal、UV 和 tangent
-- [ ] `[P1]` 支持 uint16/uint32 index
+- [ ] `[P1]` 支持 vertex position、normal、COLOR_0、TEXCOORD_0/1 和 tangent
+- [ ] `[P1]` 支持 uint8/uint16/uint32 index 输入并统一到 uint32 GPU 路径
 - [ ] `[P1]` 支持 Node 层级与 local/global transform
 
 ### 5.2 PBR Material
@@ -526,16 +528,17 @@ Dynamic Rendering / Bindless / Render Graph
 
 ## 当前最近任务
 
-Stage 1～3 的核心生产代码已经落地，当前进入 Stage 4。自动测试和故障注入在初版开发期间
-暂时延期，但每个提交仍需完成 Debug 构建和手动启动验证。近期按以下顺序推进：
+Stage 1～4 的核心生产代码已经落地，当前进入 Stage 5。Stage 5 先建立可检查的 CPU 资产管线，
+再接入现有 GPU 资源与 Renderer 边界。近期按以下顺序推进：
 
-1. **P0** 删除未使用的旧单 Mesh 全局状态和注释实现；
-2. **P0** 建立拥有 vertex/index Buffer、count 和 local bounds 的 `Mesh` 类型；
-3. **P0** 提取 `Transform` 与高层 `SceneObject`；
-4. **P0** 让多个 SceneObject 安全共享 Mesh，并保留最后引用的 frame retirement；
-5. **P0** 建立 Texture/Material 资源模型和缺失纹理；
-6. **P0** 先分离 Skybox descriptor，再拆 Frame/Material descriptor；
-7. **P0** 证明两个对象可以共享 Mesh、使用不同 Material；
-8. **P1** 完成 Release、Validation 和窗口交互的手动验收。
+1. **P0** 集成 fastgltf，并建立 parse-only `gltf_inspect` 工具；
+2. **P0** 正确解码 accessor、index 和 primitive CPU 数据；
+3. **P0** 增加 tangent/第二 UV，并先上传一个 primitive；
+4. **P0** 支持多 primitive 和多个 Node 共享 Mesh；
+5. **P0** 导入 URI/embedded/GLB image，处理色彩空间，并先落实缺省 sampler；
+6. **P0** 映射 packed Metallic-Roughness 和 glTF PBR Material；
+7. **P0** 计算 Node local/world transform 并实例化场景；
+8. **P0** 完成参考资产、Release、Validation 和窗口交互验收；完整 sampler 参数与 CPU tests 作为 P1。
 
-本阶段不同时接入 glTF、Node 层级、异步加载、bindless descriptor 或通用 Asset Manager。
+本阶段不同时实现动画、Skin、Morph、KTX2、几何压缩、异步 streaming、bindless descriptor 或
+通用 Asset Manager。
