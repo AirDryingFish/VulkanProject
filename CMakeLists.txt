@@ -65,6 +65,15 @@ find_package(Stb REQUIRED)
 find_package(tinyobjloader CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(fastgltf CONFIG REQUIRED)
+
+add_executable(gltf_inspect
+    tools/GltfInspect.cpp
+)
+
+target_link_libraries(gltf_inspect PRIVATE
+    fastgltf::fastgltf
+)
 
 add_executable(vulkan
     main.cpp
