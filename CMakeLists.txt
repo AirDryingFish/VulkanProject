@@ -67,12 +67,29 @@ find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 
+add_library(gltf_import STATIC
+    src/GltfLoader.cpp
+    src/GltfImportTypes.hpp
+    src/GltfLoader.hpp
+)
+
+target_include_directories(gltf_import PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(gltf_import
+    PUBLIC
+        glm::glm
+    PRIVATE
+        fastgltf::fastgltf
+)
+
 add_executable(gltf_inspect
     tools/GltfInspect.cpp
 )
 
 target_link_libraries(gltf_inspect PRIVATE
-    fastgltf::fastgltf
+    gltf_import
 )
 
 add_executable(vulkan
@@ -112,6 +129,7 @@ target_compile_definitions(vulkan PRIVATE
 )
 
 target_link_libraries(vulkan PRIVATE
+    gltf_import
     Vulkan::Vulkan
     glfw
     glm::glm

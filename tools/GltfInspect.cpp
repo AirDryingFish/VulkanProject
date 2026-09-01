@@ -1,12 +1,28 @@
-#include <fastgltf/core.hpp>
-#include <fastgltf/types.hpp>
+#include "GltfLoader.hpp"
 
+#include <cstddef>
 #include <exception>
-#include <filesystem>
 #include <iostream>
 
-// cmd: ./gltf_inspect assets/DamageHelmet.glb
-// argc = 2     argv[0] = "./gltf_inspect"      argv[1] = "assets/DamageHelmet.glb"
+// 匿名 namespace：让里面的函数、变量、类型只在当前.cpp文件内部可见
+// 假如A.cpp和B.cpp中都有printVec3，不放namespace中链接就会报错
+namespace
+{
+void printVec3(const glm::vec3& value)
+{
+    std::cout << "(" <<
+        value.x << ", " <<
+        value.y << ", " <<
+        value.z << ")";
+}
+
+const char* yesNo(bool value)
+{
+    return value ? "yes" : "no";
+}
+
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 2)
@@ -17,64 +33,43 @@ int main(int argc, char** argv)
 
     try
     {
-        // ::absolute变为绝对路径，.lexically_normal把路径里的. ..整理掉
-        const std::filesystem::path path = std::filesystem::absolute(argv[1]).lexically_normal();
-        auto data = fastgltf::GltfDataBuffer::FromPath(path);
-        if (data.error() != fastgltf::Error::None) // fastgltf::Error::None 表示没有错误
-        {
-            std::cerr << "read failed: " << fastgltf::getErrorMessage(data.error()) << "\n";
-            return 1;
-        }
-        
-        fastgltf::Parser parser;
-
-        auto loaded = parser.loadGltf(data.get(), path.parent_path(), fastgltf::Options::None);
-        if (loaded.error() != fastgltf::Error::None)
-        {
-            std::cerr << "parse failed: " << fastgltf::getErrorMessage(loaded.error()) << "\n";
-            return 1;
-        }
-
-        const fastgltf::Asset& asset = loaded.get();
-        const fastgltf::Error validationError = fastgltf::validate(asset);
-        if (validationError != fastgltf::Error::None)
-        {
-            std::cerr << "validation failed: " << fastgltf::getErrorMessage(validationError) << "\n";
-            return 1;
-        }
-
-        std::size_t primitiveCount = 0;
-        for (const fastgltf::Mesh& mesh : asset.meshes)
-        {
-            primitiveCount += mesh.primitives.size();
-        }
-
-        std::cout << "file: " << path.string() << "\n";
-        std::cout << "scenes: " << asset.scenes.size() << '\n';
-        std::cout << "nodes: " << asset.nodes.size() << '\n';
-        std::cout << "meshes: " << asset.meshes.size() << '\n';
-        std::cout << "primitives: " << primitiveCount << '\n';
-        std::cout << "materials: " << asset.materials.size() << '\n';
-        std::cout << "images: " << asset.images.size() << '\n';
-        std::cout << "textures: " << asset.textures.size() << '\n';
-        std::cout << "buffers: " << asset.buffers.size() << '\n';
-        std::cout << "accessors: " << asset.accessors.size() << '\n';
+        const GltfImportData imported = loadGltfCpuData(argv[1]);
+        std::cout << "file: " << imported.sourcePath.string() << "\n";
+        std::cout << "scenes: " << imported.scenes.size() << "\n";
+        std::cout << "nodes: " << imported.nodes.size() << "\n";
+        std::cout << "meshes: " << imported.meshes.size() << "\n";
+        std::cout << "primitives: " << imported.primitives.size() << "\n";
+        std::cout << "materials: " << imported.materialCount << "\n";
+        std::cout << "images: " << imported.imageCount << "\n";
+        std::cout << "textures: " << imported.textureCount << "\n";
+        std::cout << "buffers: " << imported.bufferCount << "\n";
+        std::cout << "accessors: " << imported.accessorCount << "\n";
 
         std::cout << "default scene: ";
-        if (asset.defaultScene.has_value())
+        if (imported.defaultSceneIndex)
         {
-            std::cout << *asset.defaultScene << "\n";
+            std::cout << *imported.defaultSceneIndex << "\n";
         }
         else
         {
             std::cout << "none\n";
         }
 
-        for (size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
+        for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
         {
-            const fastgltf::Node& node = asset.nodes[nodeIndex];
-            std::cout << "node[" << nodeIndex << "]" << " name=\"" << (node.name.empty() ? "<unnamed>" : node.name) << "\" mesh=";
-            if (node.meshIndex.has_value())
+            const GltfNodeSummary& node = imported.nodes[nodeIndex];
+            std::cout << "node[" << nodeIndex << "] name=\"";
+            if (node.name.empty())
+            {
+                std::cout << "<unnamed>";
+            }
+            else
+            {
+                std::cout << node.name;
+            }
+
+            std::cout << "\" mesh=";
+            if (node.meshIndex)
             {
                 std::cout << *node.meshIndex;
             }
@@ -94,12 +89,46 @@ int main(int argc, char** argv)
             }
             std::cout << "]\n";
         }
+
+        for (std::size_t meshIndex = 0; meshIndex < imported.meshes.size(); ++meshIndex)
+        {
+            const GltfMeshData& mesh = imported.meshes[meshIndex];
+            for (std::size_t primitiveIndex = 0; primitiveIndex < mesh.primitiveIndices.size(); ++primitiveIndex)
+            {
+                const std::size_t decodedPrimitiveIndex = mesh.primitiveIndices[primitiveIndex];
+                const GltfPrimitiveData& primitive = imported.primitives.at(decodedPrimitiveIndex);
+                // primitive有几套uv坐标。第一套可能给 base color / normal map 用，第二套可能给 lightmap、AO 或其他纹理使用。
+                const unsigned int uvSetCount = static_cast<unsigned int>(primitive.hasTexcoord0) + static_cast<unsigned int>(primitive.hasTexcoord1);
+                std::cout << "mesh " << meshIndex << " primitive " << primitiveIndex << "\n";
+                std::cout << "  vertices: " << primitive.vertices.size() << "\n";
+                std::cout << "  indices: " << primitive.indices.size() << "\n";
+                std::cout << "  normals: " << (primitive.normalsFromAsset ? "from asset" : "generated") << "\n";
+                std::cout << "  uv sets: " << uvSetCount << "\n";
+                std::cout << "  color0: " << yesNo(primitive.hasColor0) << "\n";
+                std::cout << "  tangents: " << yesNo(primitive.hasTangents) << "\n";
+                std::cout << "  material: ";
+                if (primitive.materialIndex)
+                {
+                    std::cout << *primitive.materialIndex << "\n";
+                }
+                else
+                {
+                    std::cout << "none\n";
+                }
+                std::cout << "  bounds min: ";
+                printVec3(primitive.boundsMin);
+                std::cout << "\n";
+                std::cout << "  bounds max: ";
+                printVec3(primitive.boundsMax);
+                std::cout << "\n";
+            }
+        }
         return 0;
     }
     catch(const std::exception& e)
     {
-        std::cerr << "unexpected error: " << e.what() <<'\n';
+        std::cerr << "import failed: " << e.what() << '\n';
         return 1;
     }
-    
+
 }
