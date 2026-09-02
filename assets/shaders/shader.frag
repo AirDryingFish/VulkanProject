@@ -15,6 +15,9 @@ layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragWorldPos;
 layout(location = 3) in vec3 fragNormal;
+layout(location = 4) in vec4 fragTangent;
+layout(location = 5) in vec2 fragTexCoord1;
+
 layout(location = 0) out vec4 outColor;
 
 layout(std140, set = 0, binding = 0) uniform UniformBufferObject
@@ -40,7 +43,7 @@ layout(push_constant) uniform DrawPushConstants
     // w: reserved
     vec4 materialFactors;
     vec4 emissiveFactor;
-
+    uvec4 textureInfo;
 } draw;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMap;
@@ -55,24 +58,109 @@ layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 
 vec3 getNormalFromNormalMap()
 {
-    vec3 tangentNormal = texture(normalMap, fragTexCoord).xyz * 2.0 - 1.0;
-
-    vec3 q1 = dFdx(fragWorldPos);
-    vec3 q2 = dFdy(fragWorldPos);
-    vec2 st1 = dFdx(fragTexCoord);
-    vec2 st2 = dFdy(fragTexCoord);
-
+    // 当前所有材质仍然使用 UV0
+    vec2 normalUv = fragTexCoord;
+    vec3 tangentSpaceNormal = texture(normalMap, normalUv).xyz * 2.0 - 1.0;
     vec3 n = normalize(fragNormal);
-    vec3 t = q1 * st2.t - q2 * st1.t;
-    if (length(t) < 0.0001)
+    // 路径 1：glTF primitive 自带有效 tangent
+    if (draw.textureInfo.y != 0u)
     {
-        return n;
+        vec3 t = fragTangent.xyz;
+        // 插值后再次正交化
+        t -= n * dot(n, t);
+        float tangentLength = length(t);
+        if (tangentLength < 0.0001 || abs(fragTangent.w) < 0.5)
+        {
+            return n;
+        }
+        t /= tangentLength;
+        float handedness = fragTangent.w < 0.0 ? -1.0 : 1.0;
+        vec3 b = normalize(cross(n, t)) * handedness;
+        mat3 tbn = mat3(t, b, n);
+        return normalize(tbn * tangentSpaceNormal);
     }
+    // 没有 tangent，通过位置与 UV 导数恢复 T/B
+    else
+    {
+        vec3 q1 =
+            dFdx(fragWorldPos);
 
-    t = normalize(t - n * dot(n, t));
-    vec3 b = -normalize(cross(n, t));
-    mat3 tbn = mat3(t, b, n);
-    return normalize(tbn * tangentNormal);
+        vec3 q2 =
+            dFdy(fragWorldPos);
+
+        vec2 st1 =
+            dFdx(normalUv);
+
+        vec2 st2 =
+            dFdy(normalUv);
+
+        float uvDeterminant =
+            st1.x * st2.y -
+            st1.y * st2.x;
+
+        // 没有 UV 或 UV 退化时，禁用 normal map 影响。
+        if (abs(uvDeterminant) < 0.00000001)
+        {
+            return n;
+        }
+
+        vec3 tangentRaw =
+            (
+                q1 * st2.y -
+                q2 * st1.y
+            ) /
+            uvDeterminant;
+
+        vec3 bitangentRaw =
+            (
+                -q1 * st2.x +
+                q2 * st1.x
+            ) /
+            uvDeterminant;
+
+        vec3 t =
+            tangentRaw -
+            n *
+            dot(n, tangentRaw);
+
+        float tangentLength =
+            length(t);
+
+        if (tangentLength < 0.0001)
+        {
+            return n;
+        }
+
+        t /= tangentLength;
+
+        vec3 crossNT =
+            cross(n, t);
+
+        float crossLength =
+            length(crossNT);
+
+        if (crossLength < 0.0001)
+        {
+            return n;
+        }
+
+        float handedness =
+            dot(crossNT, bitangentRaw) < 0.0
+                ? -1.0
+                : 1.0;
+
+        vec3 b =
+            crossNT /
+            crossLength *
+            handedness;
+
+        mat3 tbn =
+            mat3(t, b, n);
+
+        return normalize(
+            tbn *
+            tangentSpaceNormal);
+    }
 }
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
@@ -109,7 +197,7 @@ float GeometrySchlickGGX(float NdotV, float roughness)
 
     float num = NdotV;
     float denom = NdotV * (1.0 - k) + k;
-    
+
     return num / denom;
 }
 
@@ -159,7 +247,7 @@ void main()
 
         float NDF = DistributionGGX(normal, halfDir, roughness);
         float G = GeometrySmith(normal, viewDir, lightDir, roughness);
-        
+
         vec3 numerator = NDF * G * F;
         float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, lightDir), 0.0) + 0.0001;
         vec3 specular = numerator / denominator;

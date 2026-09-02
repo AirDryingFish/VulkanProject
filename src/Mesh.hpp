@@ -20,6 +20,7 @@ struct MeshBuildData
     glm::vec3 boundsMin = {0.0f, 0.0f, 0.0f};
     glm::vec3 boundsMax = {0.0f, 0.0f, 0.0f};
     bool boundsValid = false;
+    bool hasTangents = false;
 };
 
 struct Mesh
@@ -33,6 +34,7 @@ struct Mesh
     glm::vec3 boundsMin{0.0f};
     glm::vec3 boundsMax{0.0f};
     bool boundsValid = false;
+    bool hasTangents = false;
 
     bool valid() const noexcept
     {

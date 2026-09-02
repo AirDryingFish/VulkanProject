@@ -30,6 +30,13 @@ struct alignas(16) DrawPushConstants
         0.0f
     };
     alignas(16) glm::vec4 emissiveFactor{0.0f};
+
+    // x: 纹理 UV set bit mask
+    // y: 当前 Mesh 是否有有效 vertex tangent
+    // z/w: reserved
+    alignas(16) glm::uvec4 textureInfo{
+        0u, 0u, 0u, 0u
+    };
 };
 
 // offset
@@ -54,7 +61,8 @@ struct alignas(16) DrawPushConstants
 static_assert(offsetof(DrawPushConstants, baseColorFactor) == 64);
 static_assert(offsetof(DrawPushConstants, materialFactors) == 80);
 static_assert(offsetof(DrawPushConstants, emissiveFactor) == 96);
-static_assert(sizeof(DrawPushConstants) == 112);
+static_assert(offsetof(DrawPushConstants, textureInfo) == 112);
+static_assert(sizeof(DrawPushConstants) == 128);
 static_assert(sizeof(DrawPushConstants) <= 128);
 
 struct RenderObjectView

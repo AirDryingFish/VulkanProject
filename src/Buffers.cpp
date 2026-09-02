@@ -69,7 +69,7 @@ Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
     indexRequest.destinationUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     indexRequest.debugName = "mesh index buffer";
     requests.push_back(indexRequest);
-    
+
     std::vector<GpuBuffer> uploadedBuffers = renderer.uploadBuffers(requests);
 
     if (uploadedBuffers.size() != 2)
@@ -85,6 +85,7 @@ Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
     mesh.boundsMin = meshData.boundsMin;
     mesh.boundsMax = meshData.boundsMax;
     mesh.boundsValid = meshData.boundsValid;
+    mesh.hasTangents = meshData.hasTangents;
 
     return mesh;
 }

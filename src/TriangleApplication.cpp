@@ -291,6 +291,7 @@ void TriangleApplication::drawFrame()
         view.pushConstants.baseColorFactor = material.baseColorFactor;
         view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.aoFactor, 0.0f);
         view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, 0.0f);
+        view.pushConstants.textureInfo = glm::uvec4(0u, mesh.hasTangents, 0u, 0u);
         view.materialDescriptorSet = material.descriptorSet;
 
         renderObjects.push_back(view);
