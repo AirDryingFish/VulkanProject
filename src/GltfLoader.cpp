@@ -31,7 +31,7 @@ namespace
 {
     std::ostringstream message;
     message << assetPath.string() << ": mesh[" << meshIndex << "]"
-            << " primitive[" << primitiveIndex << "]" 
+            << " primitive[" << primitiveIndex << "]"
             << " semantic=" << semantic
             << " accessor[";
     if (accessorIndex)
@@ -285,7 +285,7 @@ GltfPrimitiveData decodePrimitive(
     }
 
     const std::size_t positionAccessorIndex = positionIt->accessorIndex;
-    const fastgltf::Accessor& positionAccessor = 
+    const fastgltf::Accessor& positionAccessor =
         checkedAccessor(
             asset,
             assetPath,
@@ -294,7 +294,7 @@ GltfPrimitiveData decodePrimitive(
             "POSITION",
             positionAccessorIndex
         );
-    
+
     if (positionAccessor.type != fastgltf::AccessorType::Vec3)
     {
         failPrimitive(
@@ -370,7 +370,7 @@ GltfPrimitiveData decodePrimitive(
     if (normalIt != primitive.attributes.cend())
     {
         const std::size_t normalAccessorIndex = normalIt->accessorIndex;
-        const fastgltf::Accessor& normalAccessor = 
+        const fastgltf::Accessor& normalAccessor =
             checkedAccessor(
                 asset,
                 assetPath,
@@ -459,7 +459,7 @@ GltfPrimitiveData decodePrimitive(
         );
         result.normalsFromAsset = true;
     }
-    
+
     auto decodeTexcoord = [&](std::string_view semantic, bool writeTexcoord1) -> bool
     {
         const auto attributeIt = primitive.findAttribute(semantic);
@@ -468,7 +468,7 @@ GltfPrimitiveData decodePrimitive(
             return false;
         }
         const std::size_t accessorIndex = attributeIt->accessorIndex;
-        const fastgltf::Accessor& accessor = 
+        const fastgltf::Accessor& accessor =
             checkedAccessor(
                 asset,
                 assetPath,
@@ -489,9 +489,9 @@ GltfPrimitiveData decodePrimitive(
         }
 
         const bool isFloatEncoding = accessor.componentType == fastgltf::ComponentType::Float && !accessor.normalized;
-        const bool isNormalizedEncoding = 
-            accessor.normalized && 
-            (accessor.componentType == fastgltf::ComponentType::UnsignedByte 
+        const bool isNormalizedEncoding =
+            accessor.normalized &&
+            (accessor.componentType == fastgltf::ComponentType::UnsignedByte
             || accessor.componentType == fastgltf::ComponentType::UnsignedShort);
         if (!isFloatEncoding && !isNormalizedEncoding)
         {
@@ -553,7 +553,7 @@ GltfPrimitiveData decodePrimitive(
     if (colorIt != primitive.attributes.cend())
     {
         const std::size_t colorAccessorIndex = colorIt->accessorIndex;
-        const fastgltf::Accessor& colorAccessor = 
+        const fastgltf::Accessor& colorAccessor =
             checkedAccessor(
                 asset,
                 assetPath,
@@ -562,7 +562,7 @@ GltfPrimitiveData decodePrimitive(
                 "COLOR_0",
                 colorAccessorIndex
             );
-        const bool supportedType = 
+        const bool supportedType =
             colorAccessor.type == fastgltf::AccessorType::Vec3 ||
             colorAccessor.type == fastgltf::AccessorType::Vec4;
         if (!supportedType)
@@ -582,9 +582,9 @@ GltfPrimitiveData decodePrimitive(
         // VEC3/VEC4 + UnsignedByte  + normalized=true
         // VEC3/VEC4 + UnsignedShort + normalized=true
         const bool isFloatEncoding = colorAccessor.componentType == fastgltf::ComponentType::Float && !colorAccessor.normalized;
-        const bool isNormalizedEncoding = 
-            colorAccessor.normalized && 
-            (colorAccessor.componentType == fastgltf::ComponentType::UnsignedByte 
+        const bool isNormalizedEncoding =
+            colorAccessor.normalized &&
+            (colorAccessor.componentType == fastgltf::ComponentType::UnsignedByte
             || colorAccessor.componentType == fastgltf::ComponentType::UnsignedShort);
         if (!isFloatEncoding && !isNormalizedEncoding)
         {
@@ -658,7 +658,7 @@ GltfPrimitiveData decodePrimitive(
     if (result.normalsFromAsset && tangentIt != primitive.attributes.cend())
     {
         const std::size_t tangentAccessorIndex = tangentIt->accessorIndex;
-        const fastgltf::Accessor& tangentAccessor = 
+        const fastgltf::Accessor& tangentAccessor =
             checkedAccessor(
                 asset,
                 assetPath,
@@ -774,7 +774,7 @@ GltfPrimitiveData decodePrimitive(
     if (primitive.indicesAccessor)
     {
         indexAccessorIndex = *primitive.indicesAccessor;
-        const fastgltf::Accessor& indexAccessor = 
+        const fastgltf::Accessor& indexAccessor =
             checkedAccessor(
                 asset,
                 assetPath,
@@ -794,7 +794,7 @@ GltfPrimitiveData decodePrimitive(
                 "indices accessor must be of type SCALAR"
             );
         }
-        const bool supportedComponentType = 
+        const bool supportedComponentType =
             indexAccessor.componentType == fastgltf::ComponentType::UnsignedByte ||
             indexAccessor.componentType == fastgltf::ComponentType::UnsignedShort ||
             indexAccessor.componentType == fastgltf::ComponentType::UnsignedInt;
@@ -861,7 +861,7 @@ GltfPrimitiveData decodePrimitive(
         result.indices.resize(positionAccessor.count);
         std::iota(result.indices.begin(), result.indices.end(), std::uint32_t{0});
     }
-    
+
     // 检查index数量
     if (result.indices.size() % 3 != 0)
     {
@@ -938,7 +938,7 @@ GltfPrimitiveData decodePrimitive(
         result.materialIndex = materialIndex;
     }
 
-    
+
     return result;
 }
 
@@ -951,8 +951,8 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     if (data.error() != fastgltf::Error::None)
     {
         throw std::runtime_error(
-            normalizedPath.string() + ": read failed: " + 
-            std::string(fastgltf::getErrorName(data.error())) + ": " + 
+            normalizedPath.string() + ": read failed: " +
+            std::string(fastgltf::getErrorName(data.error())) + ": " +
             std::string(fastgltf::getErrorMessage(data.error()))
         );
     }
@@ -962,8 +962,8 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     if (loaded.error() != fastgltf::Error::None)
     {
         throw std::runtime_error(
-            normalizedPath.string() + ": parse failed: " + 
-            std::string(fastgltf::getErrorName(loaded.error())) + ": " + 
+            normalizedPath.string() + ": parse failed: " +
+            std::string(fastgltf::getErrorName(loaded.error())) + ": " +
             std::string(fastgltf::getErrorMessage(loaded.error()))
         );
     }
@@ -973,8 +973,8 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     if (validationError != fastgltf::Error::None)
     {
         throw std::runtime_error(
-            normalizedPath.string() + ": validation failed: " + 
-            std::string(fastgltf::getErrorName(validationError)) + ": " + 
+            normalizedPath.string() + ": validation failed: " +
+            std::string(fastgltf::getErrorName(validationError)) + ": " +
             std::string(fastgltf::getErrorMessage(validationError))
         );
     }

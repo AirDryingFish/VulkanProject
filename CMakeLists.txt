@@ -61,7 +61,7 @@ endif()
 find_package(Vulkan REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
-find_package(Stb REQUIRED)  
+find_package(Stb REQUIRED)
 find_package(tinyobjloader CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
@@ -133,21 +133,26 @@ target_link_libraries(vulkan PRIVATE
     Vulkan::Vulkan
     glfw
     glm::glm
-    tinyobjloader::tinyobjloader 
+    tinyobjloader::tinyobjloader
     GPUOpen::VulkanMemoryAllocator
     imgui::imgui
 )
 
-# if(BUILD_TESTING)
-#     add_executable(deletion_queue_tests
-#     )
-#     target_include_directories(deletion_queue_tests PRIVATE src)
-#     target_link_libraries(deletion_queue_tests PRIVATE
-#         Vulkan::Vulkan
-#         GPUOpen::VulkanMemoryAllocator
-#     )
-#     add_test(NAME deletion_queue_tests COMMAND deletion_queue_tests)
-# endif()
+if(BUILD_TESTING)
+    add_executable(gltf_loader_tests
+        tests/GltfLoaderTests.cpp
+    )
+
+    target_link_libraries(gltf_loader_tests PRIVATE
+        gltf_import
+    )
+
+    add_test(
+        NAME gltf_loader_tests
+        COMMAND gltf_loader_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/models/gltf"
+    )
+endif()
 
 add_custom_command(
     TARGET vulkan POST_BUILD

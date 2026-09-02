@@ -71,5 +71,3 @@ struct GltfImportData
     std::size_t bufferCount = 0;
     std::size_t accessorCount = 0;
 };
-
-
