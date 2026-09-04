@@ -97,6 +97,10 @@ void TriangleApplication::testSceneInit()
     sceneObjects.back().name = "Variant Sphere";
     sceneObjects.back().material = materialLibrary.at(1);
     sceneObjects.back().transform.position.x = 1.2f;
+
+    const std::string gltfPath = assetPath("models/gltf/TwoPrimitives/TwoPrimitives.gltf");
+    addGltfMeshObjects(gltfPath);
+    // sceneObjects.back().transform.position = glm::vec3(-0.5f, -1.5f, 0.0f);
 }
 
 
@@ -187,17 +191,13 @@ void TriangleApplication::cleanup() noexcept
 
 void TriangleApplication::recreateSwapChain()
 {
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-
+    const VkFormat oldFormat = swapchain.format();
     const SwapchainBuildStatus status = swapchain.rebuildCore();
 
     if (status != SwapchainBuildStatus::Ready)
     {
         return;
     }
-
-    const VkFormat oldFormat = swapchain.format();
 
     if (oldFormat != VK_FORMAT_UNDEFINED && oldFormat != swapchain.format())
     {

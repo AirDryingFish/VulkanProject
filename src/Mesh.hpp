@@ -10,7 +10,8 @@ enum class MeshSource
 {
     Obj,
     Cube,
-    Sphere
+    Sphere,
+    Gltf
 };
 
 struct MeshBuildData

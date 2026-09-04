@@ -285,6 +285,8 @@ SwapchainBuildStatus Swapchain::rebuildCore()
     VulkanContext *context = context_;
     GLFWwindow *window = window_;
 
+    VK_CHECK(context_->waitIdle());
+
     shutdown();
     initializeCore(*context, window);
     return SwapchainBuildStatus::Ready;
@@ -412,7 +414,7 @@ void Swapchain::createAttachments()
     colorDesc.samples = context_->msaaSamples();
     colorDesc.format = format_;
     colorDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
-    colorDesc.usage = 
+    colorDesc.usage =
         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     colorDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;

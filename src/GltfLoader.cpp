@@ -1,4 +1,5 @@
 #include "GltfLoader.hpp"
+#include "ImageDecode.hpp"
 
 #include <fastgltf/core.hpp>
 #include <fastgltf/glm_element_traits.hpp>
@@ -7,6 +8,8 @@
 
 #include <glm/geometric.hpp>
 
+#include <cstddef>
+#include <variant>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -20,6 +23,231 @@
 
 namespace
 {
+struct ByteRange
+{
+    const std::byte* data = nullptr;
+    std::size_t size = 0;
+};
+
+std::string imageContext(
+    const std::filesystem::path& assetPath,
+    std::size_t imageIndex,
+    const fastgltf::Image& image
+)
+{
+    std::ostringstream message;
+    message << assetPath.string() << ": image[" << imageIndex << "]";
+    if (!image.name.empty())
+    {
+        message << " name=\"" << image.name << "\"";
+    }
+    return message.str();
+}
+
+[[noreturn]] void failImage(
+    const std::filesystem::path& assetPath,
+    std::size_t imageIndex,
+    const fastgltf::Image& image,
+    const std::string& reason
+)
+{
+    throw std::runtime_error(imageContext(assetPath, imageIndex, image) + ": " + reason);
+}
+
+// 输入一个二进制数据 fastgltf::DataSource，如果它里面已经真的有二进制数据，就把这段数据的“地址+长度”返回
+// 如果它还只是URI、bufferView引用或其他当前不支持的形式就直接报错
+ByteRange loadedDataBytes(
+    const fastgltf::DataSource& source,
+    const std::filesystem::path& assetPath,
+    std::size_t imageIndex,
+    const fastgltf::Image& image,
+    const std::string& owner
+)
+{
+    ByteRange result{};
+    // get_if 检查 std::variant 是否存了类型 T，是的话就返回这个值的指针，否则返回 nullptr
+    if (const auto* array = std::get_if<fastgltf::sources::Array>(&source))
+    {
+        result = {array->bytes.data(), array->bytes.size()};
+    }
+    else if (const auto* vector = std::get_if<fastgltf::sources::Vector>(&source))
+    {
+        result = { vector->bytes.data(), vector->bytes.size() };
+    }
+    else if (const auto* view = std::get_if<fastgltf::sources::ByteView>(&source))
+    {
+        result = {view->bytes.data(), view->bytes.size()};
+    }
+    else if (const auto* uri = std::get_if<fastgltf::sources::URI>(&source))
+    {
+        failImage(assetPath, imageIndex, image, owner + " remains an unloaded URI: " + std::string(uri->uri.string()));
+    }
+    else if (std::holds_alternative<fastgltf::sources::BufferView>(source))
+    {
+        failImage(assetPath, imageIndex, image, owner + "unexpectedly refers to another bufferView");
+    }
+    else if (std::holds_alternative<fastgltf::sources::Fallback>(source))
+    {
+        failImage(assetPath, imageIndex, image, owner + "is a fallback source without bytes");
+    }
+    else
+    {
+        failImage(assetPath, imageIndex, image, owner + " has no data");
+    }
+
+    if (result.data == nullptr || result.size == 0)
+    {
+        failImage(assetPath, imageIndex, image, owner + " is empty");
+    }
+    return result;
+}
+
+// 尝试取出 std::variant 的MIME 类型
+fastgltf::MimeType sourceMimeType(const fastgltf::DataSource& source)
+{
+    if (const auto* value = std::get_if<fastgltf::sources::Array>(&source))
+    {
+        return value->mimeType;
+    }
+    if (const auto* value = std::get_if<fastgltf::sources::Vector>(&source))
+    {
+        return value->mimeType;
+    }
+    if (const auto* value = std::get_if<fastgltf::sources::ByteView>(&source))
+    {
+        return value->mimeType;
+    }
+    if (const auto* value = std::get_if<fastgltf::sources::URI>(&source))
+    {
+        return value->mimeType;
+    }
+    if (const auto* value = std::get_if<fastgltf::sources::CustomBuffer>(&source))
+    {
+        return value->mimeType;
+    }
+    if (const auto *value = std::get_if<fastgltf::sources::BufferView>(&source))
+    {
+        return value->mimeType;
+    }
+    return fastgltf::MimeType::None;
+}
+
+// 检查这个 MIME 类型是不是当前 stb_image 加载流程允许处理的格式
+void validateStbiMimeType(
+    fastgltf::MimeType mimeType,
+    const std::filesystem::path& assetPath,
+    std::size_t imageIndex,
+    const fastgltf::Image& image
+)
+{
+    // 只有这三种格式允许
+    if (mimeType == fastgltf::MimeType::None ||
+        mimeType == fastgltf::MimeType::PNG ||
+        mimeType == fastgltf::MimeType::JPEG)
+    {
+        return;
+    }
+
+    const std::string_view mimeName = fastgltf::getMimeTypeString(mimeType);
+    failImage(assetPath, imageIndex, image,
+        "unsupported encoded image MIME type " +
+        (mimeName.empty() ? std::string("<unkwown>") : std::string(mimeName)) + "; only PNG and JPEG are supported"
+    );
+}
+
+// *** 解码图片 ***
+DecodedImageData decodeGltfImage(
+    const fastgltf::Asset& asset,
+    const std::filesystem::path& assetPath,
+    std::size_t imageIndex
+)
+{
+    if (imageIndex >= asset.images.size())
+    {
+        throw std::logic_error(assetPath.string() + ": image index is out of range");
+    }
+
+    const fastgltf::Image& image = asset.images[imageIndex];
+    const std::string debugName = imageContext(assetPath, imageIndex, image);
+
+    ByteRange encoded{};
+    const fastgltf::MimeType mimeType = sourceMimeType(image.data);
+    // Image->imageView->bufferView->buffer->bufferBytes
+    // imageView: 图片使用哪个bufferView
+    // bufferView: 真正的 glTF BufferView 对象
+    // buffer: 真正的 glTF buffer对象
+    // bufferBytes: buffer已经加载到内存后的实际字节
+    if (const auto* imageView = std::get_if<fastgltf::sources::BufferView>(&image.data))
+    {
+        if (imageView->bufferViewIndex >= asset.bufferViews.size())
+        {
+            failImage(assetPath, imageIndex, image,
+                "bufferView index " + std::to_string(imageView->bufferViewIndex) +
+                " is out of range"
+            );
+        }
+        const fastgltf::BufferView& bufferView = asset.bufferViews[imageView->bufferViewIndex];
+        if (bufferView.bufferIndex >= asset.buffers.size())
+        {
+            failImage(assetPath, imageIndex, image,
+                "bufferView buffer index " + std::to_string(bufferView.bufferIndex) +
+                " is out of range"
+            );
+        }
+        const fastgltf::Buffer& buffer = asset.buffers[bufferView.bufferIndex];
+        const std::string owner = "buffer[" + std::to_string(bufferView.bufferIndex) + "]";
+
+        const ByteRange bufferBytes = loadedDataBytes(buffer.data, assetPath, imageIndex, image, owner);
+        if (buffer.byteLength > bufferBytes.size)
+        {
+            failImage(assetPath, imageIndex, image,
+                owner + " declares byteLength " + std::to_string(buffer.byteLength) +
+                " but only " + std::to_string(bufferBytes.size) + " bytes were loaded"
+            );
+        }
+        if (bufferView.byteLength == 0)
+        {
+            failImage(assetPath, imageIndex, image, "image bufferView is empty");
+        }
+        if (bufferView.byteOffset > buffer.byteLength ||
+            bufferView.byteLength > buffer.byteLength - bufferView.byteOffset)
+        {
+            failImage(assetPath, imageIndex, image,
+                "image bufferView range exceeds declared buffer byteLength");
+        }
+
+        if (bufferView.byteOffset > bufferBytes.size ||
+            bufferView.byteLength > bufferBytes.size - bufferView.byteOffset)
+        {
+            failImage(assetPath, imageIndex, image,
+                "image bufferView range exceeds loaded buffer bytes");
+        }
+
+        // bufferBytes
+        // 地址偏移：
+        // 0                                                   100000
+        // │------------------------------------------------------│
+
+        // | 顶点数据 | 索引数据 |     PNG图片     | 其他数据 |
+        //                       ↑              ↑
+        //                    20000          25000
+        //
+        // 这时候 bufferView.byteOffset = 20000, bufferView.byteLength = 5000
+        encoded = {bufferBytes.data + bufferView.byteOffset, bufferView.byteLength};
+    }
+    // image不是以 buffer 存储的，其他格式可以直接取到对应的 data 指针和 size
+    else
+    {
+        encoded = loadedDataBytes(image.data, assetPath, imageIndex, image, "image source");
+    }
+
+    // 只判断 mimeType，其他用于输出 debug info
+    validateStbiMimeType(mimeType, assetPath, imageIndex, image);
+    DecodedImageData decoded = decodeImage(encoded.data, encoded.size, debugName);
+    decoded.name = image.name.empty() ? "image " + std::to_string(imageIndex) :  std::string(image.name.data(), image.name.size());
+    return decoded;
+}
+
 [[noreturn]] void failPrimitive(
     const std::filesystem::path& assetPath,
     std::size_t meshIndex,
@@ -252,6 +480,7 @@ const fastgltf::Accessor& checkedAccessor(
     return asset.accessors[accessorIndex];
 }
 
+// *** 解码primitive ***
 GltfPrimitiveData decodePrimitive(
     const fastgltf::Asset& asset,
     const std::filesystem::path& assetPath,
@@ -958,7 +1187,8 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     }
 
     fastgltf::Parser parser;
-    auto loaded = parser.loadGltf(data.get(), normalizedPath.parent_path(), fastgltf::Options::LoadExternalBuffers);
+    const fastgltf::Options options = fastgltf::Options::LoadExternalBuffers | fastgltf::Options::LoadExternalImages;
+    auto loaded = parser.loadGltf(data.get(), normalizedPath.parent_path(), options);
     if (loaded.error() != fastgltf::Error::None)
     {
         throw std::runtime_error(
@@ -982,10 +1212,16 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     GltfImportData result;
     result.sourcePath = normalizedPath;
     result.materialCount = asset.materials.size();
-    result.imageCount = asset.images.size();
     result.textureCount = asset.textures.size();
     result.bufferCount = asset.buffers.size();
     result.accessorCount = asset.accessors.size();
+    // 设置image
+    result.images.reserve(asset.images.size());
+    for (std::size_t imageIndex = 0; imageIndex < asset.images.size(); ++imageIndex)
+    {
+        result.images.push_back(decodeGltfImage(asset, normalizedPath, imageIndex));
+    }
+
     if (asset.defaultScene)
     {
         result.defaultSceneIndex = *asset.defaultScene;

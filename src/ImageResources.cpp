@@ -14,33 +14,56 @@
 #include <stdexcept>
 #include <unordered_map>
 
-GpuImage TriangleApplication::createTextureImageFromFile(
-    const std::string &path,
-    VkFormat format,
-    const std::array<unsigned char, 4> &fallbackPixel)
+DecodedImageData TriangleApplication::decodeTextureImageFromFileOrFallback(const std::string &path, const std::array<unsigned char, 4> &fallbackPixel)
 {
-    int texWidth = 0;
-    int texHeight = 0;
-    int texChannels = 0;
-    std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> loadedPixels(
-        path.empty() ? nullptr : stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha),
+    DecodedImageData result{};
+    result.name = path.empty() ? "fallback texture" : path;
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> pixels(
+        path.empty() ? nullptr : stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha),
         &stbi_image_free
     );
-    const stbi_uc* pixels = loadedPixels.get();
-
-    std::vector<unsigned char> fallbackPixels;
     if (!pixels)
     {
-        texWidth = 1;
-        texHeight = 1;
-        fallbackPixels.assign(fallbackPixel.begin(), fallbackPixel.end());
-        pixels = fallbackPixels.data();
+        result.width = 1;
+        result.height = 1;
+        result.rgba8.assign(fallbackPixel.begin(), fallbackPixel.end());
+        return result;
     }
 
-    const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * static_cast<VkDeviceSize>(texHeight) * 4;
+    if (width <= 0 || height <= 0)
+    {
+        throw std::runtime_error(path + ": decoded image has invalid dimensions");
+    }
+
+    const std::size_t byteCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4u;
+    result.width = width;
+    result.height = height;
+    result.rgba8.assign(pixels.get(), pixels.get() + byteCount);
+    return result;
+}
+
+GpuImage TriangleApplication::uploadTexture2D(const DecodedImageData &decoded, VkFormat format, const std::string &debugName)
+{
+    if (decoded.width <= 0 || decoded.height <= 0)
+    {
+        throw std::invalid_argument(debugName + ": image dimensions must be positive");
+    }
+    const int texWidth = decoded.width;
+    const int texHeight = decoded.height;
+    const std::size_t expectedByteCount = static_cast<std::size_t>(texWidth) * static_cast<std::size_t>(texHeight) * 4u;
+    if (decoded.rgba8.size() != expectedByteCount)
+    {
+        throw std::invalid_argument(debugName + ": RGBA8 byte count does not match image dimensions");
+    }
+
+    std::string path = decoded.name;
+    const VkDeviceSize imageSize = static_cast<VkDeviceSize>(expectedByteCount);
     const uint32_t imageMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-    const std::string stagingDebugName = path + " staging buffer";
+    const std::string stagingDebugName = debugName + " staging buffer";
     BufferDesc stagingDesc{};
     stagingDesc.size = imageSize;
     stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -51,16 +74,15 @@ GpuImage TriangleApplication::createTextureImageFromFile(
 
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
-    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    memcpy(data, decoded.rgba8.data(), expectedByteCount);
     stagingBuffer.unmap();
 
-    const std::string imageDebugName = path + " image";
+    const std::string imageDebugName = debugName + " image";
     ImageDesc imageDesc{};
     imageDesc.extent = {
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight),
-        1
-    };
+        1};
     imageDesc.mipLevels = imageMipLevels;
     imageDesc.arrayLayers = 1;
     imageDesc.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -87,7 +109,8 @@ GpuImage TriangleApplication::createTextureImageFromFile(
     const VkExtent3D imageExtent = image.extent();
 
     // 连续录制
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer){
+    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+                             {
         upload::recordImageTransition(
             commandBuffer,
             image.get(),
@@ -114,9 +137,9 @@ GpuImage TriangleApplication::createTextureImageFromFile(
             },
             image.mipLevels(),
             image.arrayLayers()
-        );
-    });
-    
+        ); });
+
+    image.setView(context.createImageView(image.get(), image.format(), image.mipLevels()));
 
     return image;
 }
@@ -128,13 +151,12 @@ TextureHandle TriangleApplication::createTextureResource(
     const std::array<unsigned char, 4>& fallbackPixels
 )
 {
+    const DecodedImageData decoded = decodeTextureImageFromFileOrFallback(path, fallbackPixels);
+
     TextureHandle texture = std::make_shared<TextureResource>();
     texture->name = name;
-    texture->image = createTextureImageFromFile(path, format, fallbackPixels);
+    texture->image = uploadTexture2D(decoded, format, name);
 
-    GpuImage& image = texture->image;
-    image.setView(context.createImageView(image.get(), image.format(),image.mipLevels()));
-    
     textureLibrary.push_back(texture);
 
     return texture;

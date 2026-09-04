@@ -50,6 +50,7 @@ void main() {
     gl_Position = ubo.proj * ubo.view * worldPosition;
     fragColor = inColor;
     fragTexCoord = inTexCoord;
+    fragTexCoord1 = inTexCoord1;
     fragWorldPos = worldPosition.xyz;
     mat3 modelLinear = mat3(pushConstants.model);
     vec3 worldNormal = normalize(transpose(inverse(mat3(pushConstants.model))) * inNormal);

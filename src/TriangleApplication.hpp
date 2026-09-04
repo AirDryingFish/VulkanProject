@@ -11,6 +11,7 @@
 #include "Swapchain.hpp"
 #include "Mesh.hpp"
 #include "SceneTypes.hpp"
+#include "GltfImportTypes.hpp"
 
 #include <array>
 #include <functional>
@@ -49,6 +50,7 @@ private:
 
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
     void addMeshObject(MeshSource source, const std::string &path = std::string());
+    void addGltfMeshObjects(const std::string& path);
     Mesh createMesh(const MeshBuildData& meshData);
     MeshHandle getOrCreateMesh(MeshSource source, const std::string &path);
     void releaseMesh(MeshHandle& mesh);
@@ -66,10 +68,15 @@ private:
 
     void createFrameDescriptorSets();
 
-    GpuImage createTextureImageFromFile(
+    DecodedImageData decodeTextureImageFromFileOrFallback(
         const std::string &path,
-        VkFormat format,
         const std::array<unsigned char, 4> &fallbackPixel);
+
+    GpuImage uploadTexture2D(
+        const DecodedImageData& decoded,
+        VkFormat format,
+        const std::string& debugName
+    );
 
     TextureHandle createTextureResource(
         const std::string& name,

@@ -71,10 +71,14 @@ add_library(gltf_import STATIC
     src/GltfLoader.cpp
     src/GltfImportTypes.hpp
     src/GltfLoader.hpp
+    src/ImageDecode.hpp
+    src/ImageDecode.cpp
 )
 
 target_include_directories(gltf_import PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    PRIVATE
+        ${Stb_INCLUDE_DIR}
 )
 
 target_link_libraries(gltf_import

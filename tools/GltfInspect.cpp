@@ -40,7 +40,7 @@ int main(int argc, char** argv)
         std::cout << "meshes: " << imported.meshes.size() << "\n";
         std::cout << "primitives: " << imported.primitives.size() << "\n";
         std::cout << "materials: " << imported.materialCount << "\n";
-        std::cout << "images: " << imported.imageCount << "\n";
+        std::cout << "images: " << imported.images.size() << "\n";
         std::cout << "textures: " << imported.textureCount << "\n";
         std::cout << "buffers: " << imported.bufferCount << "\n";
         std::cout << "accessors: " << imported.accessorCount << "\n";
@@ -53,6 +53,13 @@ int main(int argc, char** argv)
         else
         {
             std::cout << "none\n";
+        }
+
+        for (std::size_t imageIndex = 0; imageIndex < imported.images.size(); ++imageIndex)
+        {
+            const DecodedImageData& image = imported.images[imageIndex];
+            std:: cout << "image[" << imageIndex << "] name=\"" << image.name << "\" size=" <<
+                        image.width << "x" << image.height << " rgba8-bytes=" << image.rgba8.size() << "\n";
         }
 
         for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)

@@ -9,6 +9,14 @@
 #include <string>
 #include <vector>
 
+struct DecodedImageData
+{
+    std::string name;
+    int width;
+    int height;
+    std::vector<std::uint8_t> rgba8;
+};
+
 struct GltfDecodedVertex
 {
     glm::vec3 position{0.0f};
@@ -64,9 +72,9 @@ struct GltfImportData
     std::vector<GltfNodeSummary> nodes;
     std::vector<GltfMeshData> meshes;
     std::vector<GltfPrimitiveData> primitives;
+    std::vector<DecodedImageData> images;
 
     std::size_t materialCount = 0;
-    std::size_t imageCount = 0;
     std::size_t textureCount = 0;
     std::size_t bufferCount = 0;
     std::size_t accessorCount = 0;

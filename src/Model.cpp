@@ -1,4 +1,5 @@
 #include "TriangleApplication.hpp"
+#include "GltfLoader.hpp"
 
 #include <tiny_obj_loader.h>
 
@@ -33,12 +34,60 @@ std::string makeMeshCacheKey(MeshSource source, const std::string& path)
     {
         return "builtin:sphere";
     }
+    if (source == MeshSource::Gltf && path.empty())
+    {
+        throw std::invalid_argument("glTF mesh path must not be empty");
+    }
 
     const std::filesystem::path sourcePath = path.empty() ? std::filesystem::path(MODEL_PATH) : std::filesystem::path(path);
     const std::filesystem::path normalizedPath = std::filesystem::absolute(sourcePath).lexically_normal();
 
+    if (source == MeshSource::Gltf)
+    {
+        return "gltf:" + normalizedPath.generic_string() + "#mesh=0/primitive=0";
+    }
+
     return "obj:" + normalizedPath.generic_string();
 }
+
+std::string makeGltfPrimitiveCacheKey(
+    const std::filesystem::path& sourcePath,
+    std::size_t meshIndex,
+    std::size_t primitiveIndex
+)
+{
+    // gltf:/.../model.gltf#mesh=0/primitive=0
+    // gltf:/.../model.gltf#mesh=0/primitive=1
+    return "gltf:" + sourcePath.generic_string() + "#mesh=" + std::to_string(meshIndex) + "/primitive=" + std::to_string(primitiveIndex);
+}
+
+MeshBuildData buildGltfPrimitiveMeshData(const GltfPrimitiveData& primitive)
+{
+    MeshBuildData meshData{};
+    meshData.vertices.reserve(primitive.vertices.size());
+
+    for (const GltfDecodedVertex& decodedVertex : primitive.vertices)
+    {
+        Vertex vertex{};
+        vertex.pos = decodedVertex.position;
+        vertex.color = glm::vec3(decodedVertex.color);
+        vertex.texcoord = decodedVertex.texcoord0;
+        vertex.texcoord1 = decodedVertex.texcoord1;
+        vertex.normal = decodedVertex.normal;
+        vertex.tangent = decodedVertex.tangent;
+
+        meshData.vertices.push_back(vertex);
+    }
+    meshData.indices = primitive.indices;
+    meshData.boundsMin = primitive.boundsMin;
+    meshData.boundsMax = primitive.boundsMax;
+    meshData.boundsValid = true;
+    meshData.hasTangents = primitive.hasTangents;
+
+    return meshData;
+}
+
+
 }
 
 MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::string &path)
@@ -143,6 +192,31 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
         return meshData;
     }
 
+    if (source == MeshSource::Gltf)
+    {
+        if (path.empty())
+        {
+            throw std::invalid_argument("glTF mesh path must not be empty");
+        }
+
+        const GltfImportData imported = loadGltfCpuData(path);
+        if (imported.meshes.empty())
+        {
+            throw std::runtime_error(imported.sourcePath.string() + ": asset contains no meshes");
+        }
+        const GltfMeshData &gltfMesh = imported.meshes.front();
+        if (gltfMesh.primitiveIndices.empty())
+        {
+            throw std::runtime_error(imported.sourcePath.string() + ": mesh[0] contains no primitives");
+        }
+        const std::size_t decodedPrimitiveIndex = gltfMesh.primitiveIndices.front();
+        if (decodedPrimitiveIndex >= imported.primitives.size())
+        {
+            throw std::logic_error(imported.sourcePath.string() + ": mesh[0] primitive[0] decoded index is out of range");
+        }
+        return buildGltfPrimitiveMeshData(imported.primitives[decodedPrimitiveIndex]);
+    }
+
     const std::string objPath = path.empty() ? MODEL_PATH : path;
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -241,7 +315,16 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
 
 void TriangleApplication::addMeshObject(MeshSource source, const std::string &path)
 {
-    const std::string objPath = source == MeshSource::Obj ? (path.empty() ? MODEL_PATH : path) : std::string();
+    std::string meshPath;
+    if (source == MeshSource::Obj)
+    {
+        meshPath = path.empty() ? MODEL_PATH : path;
+    }
+    else if (source == MeshSource::Gltf)
+    {
+        meshPath = path;
+    }
+
     SceneObject object{};
     if (source == MeshSource::Cube)
     {
@@ -251,22 +334,157 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     {
         object.name = "Sphere " + std::to_string(sceneObjects.size() + 1);
     }
-    else
+    else if (source == MeshSource::Obj)
     {
-        const std::string objName = fileNameFromPath(objPath.empty() ? MODEL_PATH : objPath);
+        const std::string objName = fileNameFromPath(meshPath);
         object.name = objName.empty() ? "OBJ " + std::to_string(sceneObjects.size() + 1) : objName;
     }
+    else if (source == MeshSource::Gltf)
+    {
+        const std::string gltfName = fileNameFromPath(meshPath);
+        object.name = gltfName.empty() ? "glTF " + std::to_string(sceneObjects.size() + 1) : gltfName;
+    }
     object.source = source;
-    object.sourcePath = objPath;
-    object.mesh = getOrCreateMesh(source, objPath);
+    object.sourcePath = meshPath;
+    object.mesh = getOrCreateMesh(source, meshPath);
     object.material = defaultMaterial;
-    
+
     sceneObjects.push_back(std::move(object));
 
     selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;
     selectedObject = SceneSelection::Model;
     selectedModel = true;
     selectedPointLightIndex = -1;
+}
+
+void TriangleApplication::addGltfMeshObjects(const std::string &path)
+{
+    if (path.empty())
+    {
+        throw std::invalid_argument("glTF path must not be empty");
+    }
+
+    const GltfImportData imported = loadGltfCpuData(path);
+    std::size_t primitiveCount = 0;
+    for (const GltfMeshData& mesh : imported.meshes)
+    {
+        primitiveCount += mesh.primitiveIndices.size();
+    }
+    if (primitiveCount == 0)
+    {
+        throw std::runtime_error(imported.sourcePath.string() + ": asset contains no mesh primitives");
+    }
+
+    const std::string normalizedSourcePath = imported.sourcePath.string();
+    const std::string assetName = imported.sourcePath.filename().string();
+
+    // 场景中被 node 实例化出来的 primitive 的总数量
+    std::size_t instancePrimitiveCount = 0;
+    for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
+    {
+        const GltfNodeSummary& node = imported.nodes[nodeIndex];
+        if (!node.meshIndex)
+        {
+            continue;
+        }
+        const std::size_t meshIndex = *node.meshIndex;
+        if (meshIndex >= imported.meshes.size())
+        {
+            throw std::logic_error(normalizedSourcePath + ": node[" + std::to_string(nodeIndex) + "] mesh index is out of range");
+        }
+        instancePrimitiveCount += imported.meshes[meshIndex].primitiveIndices.size();
+    }
+
+    if (instancePrimitiveCount == 0)
+    {
+        throw std::runtime_error(normalizedSourcePath + ": asset contains no mesh instances");
+    }
+
+    // 导入事务中的临时强引用
+    std::unordered_map<std::string, MeshHandle> stagedMeshes;
+    std::vector<SceneObject> stagedObjects;
+    stagedMeshes.reserve(primitiveCount);
+    stagedObjects.reserve(instancePrimitiveCount);
+
+    // gltf decode
+    for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
+    {
+        const GltfNodeSummary& node = imported.nodes[nodeIndex];
+        if (!node.meshIndex)
+        {
+            continue;
+        }
+        const std::size_t meshIndex = *node.meshIndex;
+        const GltfMeshData& gltfMesh = imported.meshes[meshIndex];
+        const std::string nodeName = node.name.empty() ? "node " + std::to_string(nodeIndex) : node.name;
+
+        for (std::size_t primitiveIndex = 0; primitiveIndex < gltfMesh.primitiveIndices.size(); ++primitiveIndex)
+        {
+            const std::size_t decodedPrimitiveIndex = gltfMesh.primitiveIndices[primitiveIndex];
+            if (decodedPrimitiveIndex >= imported.primitives.size())
+            {
+                throw std::logic_error(normalizedSourcePath + ": mesh[" + std::to_string(meshIndex) + "] primitive[" + std::to_string(primitiveIndex) + "] decoded primitive index is out if range");
+            }
+            const std::string key = makeGltfPrimitiveCacheKey(normalizedSourcePath, meshIndex, primitiveIndex);
+            MeshHandle mesh;
+            //先检查当前导入事务
+            const auto stagedIt = stagedMeshes.find(key);
+            if (stagedIt != stagedMeshes.end())
+            {
+                mesh = stagedIt->second;
+            }
+            else
+            {
+                // 再检查全局 weak cache
+                const auto cacheIt = meshCache.find(key);
+                if (cacheIt != meshCache.end())
+                {
+                    mesh = cacheIt->second.lock();
+                }
+                if (!mesh)
+                {
+                    MeshBuildData meshData = buildGltfPrimitiveMeshData(imported.primitives[decodedPrimitiveIndex]);
+                    Mesh uploadedMesh = createMesh(meshData);
+                    mesh = std::make_shared<Mesh>(std::move(uploadedMesh));
+                }
+                stagedMeshes.emplace(key, mesh);
+            }
+
+            SceneObject object{};
+            object.name = assetName + " / " + nodeName + " / primitive " + std::to_string(primitiveIndex);
+            object.source = MeshSource::Gltf;
+            object.sourcePath = normalizedSourcePath;
+            object.mesh = std::move(mesh);
+            object.material = defaultMaterial;
+
+            // todo: gltf material 映射
+
+            stagedObjects.push_back(std::move(object));
+        }
+    }
+
+    auto nextMeshCache = meshCache;
+    nextMeshCache.reserve(meshCache.size() + stagedMeshes.size());
+    for (const auto& [key, mesh] : stagedMeshes)
+    {
+        nextMeshCache.insert_or_assign(key, mesh);
+    }
+
+    static_assert(std::is_nothrow_move_constructible_v<SceneObject>);
+
+    sceneObjects.reserve(sceneObjects.size() + stagedObjects.size());
+
+    meshCache.swap(nextMeshCache);
+
+    for (SceneObject& object : stagedObjects)
+    {
+        sceneObjects.push_back(std::move(object));
+    }
+    selectedSceneObjectIndex = static_cast<int>(sceneObjects.size() - 1);
+    selectedObject = SceneSelection::Model;
+    selectedModel = true;
+    selectedPointLightIndex = -1;
+
 }
 
 MeshHandle TriangleApplication::getOrCreateMesh(MeshSource source, const std::string &path)

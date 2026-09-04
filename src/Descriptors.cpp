@@ -34,9 +34,9 @@ void TriangleApplication::createDescriptorPool()
     // 1  Skybox cubemap
     // 每帧 3 个 Frame IBL 图片、1 个 Skybox 图片，
     // 每个 Material 6 张纹理。
-    poolSizes[1].descriptorCount =         
-        frameCount * 
-        static_cast<uint32_t>(frameImageDescriptorCount + skyboxImageDescriptorCount) + 
+    poolSizes[1].descriptorCount =
+        frameCount *
+        static_cast<uint32_t>(frameImageDescriptorCount + skyboxImageDescriptorCount) +
         maxMaterialCount * static_cast<uint32_t>(materialImageDescriptorCount);
 
     VkDescriptorPoolCreateInfo poolInfo{};
@@ -62,12 +62,12 @@ void TriangleApplication::createFrameDescriptorSets()
     allocInfo.pSetLayouts = layouts.data();
     frameDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
     VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, frameDescriptorSets.data()));
-    
+
     std::array<VkDescriptorImageInfo, frameImageDescriptorCount> imageInfos{};
     imageInfos[0] = {irradianceSampler.get(), irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[1] = {prefilterSampler.get(), prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     imageInfos[2] = {brdfLUTSampler.get(), brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    
+
     for (std::size_t frameIndex = 0; frameIndex < MAX_FRAMES_IN_FLIGHT; frameIndex++)
     {
         VkDescriptorBufferInfo bufferInfo{};
@@ -135,7 +135,7 @@ void TriangleApplication::createMaterialDescriptorSet(Material &material)
     allocInfo.descriptorPool = descriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &layout;
-    
+
     VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &material.descriptorSet));
 
     std::array<VkDescriptorImageInfo, materialImageDescriptorCount> imageInfos{};
@@ -169,7 +169,7 @@ void TriangleApplication::createMaterialDescriptorSet(Material &material)
         textureSampler.get(),
         material.emissiveTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
- 
+
     std::array<VkWriteDescriptorSet, materialImageDescriptorCount> descriptorWrites{};
     for (uint32_t binding = 0; binding < static_cast<uint32_t>(descriptorWrites.size()); binding++)
     {

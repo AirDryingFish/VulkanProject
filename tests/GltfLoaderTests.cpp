@@ -176,7 +176,7 @@ namespace
         require(data.nodes.size() == 1, "Triangle: node count");
         require(data.meshes.size() == 1, "Triangle: mesh count");
         require(data.materialCount == 0, "Triangle: material count");
-        require(data.imageCount == 0, "Triangle: image count");
+        require(data.images.empty(), "Triangle: image count");
         require(data.textureCount == 0, "Triangle: texture count");
         require(data.bufferCount == 1, "Triangle: buffer count");
         require(data.accessorCount == 2, "Triangle: accessor count");
