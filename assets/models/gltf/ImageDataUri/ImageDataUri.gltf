@@ -1,0 +1,11 @@
+{
+  "asset": {
+    "version": "2.0"
+  },
+  "images": [
+    {
+      "name": "Embedded Test Pattern",
+      "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR42mP4z8DwHwgbGIA0CDAAAEPTCHl4ziHMAAAAAElFTkSuQmCC"
+    }
+  ]
+}

@@ -19,6 +19,8 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <map>
+#include <tuple>
 
 #include <vk_mem_alloc.h>
 
@@ -72,13 +74,19 @@ private:
         const std::string &path,
         const std::array<unsigned char, 4> &fallbackPixel);
 
+    ImageHandle getOrCreateGltfImage(
+        const GltfImportData& imported,
+        std::size_t imageIndex,
+        VkFormat format
+    );
+
     GpuImage uploadTexture2D(
         const DecodedImageData& decoded,
         VkFormat format,
         const std::string& debugName
     );
 
-    TextureHandle createTextureResource(
+    ImageHandle createImageResource(
         const std::string& name,
         const std::string& path,
         VkFormat format,
@@ -87,6 +95,7 @@ private:
 
     void createMaterialResources();
 
+    SamplerHandle getOrCreateGltfSampler(const GltfSamplerData& source, const std::string& debugName);
     void createTextureSampler();
 
     void createSkyboxImage();
@@ -153,18 +162,24 @@ private:
 
     uint32_t mipLevels = 1;
 
-    TextureHandle defaultBaseColorTexture;
-    TextureHandle defaultNormalTexture;
-    TextureHandle defaultMetallicTexture;
-    TextureHandle defaultRoughnessTexture;
-    TextureHandle defaultAoTexture;
-    TextureHandle defaultEmissiveTexture;
+    ImageHandle defaultBaseColorTexture;
+    ImageHandle defaultNormalTexture;
+    ImageHandle defaultMetallicTexture;
+    ImageHandle defaultRoughnessTexture;
+    ImageHandle defaultAoTexture;
+    ImageHandle defaultEmissiveTexture;
 
-    std::vector<TextureHandle> textureLibrary;
+    std::vector<ImageHandle> textureLibrary;
     std::vector<MaterialHandle> materialLibrary;
     MaterialHandle defaultMaterial;
 
-    GpuSampler textureSampler{};
+    // 按“资产路径 + image 索引 + Vulkan 格式” 唯一标识一张 GPU 纹理
+    using GltfImageKey = std::tuple<std::string, std::size_t, VkFormat>;
+    // 缓存里只放 weak_ptr，这样缓存不会强行延长纹理生命周期。一个 gltf image 对应一个 gpu image
+    std::map<GltfImageKey, std::weak_ptr<ImageResource>> gltfImageCache;
+
+    SamplerHandle defaultTextureSampler;
+    std::vector<SamplerHandle> samplerLibrary;
 
     DeletionQueue mainDeletionQueue;
 

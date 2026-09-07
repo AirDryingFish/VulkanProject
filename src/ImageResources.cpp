@@ -13,6 +13,27 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+#include <memory>
+#include <utility>
+
+namespace{
+VkSamplerAddressMode toSamplerAddressMode(
+    GltfWrap wrap,
+    const std::string& debugName
+)
+{
+    switch (wrap)
+    {
+    case GltfWrap::Repeat:
+        return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case GltfWrap::MirroredRepeat:
+        return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    case GltfWrap::ClampToEdge:
+        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    }
+    throw std::runtime_error(debugName + ": unsupported sampler wrap mode");
+}
+}
 
 DecodedImageData TriangleApplication::decodeTextureImageFromFileOrFallback(const std::string &path, const std::array<unsigned char, 4> &fallbackPixel)
 {
@@ -43,6 +64,40 @@ DecodedImageData TriangleApplication::decodeTextureImageFromFileOrFallback(const
     result.height = height;
     result.rgba8.assign(pixels.get(), pixels.get() + byteCount);
     return result;
+}
+
+ImageHandle TriangleApplication::getOrCreateGltfImage(
+    const GltfImportData &imported,
+    std::size_t imageIndex,
+    VkFormat format)
+{
+    const std::string assetPath = imported.sourcePath.generic_string();
+    const std::string debugName = assetPath + ": image[" + std::to_string(imageIndex) + "]";
+    if (imageIndex >= imported.images.size())
+    {
+        throw std::runtime_error(debugName + ": image index is out of range");
+    }
+    if (format != VK_FORMAT_R8G8B8A8_SRGB && format != VK_FORMAT_R8G8B8A8_UNORM)
+    {
+        throw std::invalid_argument(debugName + ": unsupported RGBA8 upload format");
+    }
+
+    const GltfImageKey key{assetPath, imageIndex, format};
+    const auto cached = gltfImageCache.find(key);
+    if (cached != gltfImageCache.end())
+    {
+        if (ImageHandle gpuImage = cached->second.lock())
+        {
+            return gpuImage;
+        }
+    }
+
+    const DecodedImageData& decoded = imported.images[imageIndex];
+    ImageHandle gpuImage = std::make_shared<ImageResource>();
+    gpuImage->name = debugName + (format == VK_FORMAT_R8G8B8A8_SRGB ? " SRGB" : " UNORM");
+    gpuImage->image = uploadTexture2D(decoded, format, gpuImage->name);
+    gltfImageCache.insert_or_assign(key, std::weak_ptr<ImageResource>{gpuImage});
+    return gpuImage;
 }
 
 GpuImage TriangleApplication::uploadTexture2D(const DecodedImageData &decoded, VkFormat format, const std::string &debugName)
@@ -144,7 +199,7 @@ GpuImage TriangleApplication::uploadTexture2D(const DecodedImageData &decoded, V
     return image;
 }
 
-TextureHandle TriangleApplication::createTextureResource(
+ImageHandle TriangleApplication::createImageResource(
     const std::string& name,
     const std::string& path,
     VkFormat format,
@@ -153,7 +208,7 @@ TextureHandle TriangleApplication::createTextureResource(
 {
     const DecodedImageData decoded = decodeTextureImageFromFileOrFallback(path, fallbackPixels);
 
-    TextureHandle texture = std::make_shared<TextureResource>();
+    ImageHandle texture = std::make_shared<ImageResource>();
     texture->name = name;
     texture->image = uploadTexture2D(decoded, format, name);
 
@@ -164,42 +219,42 @@ TextureHandle TriangleApplication::createTextureResource(
 
 void TriangleApplication::createMaterialResources()
 {
-    const TextureHandle rustedBaseColorTexture = createTextureResource(
+    const ImageHandle rustedBaseColorTexture = createImageResource(
         "Rusted Iron Base Color",
         PBR_ALBEDO_PATH,
         VK_FORMAT_R8G8B8A8_SRGB,
         {255, 255, 255, 255}
     );
 
-    const TextureHandle rustedNormalTexture =
-        createTextureResource(
+    const ImageHandle rustedNormalTexture =
+        createImageResource(
             "Rusted Iron Normal",
             PBR_NORMAL_PATH,
             VK_FORMAT_R8G8B8A8_UNORM,
             {128, 128, 255, 255});
 
-    const TextureHandle rustedMetallicTexture =
-        createTextureResource(
+    const ImageHandle rustedMetallicTexture =
+        createImageResource(
             "Rusted Iron Metallic",
             PBR_METALLIC_PATH,
             VK_FORMAT_R8G8B8A8_UNORM,
             {0, 0, 0, 255});
 
-    const TextureHandle rustedRoughnessTexture =
-        createTextureResource(
+    const ImageHandle rustedRoughnessTexture =
+        createImageResource(
             "Rusted Iron Roughness",
             PBR_ROUGHNESS_PATH,
             VK_FORMAT_R8G8B8A8_UNORM,
             {255, 255, 255, 255});
 
-    const TextureHandle rustedAoTexture =
-        createTextureResource(
+    const ImageHandle rustedAoTexture =
+        createImageResource(
             "Rusted Iron AO",
             PBR_AO_PATH,
             VK_FORMAT_R8G8B8A8_UNORM,
             {255, 255, 255, 255});
 
-    defaultBaseColorTexture = createTextureResource(
+    defaultBaseColorTexture = createImageResource(
         "Default Base Color",
         std::string(),
         VK_FORMAT_R8G8B8A8_SRGB,
@@ -207,35 +262,35 @@ void TriangleApplication::createMaterialResources()
     );
 
     defaultNormalTexture =
-        createTextureResource(
+        createImageResource(
             "Default Normal",
             std::string(),
             VK_FORMAT_R8G8B8A8_UNORM,
             {128, 128, 255, 255});
 
     defaultMetallicTexture =
-        createTextureResource(
+        createImageResource(
             "Default Metallic",
             std::string(),
             VK_FORMAT_R8G8B8A8_UNORM,
             {0, 0, 0, 255});
 
     defaultRoughnessTexture =
-        createTextureResource(
+        createImageResource(
             "Default Roughness",
             std::string(),
             VK_FORMAT_R8G8B8A8_UNORM,
             {255, 255, 255, 255});
 
     defaultAoTexture =
-        createTextureResource(
+        createImageResource(
             "Default AO",
             std::string(),
             VK_FORMAT_R8G8B8A8_UNORM,
             {255, 255, 255, 255});
 
     defaultEmissiveTexture =
-        createTextureResource(
+        createImageResource(
             "Default Emissive",
             std::string(),
             VK_FORMAT_R8G8B8A8_SRGB,
@@ -269,26 +324,93 @@ void TriangleApplication::createMaterialResources()
     mipLevels = defaultMaterial->baseColorTexture->image.mipLevels();
 }
 
+SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData &source, const std::string &debugName)
+{
+    const GltfFilter magFilter = source.magFilter.value_or(GltfFilter::Linear);
+    const GltfFilter minFilter = source.minFilter.value_or(GltfFilter::LinearMipmapLinear);
+
+    const SamplerKey key{
+        static_cast<std::uint16_t>(magFilter),
+        static_cast<std::uint16_t>(minFilter),
+        static_cast<std::uint16_t>(source.wrapS),
+        static_cast<std::uint16_t>(source.wrapT)
+    };
+
+    for (const SamplerHandle& resource: samplerLibrary)
+    {
+        if (resource->key == key)
+        {
+            return resource;
+        }
+    }
+
+    // 第一次遇到这个类型的 sampler，就创建对应的 gpusampler
+    SamplerDesc desc{};
+    desc.addressModeU = toSamplerAddressMode(source.wrapS, debugName);
+    desc.addressModeV = toSamplerAddressMode(source.wrapT, debugName);
+    desc.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    desc.anisotropyEnable = VK_FALSE;
+    desc.maxAnisotropy = 1.0f;
+    desc.minLod = 0.0f;
+    desc.maxLod = VK_LOD_CLAMP_NONE;
+    switch (magFilter)
+    {
+    case GltfFilter::Nearest:
+        desc.magFilter = VK_FILTER_NEAREST;
+        break;
+    case GltfFilter::Linear:
+        desc.magFilter = VK_FILTER_LINEAR;
+        break;
+    default:
+        throw std::runtime_error(debugName + ": invalid magnification filter");
+    }
+    // LinearMipmapNearest 表示：每层内部线性过滤，mip 层之间选择最近一层
+    // 普通 Nearest/Linear 不使用 mipmap。使用 NEAREST mipmapmode 和 maxLod = 0.25f，既限定在第 0 层，又保留缩小过滤的选择
+    // 未指定过滤时项目默认使用 Linear + LinearMipmapLinear。
+    switch (minFilter)
+    {
+    case GltfFilter::Nearest:
+        desc.minFilter = VK_FILTER_NEAREST;
+        desc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        desc.maxLod = 0.25f;
+        break;
+    case GltfFilter::Linear:
+        desc.minFilter = VK_FILTER_LINEAR;
+        desc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        desc.maxLod = 0.25f;
+        break;
+    case GltfFilter::NearestMipmapNearest:
+        desc.minFilter = VK_FILTER_NEAREST;
+        desc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        break;
+    case GltfFilter::NearestMipmapLinear:
+        desc.minFilter = VK_FILTER_NEAREST;
+        desc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        break;
+    case GltfFilter::LinearMipmapNearest:
+        desc.minFilter = VK_FILTER_LINEAR;
+        desc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        break;
+    case GltfFilter::LinearMipmapLinear:
+        desc.minFilter = VK_FILTER_LINEAR;
+        desc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        break;
+
+    default:
+        throw std::runtime_error(debugName + ": invalid minification filter");
+    }
+
+    SamplerHandle resource = std::make_shared<SamplerResource>();
+    resource->name = debugName;
+    resource->key = key;
+    resource->sampler = context.createSampler(desc);
+    samplerLibrary.push_back(resource);
+    return resource;
+}
+
 void TriangleApplication::createTextureSampler()
 {
-    SamplerDesc samplerDesc{};
-    samplerDesc.magFilter = VK_FILTER_LINEAR;
-    samplerDesc.minFilter = VK_FILTER_LINEAR;
-    samplerDesc.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerDesc.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerDesc.anisotropyEnable = VK_TRUE;
-    samplerDesc.maxAnisotropy = 16.0f;
-    samplerDesc.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerDesc.unnormalizedCoordinates = VK_FALSE;
-    samplerDesc.compareEnable = VK_FALSE;
-    samplerDesc.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerDesc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerDesc.minLod = 0.0f;
-    samplerDesc.maxLod = VK_LOD_CLAMP_NONE;
-    samplerDesc.debugName = "texture sampler";
-
-    textureSampler = context.createSampler(samplerDesc);
+    defaultTextureSampler = getOrCreateGltfSampler(GltfSamplerData{}, "Default texture sampler");
 }
 
 void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)

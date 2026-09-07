@@ -59,7 +59,7 @@ Stage 5 应直接复用：
 - `MeshBuildData` 的 CPU vertex/index/bounds 表达；
 - `TriangleApplication::createMesh()` 的批量 vertex/index 上传；
 - `MeshHandle` 与 weak Mesh cache；
-- `TextureResource`、`Material` 和 app-lifetime library；
+- `ImageResource`、`Material` 和 app-lifetime library；
 - `createTextureImageFromFile()` 中的 image 创建、上传、mipmap 和 view 流程；
 - Material descriptor 的六槽绑定路径；
 - `SceneObject -> RenderObjectView` 的每帧快照边界；
@@ -334,7 +334,7 @@ GltfImportData
 ├── glTF mesh -> primitive indices
 └── nodes / roots / local transforms
     ↓ TriangleApplication import transaction
-TextureHandle / MaterialHandle / MeshHandle
+ImageHandle / MaterialHandle / MeshHandle
     ↓ Node hierarchy traversal
 SceneObject instances
     ↓ existing per-frame snapshot
@@ -977,7 +977,7 @@ sampler。P1 再完整映射并缓存所有基础 glTF sampler 参数。
 `GltfImportData::samplers`；`GltfTextureRef::samplerIndex` 只索引这张自有表。不能只保存 index 后销毁
 Asset，否则 P0 无法判断它是否为可接受的缺省组合，P1 也失去了创建 VkSampler 所需的参数。
 
-当前 Material slot 只有 `TextureHandle`，descriptor writer 也固定使用全局 `textureSampler`，因此
+当前 Material slot 只有 `ImageHandle`，descriptor writer 也固定使用全局 `textureSampler`，因此
 只建立 sampler cache 仍不能让 glTF sampler 生效。建议逐步引入：
 
 ```cpp
@@ -991,7 +991,7 @@ using SamplerHandle = std::shared_ptr<SamplerResource>;
 
 struct MaterialTextureSlot
 {
-    TextureHandle texture;
+    ImageHandle texture;
     SamplerHandle sampler;
     std::uint32_t texCoord = 0;
 };
@@ -1004,7 +1004,7 @@ sampler 映射，不修改 Material slot 或 descriptor。提交 6 再一次性�
 app-lifetime `samplerLibrary`；缺失 glTF sampler 的 slot 引用默认 sampler。P0 的所有已接受 slot
 可以指向同一个默认 SamplerHandle；遇到非缺省参数则按上段拒绝，P1 再完整启用映射。
 
-此提交只让 TextureResource 正确建立，不修改 PBR material shader。
+此提交只让 ImageResource 正确建立，不修改 PBR material shader。
 
 建议提交：
 

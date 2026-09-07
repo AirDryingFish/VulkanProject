@@ -40,8 +40,9 @@ int main(int argc, char** argv)
         std::cout << "meshes: " << imported.meshes.size() << "\n";
         std::cout << "primitives: " << imported.primitives.size() << "\n";
         std::cout << "materials: " << imported.materialCount << "\n";
+        std::cout << "textures: " << imported.textures.size() << "\n";
         std::cout << "images: " << imported.images.size() << "\n";
-        std::cout << "textures: " << imported.textureCount << "\n";
+        std::cout << "samplers: " << imported.samplers.size() << "\n";
         std::cout << "buffers: " << imported.bufferCount << "\n";
         std::cout << "accessors: " << imported.accessorCount << "\n";
 
@@ -60,6 +61,53 @@ int main(int argc, char** argv)
             const DecodedImageData& image = imported.images[imageIndex];
             std:: cout << "image[" << imageIndex << "] name=\"" << image.name << "\" size=" <<
                         image.width << "x" << image.height << " rgba8-bytes=" << image.rgba8.size() << "\n";
+        }
+
+        for (std::size_t materialIndex = 0; materialIndex < imported.materials.size(); ++materialIndex)
+        {
+            const GltfMaterialData &material = imported.materials[materialIndex];
+
+            std::cout << "material[" << materialIndex << "]" << " name=\"" << material.name << "\"\n";
+
+            std::cout
+                << "  base color: ("
+                << material.baseColorFactor.r << ", "
+                << material.baseColorFactor.g << ", "
+                << material.baseColorFactor.b << ", "
+                << material.baseColorFactor.a << ")\n";
+
+            std::cout
+                << "  metallic: " << material.metallicFactor << '\n'
+                << "  roughness: " << material.roughnessFactor << '\n'
+                << "  base color texture: ";
+
+            if (material.baseColorTexture)
+            {
+                std::cout
+                    << material.baseColorTexture->textureIndex
+                    << " uv=" << material.baseColorTexture->texCoord;
+            }
+            else
+            {
+                std::cout << "none";
+            }
+
+            std::cout << '\n';
+        }
+
+        for (std::size_t textureIndex = 0; textureIndex < imported.textures.size(); ++textureIndex)
+        {
+            const GltfTextureRef& texture = imported.textures[textureIndex];
+            std::cout << "texture[" << textureIndex << "]" << " image=" << texture.imageIndex << " sampler=";
+            if (texture.samplerIndex)
+            {
+                std::cout << *texture.samplerIndex;
+            }
+            else
+            {
+                std::cout << "default";
+            }
+            std::cout << "\n";
         }
 
         for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
@@ -113,15 +161,7 @@ int main(int argc, char** argv)
                 std::cout << "  uv sets: " << uvSetCount << "\n";
                 std::cout << "  color0: " << yesNo(primitive.hasColor0) << "\n";
                 std::cout << "  tangents: " << yesNo(primitive.hasTangents) << "\n";
-                std::cout << "  material: ";
-                if (primitive.materialIndex)
-                {
-                    std::cout << *primitive.materialIndex << "\n";
-                }
-                else
-                {
-                    std::cout << "none\n";
-                }
+                std::cout << "materials: " << imported.materials.size() << "\n";
                 std::cout << "  bounds min: ";
                 printVec3(primitive.boundsMin);
                 std::cout << "\n";

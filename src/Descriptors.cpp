@@ -141,32 +141,32 @@ void TriangleApplication::createMaterialDescriptorSet(Material &material)
     std::array<VkDescriptorImageInfo, materialImageDescriptorCount> imageInfos{};
 
     imageInfos[0] = {
-        textureSampler.get(),
+        defaultTextureSampler->sampler.get(),
         material.baseColorTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     imageInfos[1] = {
-        textureSampler.get(),
+        defaultTextureSampler->sampler.get(),
         material.normalTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     imageInfos[2] = {
-        textureSampler.get(),
+        defaultTextureSampler->sampler.get(),
         material.metallicTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     imageInfos[3] = {
-        textureSampler.get(),
+        defaultTextureSampler->sampler.get(),
         material.roughnessTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     imageInfos[4] = {
-        textureSampler.get(),
+        defaultTextureSampler->sampler.get(),
         material.aoTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     imageInfos[5] = {
-        textureSampler.get(),
+        defaultTextureSampler->sampler.get(),
         material.emissiveTexture->image.view(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 

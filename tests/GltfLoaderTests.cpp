@@ -485,6 +485,48 @@ namespace
             "SimpleSparseAccessor");
     }
 
+    void testImageSources(
+        const std::filesystem::path &fixtureRoot)
+    {
+        const GltfImportData external = loadGltfCpuData(
+            fixtureRoot / "ImageExternal" / "ImageExternal.gltf");
+
+        const GltfImportData embedded = loadGltfCpuData(
+            fixtureRoot / "ImageDataUri" / "ImageDataUri.gltf");
+
+        require(
+            external.images.size() == 1,
+            "ImageExternal: expected one image");
+
+        require(
+            embedded.images.size() == 1,
+            "ImageDataUri: expected one image");
+
+        const DecodedImageData &externalImage =
+            external.images.front();
+
+        const DecodedImageData &embeddedImage =
+            embedded.images.front();
+
+        require(
+            externalImage.width == 2 &&
+                externalImage.height == 2,
+            "ImageExternal: expected 2x2 image");
+
+        require(
+            externalImage.rgba8.size() == 16,
+            "ImageExternal: expected 16 RGBA8 bytes");
+
+        require(
+            embeddedImage.width == externalImage.width &&
+                embeddedImage.height == externalImage.height,
+            "ImageDataUri: dimensions differ from external PNG");
+
+        require(
+            embeddedImage.rgba8 == externalImage.rgba8,
+            "ImageDataUri: pixels differ from external PNG");
+    }
+
     template <typename TestFunction>
     void runTest(
         const std::string &name,
@@ -546,6 +588,13 @@ int main(int argc, char **argv)
             {
                 testSimpleSparseAccessor(
                     fixtureRoot);
+            });
+
+        runTest(
+            "External and data URI images",
+            [&]()
+            {
+                testImageSources(fixtureRoot);
             });
 
         std::cout

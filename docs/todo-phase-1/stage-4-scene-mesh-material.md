@@ -620,24 +620,24 @@ Share meshes between scene objects
 
 ## 10. 第 4 步：建立 Texture 与 Material 数据模型
 
-### 10.1 TextureResource
+### 10.1 ImageResource
 
 本阶段 sampler 可以继续由应用统一拥有，Texture 先只拥有 image：
 
 ```cpp
-struct TextureResource
+struct ImageResource
 {
     std::string name;
     GpuImage image;
 };
 
-using TextureHandle = std::shared_ptr<TextureResource>;
+using ImageHandle = std::shared_ptr<ImageResource>;
 ```
 
 应用持有一个强引用库，确保 descriptor 引用的 image view 活到 descriptor pool 销毁之后：
 
 ```cpp
-std::vector<TextureHandle> textureLibrary;
+std::vector<ImageHandle> textureLibrary;
 ```
 
 不要在此步骤实现运行时纹理卸载。
@@ -651,12 +651,12 @@ struct Material
 {
     std::string name;
 
-    TextureHandle baseColorTexture;
-    TextureHandle normalTexture;
-    TextureHandle metallicTexture;
-    TextureHandle roughnessTexture;
-    TextureHandle aoTexture;
-    TextureHandle emissiveTexture;
+    ImageHandle baseColorTexture;
+    ImageHandle normalTexture;
+    ImageHandle metallicTexture;
+    ImageHandle roughnessTexture;
+    ImageHandle aoTexture;
+    ImageHandle emissiveTexture;
 
     glm::vec4 baseColorFactor{1.0f};
     float metallicFactor = 1.0f;

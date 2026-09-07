@@ -152,8 +152,8 @@ void TriangleApplication::cleanup() noexcept
     prefilterSampler.reset();
     irradianceSampler.reset();
     skyboxSampler.reset();
-    textureSampler.reset();
-
+    defaultTextureSampler.reset();
+    samplerLibrary.clear();
 
     defaultBaseColorTexture.reset();
     defaultNormalTexture.reset();
@@ -163,6 +163,7 @@ void TriangleApplication::cleanup() noexcept
     defaultEmissiveTexture.reset();
 
     textureLibrary.clear();
+    gltfImageCache.clear();
 
     skyboxImage.reset();
     irradianceImage.reset();
