@@ -48,19 +48,30 @@ layout(push_constant) uniform DrawPushConstants
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMap;
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
-layout(set = 1, binding = 2) uniform sampler2D metallicMap;
-layout(set = 1, binding = 3) uniform sampler2D roughnessMap;
-layout(set = 1, binding = 4) uniform sampler2D aoMap;
-layout(set = 1, binding = 5) uniform sampler2D emissiveMap;
+layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessMap;
+layout(set = 1, binding = 3) uniform sampler2D aoMap;
+layout(set = 1, binding = 4) uniform sampler2D emissiveMap;
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilterMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 
+// 按 slot index 去找要用第几套 uv
+vec2 materialUv(uint slot)
+{
+    bool useUv1 = (draw.textureInfo.x & (1u << slot)) != 0u;
+    return useUv1 ? fragTexCoord1 : fragTexCoord;
+}
+
 vec3 getNormalFromNormalMap()
 {
-    // 当前所有材质仍然使用 UV0
-    vec2 normalUv = fragTexCoord;
+    // vec2 normalUv = fragTexCoord;
+    vec2 normalUv = materialUv(1u);
     vec3 tangentSpaceNormal = texture(normalMap, normalUv).xyz * 2.0 - 1.0;
+    // 使用 normal strength。法线侧向倾斜变弱了，所以凹凸效果会变弱
+    tangentSpaceNormal.xy *= draw.materialFactors.w;
+    float normalLengthSquared = dot(tangentSpaceNormal, tangentSpaceNormal);
+    // inversesqrt 代表开根分之一，相当于 normalize
+    tangentSpaceNormal = normalLengthSquared > 1e-8 ? tangentSpaceNormal * inversesqrt(normalLengthSquared) : vec3(0.0, 0.0, 1.0);
     vec3 n = normalize(fragNormal);
     // 路径 1：glTF primitive 自带有效 tangent
     if (draw.textureInfo.y != 0u)
@@ -213,11 +224,18 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 void main()
 {
-    float metallic = clamp(texture(metallicMap, fragTexCoord).r * draw.materialFactors.x, 0.0, 1.0);
-    float roughness = clamp(texture(roughnessMap, fragTexCoord).r * draw.materialFactors.y, 0.04, 1.0);
-    float ao = clamp(texture(aoMap, fragTexCoord).r * draw.materialFactors.z, 0.0, 1.0);
+    vec4 metallicRoughness = texture(metallicRoughnessMap, materialUv(2u));
+    float metallic = clamp(metallicRoughness.b * draw.materialFactors.x, 0.0, 1.0);
+    float roughness = clamp(metallicRoughness.g * draw.materialFactors.y, 0.04, 1.0);
+    // float ao = clamp(texture(aoMap, fragTexCoord).r * draw.materialFactors.z, 0.0, 1.0);
+    float samplerdOcclusion = texture(aoMap, materialUv(3u)).r;
+    // AO = 1 + strength(sampledOcclusion - 1)
+    // AO = 1 表示不遮蔽
+    // AO = 0 表示环境光几乎完全被挡住
+    // draw.materialFactors.z(strength) 控制 AO 贴图对最终光照产生多大影响
+    float ao = mix(1.0, samplerdOcclusion, clamp(draw.materialFactors.z, 0.0, 1.0));
 
-    vec3 albedo = fragColor * texture(albedoMap, fragTexCoord).rgb * draw.baseColorFactor.rgb;
+    vec3 albedo = fragColor * texture(albedoMap, materialUv(0u)).rgb * draw.baseColorFactor.rgb;
     vec3 normal = getNormalFromNormalMap();
     vec3 viewDir = normalize(frame.cameraPosition.xyz - fragWorldPos);
     float iblIntensity = max(frame.renderParams.x, 0.0);
@@ -277,7 +295,7 @@ void main()
 
     vec3 ibl = (kD * diffuse + specular) * ao * iblIntensity;
 
-    vec3 emissive = texture(emissiveMap, fragTexCoord).rgb * draw.emissiveFactor.rgb;
+    vec3 emissive = texture(emissiveMap, materialUv(4u)).rgb * draw.emissiveFactor.rgb;
 
     vec3 color = ambient + ibl + Lo + emissive;
     color = color / (color + vec3(1.0));

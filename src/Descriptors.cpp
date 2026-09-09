@@ -2,6 +2,7 @@
 
 #include <array>
 #include <stdexcept>
+#include <string>
 
 namespace
 {
@@ -114,62 +115,61 @@ void TriangleApplication::createMaterialDescriptorSets()
 
 void TriangleApplication::createMaterialDescriptorSet(Material &material)
 {
+    // 一个 Material 只能创建一次 DescriptorSet
     if (material.descriptorSet != VK_NULL_HANDLE)
     {
         throw std::logic_error("material descriptor set already exists");
     }
-    if (!material.baseColorTexture ||
-        !material.normalTexture ||
-        !material.metallicTexture ||
-        !material.roughnessTexture ||
-        !material.aoTexture ||
-        !material.emissiveTexture
-    )
-    {
-        throw std::runtime_error("material contains a null texture");
-    }
 
+    // 1. 按 shader binding 顺序收集材质的 5 个纹理槽
+    const std::array<const MaterialTextureSlot*, materialImageDescriptorCount> slots{
+        &material.baseColorTexture,
+        &material.normalTexture,
+        &material.metallicRoughnessTexture,
+        &material.aoTexture,
+        &material.emissiveTexture
+    };
+    std::array<VkDescriptorImageInfo, materialImageDescriptorCount> imageInfos{};
+
+    // 2. 为每个纹理 binding 构造 VkDescriptorImageInfo
+    for (std::size_t binding = 0; binding < slots.size(); ++binding)
+    {
+        const MaterialTextureSlot& slot = *slots[binding];
+        const std::string context = "material \"" + material.name + "\" binding[" + std::to_string(binding) + "]";
+        if (!slot.image || !slot.sampler)
+        {
+            throw std::runtime_error(context + ": missing image or sampler");
+        }
+        if (slot.image->image.view() == VK_NULL_HANDLE ||
+            slot.sampler->sampler.get() == VK_NULL_HANDLE)
+        {
+            throw std::runtime_error(context + ": invalid image view or sampler");
+        }
+        if (slot.texCoord > 1u)
+        {
+            throw std::runtime_error(context + ": only UV0 and UV1 are supported");
+        }
+        // VkDescriptorImageInfo 描述一个 shader 可访问的纹理。
+        // 对应 shader 中类似： layout(set = 1, binding = X)
+        imageInfos[binding] = {
+            slot.sampler->sampler.get(),
+            slot.image->image.view(),
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL // shader 读取时要求 image 已经被转换到这个 layout
+        };
+    }
+    // 3. 从 DescriptorPool 中申请一个 DescripotrSet
+    // DescripotrSetLayout 描述这个 set 的结构: binding 0/1 是什么类型
     VkDescriptorSetLayout layout = renderer.materialDescriptorSetLayout();
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = descriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &layout;
-
     VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &material.descriptorSet));
 
-    std::array<VkDescriptorImageInfo, materialImageDescriptorCount> imageInfos{};
-
-    imageInfos[0] = {
-        defaultTextureSampler->sampler.get(),
-        material.baseColorTexture->image.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-    imageInfos[1] = {
-        defaultTextureSampler->sampler.get(),
-        material.normalTexture->image.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-    imageInfos[2] = {
-        defaultTextureSampler->sampler.get(),
-        material.metallicTexture->image.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-    imageInfos[3] = {
-        defaultTextureSampler->sampler.get(),
-        material.roughnessTexture->image.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-    imageInfos[4] = {
-        defaultTextureSampler->sampler.get(),
-        material.aoTexture->image.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-    imageInfos[5] = {
-        defaultTextureSampler->sampler.get(),
-        material.emissiveTexture->image.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
+    // 4. 准备 DescriptorSet 的写入
+    // DescriptorSet 现在虽然 allocate 出来了，但里面还没有绑定具体的 texture
+    // VkWriteDescriptorSet 就是在描述： “把哪个资源写到哪个 binding”
     std::array<VkWriteDescriptorSet, materialImageDescriptorCount> descriptorWrites{};
     for (uint32_t binding = 0; binding < static_cast<uint32_t>(descriptorWrites.size()); binding++)
     {

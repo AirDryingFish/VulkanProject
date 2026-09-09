@@ -233,19 +233,47 @@ void TriangleApplication::createMaterialResources()
             VK_FORMAT_R8G8B8A8_UNORM,
             {128, 128, 255, 255});
 
-    const ImageHandle rustedMetallicTexture =
-        createImageResource(
-            "Rusted Iron Metallic",
-            PBR_METALLIC_PATH,
-            VK_FORMAT_R8G8B8A8_UNORM,
-            {0, 0, 0, 255});
+    // 将分开的metallic和roughness贴图打包到一张贴图中
+    const DecodedImageData metallic = decodeTextureImageFromFileOrFallback(
+        PBR_METALLIC_PATH,
+        {0, 0, 0, 255}
+    );
+    const DecodedImageData roughness = decodeTextureImageFromFileOrFallback(
+        PBR_ROUGHNESS_PATH,
+        {255, 255, 255, 255}
+    );
+    const bool metallicConstant = metallic.width == 1 && metallic.height == 1;
+    const bool roughnessConstant = roughness.width == 1 && roughness.height == 1;
+    if (!metallicConstant && !roughnessConstant &&
+        (metallic.width != roughness.width ||
+        metallic.height != roughness.height))
+    {
+        throw std::runtime_error("Rusted Iron: metallic and roughness dimensions differ");
+    }
+    DecodedImageData packed{};
+    packed.name = "Rusted Iron Metallic-Roughness";
+    packed.width = metallicConstant ? roughness.width : metallic.width;
+    packed.height = metallicConstant ? roughness.height : metallic.height;
+    const std::size_t pixelCount = static_cast<std::size_t>(packed.width) * static_cast<std::size_t>(packed.height);
+    packed.rgba8.resize(pixelCount * 4u);
+    for (std::size_t pixel = 0; pixel < pixelCount; ++pixel)
+    {
+        const std::size_t destination = pixel * 4u;
+        const std::size_t metallicOffset = metallicConstant ? 0 : destination;
+        const std::size_t roughnessOffset = roughnessConstant ? 0 : destination;
 
-    const ImageHandle rustedRoughnessTexture =
-        createImageResource(
-            "Rusted Iron Roughness",
-            PBR_ROUGHNESS_PATH,
-            VK_FORMAT_R8G8B8A8_UNORM,
-            {255, 255, 255, 255});
+        packed.rgba8[destination + 0] = 255;
+        packed.rgba8[destination + 1] = roughness.rgba8[roughnessOffset];
+        packed.rgba8[destination + 2] = metallic.rgba8[metallicOffset];
+        packed.rgba8[destination + 3] = 255;
+    }
+
+    ImageHandle rustedMetallicRoughnessTexture = std::make_shared<ImageResource>();
+    rustedMetallicRoughnessTexture->name = packed.name;
+    rustedMetallicRoughnessTexture->image = uploadTexture2D(
+        packed, VK_FORMAT_R8G8B8A8_UNORM, packed.name
+    );
+    textureLibrary.push_back(rustedMetallicRoughnessTexture);
 
     const ImageHandle rustedAoTexture =
         createImageResource(
@@ -268,20 +296,14 @@ void TriangleApplication::createMaterialResources()
             VK_FORMAT_R8G8B8A8_UNORM,
             {128, 128, 255, 255});
 
-    defaultMetallicTexture =
+    defaultMetallicRoughnessTexture =
         createImageResource(
-            "Default Metallic",
+            "Default MetallicRoughness",
             std::string(),
             VK_FORMAT_R8G8B8A8_UNORM,
             {0, 0, 0, 255});
 
-    defaultRoughnessTexture =
-        createImageResource(
-            "Default Roughness",
-            std::string(),
-            VK_FORMAT_R8G8B8A8_UNORM,
-            {255, 255, 255, 255});
-
+    // 表示缝隙等位置的环境遮蔽，主要影响间接光照
     defaultAoTexture =
         createImageResource(
             "Default AO",
@@ -289,39 +311,43 @@ void TriangleApplication::createMaterialResources()
             VK_FORMAT_R8G8B8A8_UNORM,
             {255, 255, 255, 255});
 
+    // 表示便面自身发出的颜色，不依赖灯光照亮
     defaultEmissiveTexture =
         createImageResource(
             "Default Emissive",
             std::string(),
             VK_FORMAT_R8G8B8A8_SRGB,
-            {0, 0, 0, 255});
+            {255, 255, 255, 255});
 
     defaultMaterial = std::make_shared<Material>();
     defaultMaterial->name = "Rusted Iron";
-    defaultMaterial->baseColorTexture = rustedBaseColorTexture;
-    defaultMaterial->normalTexture = rustedNormalTexture;
-    defaultMaterial->metallicTexture = rustedMetallicTexture;
-    defaultMaterial->roughnessTexture = rustedRoughnessTexture;
-    defaultMaterial->aoTexture = rustedAoTexture;
-    defaultMaterial->emissiveTexture = defaultEmissiveTexture;
+    defaultMaterial->baseColorTexture = {
+        rustedBaseColorTexture, defaultTextureSampler, 0u};
+    defaultMaterial->normalTexture = {
+        rustedNormalTexture, defaultTextureSampler, 0u};
+    defaultMaterial->metallicRoughnessTexture = {
+        rustedMetallicRoughnessTexture, defaultTextureSampler, 0u};
+    defaultMaterial->aoTexture = {
+        rustedAoTexture, defaultTextureSampler, 0u};
+    defaultMaterial->emissiveTexture = {
+        defaultEmissiveTexture, defaultTextureSampler, 0u};
 
     MaterialHandle variantMaterial = std::make_shared<Material>();
     variantMaterial->name = "Rusted Iron Variant";
-    variantMaterial->baseColorTexture = rustedBaseColorTexture;
-    variantMaterial->normalTexture = rustedNormalTexture;
-    variantMaterial->metallicTexture = rustedMetallicTexture;
-    variantMaterial->roughnessTexture = rustedRoughnessTexture;
-    variantMaterial->aoTexture = rustedAoTexture;
-    variantMaterial->emissiveTexture = defaultEmissiveTexture;
+    variantMaterial->baseColorTexture = defaultMaterial->baseColorTexture;
+    variantMaterial->normalTexture = defaultMaterial->normalTexture;
+    variantMaterial->metallicRoughnessTexture = defaultMaterial->metallicRoughnessTexture;
+    variantMaterial->aoTexture = defaultMaterial->aoTexture;
+    variantMaterial->emissiveTexture = defaultMaterial->emissiveTexture;
     variantMaterial->baseColorFactor = glm::vec4(0.25f, 1.0f, 0.25f, 1.0f);
     variantMaterial->metallicFactor = 0.25f;
     variantMaterial->roughnessFactor = 0.30f;
-    variantMaterial->aoFactor = 1.0f;
+    variantMaterial->occlusionStrength = 1.0f;
 
     materialLibrary.push_back(defaultMaterial);
     materialLibrary.push_back(variantMaterial);
 
-    mipLevels = defaultMaterial->baseColorTexture->image.mipLevels();
+    mipLevels = defaultMaterial->baseColorTexture.image->image.mipLevels();
 }
 
 SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData &source, const std::string &debugName)
@@ -433,4 +459,109 @@ void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, 
 bool TriangleApplication::hasStencilComponent(VkFormat format)
 {
     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+// 把解析出来的 gltf 材质描述，转换成 engine 绘制时使用的材质对象
+// imported: cpu中的图像
+// source: cpu侧的材质对象
+MaterialHandle TriangleApplication::createGltfMaterial(
+    const GltfImportData &imported,
+    const GltfMaterialData &source,
+    const std::string &debugName)
+{
+    if (source.alphaMode != GltfAlphaMode::Opaque)
+    {
+        throw std::runtime_error(debugName + ": only OPAQUE materials are supported");
+    }
+    if (source.doubleSided)
+    {
+        throw std::runtime_error(debugName + ": double-sided materials are not supported");
+    }
+
+    // 把 gltf 里的一个材质纹理引用，转换为 Engine 自己的 MaterialTextureSlot
+    auto makeSlot = [&](
+        const std::optional<GltfMaterialTextureSlot>& reference,
+        const ImageHandle& fallback,
+        VkFormat format,
+        const std::string& semantic
+    ) -> MaterialTextureSlot
+    {
+        if (!reference)
+        {
+            return {fallback, defaultTextureSampler, 0u};
+        }
+
+        const std::string context = debugName + ": " + semantic;
+        if (reference->textureIndex >= imported.textures.size())
+        {
+            throw std::runtime_error(context + ": texture index is out of range");
+        }
+        if (reference->texCoord > 1u)
+        {
+            throw std::runtime_error(context + ": unsupported UV set");
+        }
+
+        const GltfTextureRef& texture = imported.textures[reference->textureIndex];
+        SamplerHandle sampler = defaultTextureSampler;
+
+        if (texture.samplerIndex)
+        {
+            const std::size_t index = *texture.samplerIndex;
+            if (index >= imported.samplers.size())
+            {
+                throw std::runtime_error(context + ": sampler index is out of range");
+            }
+            sampler = getOrCreateGltfSampler(
+                imported.samplers[index],
+                imported.sourcePath.string() + ": sampler[" + std::to_string(index) + "]"
+            );
+        }
+
+        ImageHandle image = getOrCreateGltfImage(
+            imported, texture.imageIndex, format
+        );
+
+        return {image, sampler, reference->texCoord};
+    };
+
+    // Material 为完整的材质，包含多个 Material slot
+    // 一个 Material slot 对应一个 Texture
+    MaterialHandle material = std::make_shared<Material>();
+    material->baseColorFactor = source.baseColorFactor;
+    material->metallicFactor = source.metallicFactor;
+    material->roughnessFactor = source.roughnessFactor;
+    material->emissiveFactor = source.emissiveFactor;
+    material->normalScale = source.normalScale;
+    material->occlusionStrength = source.occlusionStrength;
+
+    material->baseColorTexture = makeSlot(
+        source.baseColorTexture,
+        defaultBaseColorTexture,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        "baseColorTexture"
+    );
+    material->normalTexture = makeSlot(
+        source.normalTexture,
+        defaultNormalTexture,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        "normalTexture"
+    );
+    material->metallicRoughnessTexture = makeSlot(
+        source.metallicRoughnessTexture,
+        defaultMetallicRoughnessTexture,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        "metallicRoughnessTexture"
+    );
+    material->aoTexture = makeSlot(
+        source.occlusionTexture,
+        defaultAoTexture,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        "occlusionTexture"
+    );
+    material->emissiveTexture = makeSlot(
+        source.emissiveTexture,
+        defaultEmissiveTexture,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        "emissiveTexture");
+    return material;
 }

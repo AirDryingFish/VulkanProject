@@ -1040,7 +1040,7 @@ A: unused
 这次迁移完成后用下面的搜索做清理检查，不能留下新旧两套死资源：
 
 ```powershell
-rg "metallicTexture|roughnessTexture|defaultMetallicTexture|defaultRoughnessTexture|materialImageDescriptorCount" src assets/shaders
+rg "metallicTexture|roughnessTexture|defaultMetallicRoughnessTexture|defaultRoughnessTexture|materialImageDescriptorCount" src assets/shaders
 ```
 
 删除或替换旧 `Material::metallicTexture/roughnessTexture`、不再使用的默认纹理、descriptor null-check/

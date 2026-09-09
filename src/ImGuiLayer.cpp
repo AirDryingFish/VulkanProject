@@ -476,7 +476,8 @@ void TriangleApplication::drawImGui()
             ImGui::ColorEdit3("Albedo Tint", &material.baseColorFactor.x); // 修改从&material.baseColorFactor.x地址起的3个分量
             ImGui::SliderFloat("Metallic multiplier", &material.metallicFactor, 0.0f, 1.0f);
             ImGui::SliderFloat("Roughness multiplier", &material.roughnessFactor, 0.0f, 1.0f);
-            ImGui::SliderFloat("AO multiplier", &material.aoFactor, 0.0f, 1.0f);
+            ImGui::SliderFloat("Occlusion strength", &material.occlusionStrength, 0.0f, 1.0f);
+            ImGui::SliderFloat("Normal scale", &material.normalScale, 0.0f, 2.0f);
             ImGui::ColorEdit3("Emissive Factor", &material.emissiveFactor.x);
             std::size_t objectReferenceCount = 0;
             for (const SceneObject& object : sceneObjects)

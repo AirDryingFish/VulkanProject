@@ -9,7 +9,7 @@
 #include <cstddef>
 
 inline constexpr std::size_t frameImageDescriptorCount = 3;
-inline constexpr std::size_t materialImageDescriptorCount = 6;
+inline constexpr std::size_t materialImageDescriptorCount = 5;
 
 struct ImDrawData;
 
@@ -21,13 +21,13 @@ struct alignas(16) DrawPushConstants
 
     // x: metallic
     // y: roughness
-    // z: AO
-    // w: reserved
+    // z: occlusion strength
+    // w: normal scale
     alignas(16) glm::vec4 materialFactors{
         1.0f,
         1.0f,
         1.0f,
-        0.0f
+        1.0f
     };
     alignas(16) glm::vec4 emissiveFactor{0.0f};
 

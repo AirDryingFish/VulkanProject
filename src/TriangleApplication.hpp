@@ -164,8 +164,7 @@ private:
 
     ImageHandle defaultBaseColorTexture;
     ImageHandle defaultNormalTexture;
-    ImageHandle defaultMetallicTexture;
-    ImageHandle defaultRoughnessTexture;
+    ImageHandle defaultMetallicRoughnessTexture;
     ImageHandle defaultAoTexture;
     ImageHandle defaultEmissiveTexture;
 
@@ -213,6 +212,13 @@ private:
     glm::vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
     float ambientLightIntensity = 0.0f;
     float iblIntensity = 1.0f;
+
+
+    MaterialHandle createGltfMaterial(
+        const GltfImportData& imported,
+        const GltfMaterialData& source,
+        const std::string& debugName
+    );
 
     // skybox member
     GpuImage skyboxImage;
