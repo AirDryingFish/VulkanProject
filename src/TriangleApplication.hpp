@@ -31,6 +31,27 @@ public:
     ~TriangleApplication() noexcept;
 
 private:
+    // 按“资产路径 + image 索引 + Vulkan 格式” 唯一标识一张 GPU 纹理
+    using GltfImageKey = std::tuple<std::string, std::size_t, VkFormat>;
+    using GltfImageCache = std::map<GltfImageKey, std::weak_ptr<ImageResource>>;
+    struct GltfMaterialUpload
+    {
+        GltfImageCache imageCache;
+        std::vector<SamplerHandle> samplers;
+        std::vector<MaterialHandle> materials;
+        std::size_t uploadedImageCount = 0;
+    };
+
+    struct GltfImportResult{
+        std::size_t objectCount = 0;
+        std::size_t uploadedMeshCount = 0;
+        std::size_t reusedMeshCount = 0;
+        std::size_t materialCount = 0;
+
+        std::size_t uploadedImageCount = 0;
+        std::size_t createdSamplerCount = 0;
+    };
+
     void InitWindow();
     void InitVulkan();
 
@@ -52,8 +73,9 @@ private:
 
     MeshBuildData buildMeshData(MeshSource source, const std::string &path);
     void addMeshObject(MeshSource source, const std::string &path = std::string());
-    void addGltfMeshObjects(const std::string& path);
+    GltfImportResult addGltfMeshObjects(const std::string& path);
     Mesh createMesh(const MeshBuildData& meshData);
+
     MeshHandle getOrCreateMesh(MeshSource source, const std::string &path);
     void releaseMesh(MeshHandle& mesh);
     SceneObject *getSelectedSceneObject();
@@ -64,9 +86,12 @@ private:
     void processModelPicking();
     glm::mat4 getObjectMatrix(const SceneObject &object) const;
 
+    // 检查实际已经分配的 descriptor set 数量，以后才能正确处理多次导入
+    void ensureMaterialDescriptorCapacity(std::size_t additionalCount) const;
     void createDescriptorPool();
     void createMaterialDescriptorSets();
-    void createMaterialDescriptorSet(Material& material);
+    void allocateMaterialDescriptorSets(const std::vector<MaterialHandle>& materials); // 传入一组新材质，一次申请对应数量的 set。任意材质写入失败就归还这一整批
+    void writeMaterialDescriptorSet(Material& material); // 把五个图片和 sampler 写入已有 set
 
     void createFrameDescriptorSets();
 
@@ -74,10 +99,12 @@ private:
         const std::string &path,
         const std::array<unsigned char, 4> &fallbackPixel);
 
+    // 获取 image
     ImageHandle getOrCreateGltfImage(
         const GltfImportData& imported,
         std::size_t imageIndex,
-        VkFormat format
+        VkFormat format,
+        GltfMaterialUpload& upload
     );
 
     GpuImage uploadTexture2D(
@@ -95,7 +122,8 @@ private:
 
     void createMaterialResources();
 
-    SamplerHandle getOrCreateGltfSampler(const GltfSamplerData& source, const std::string& debugName);
+    // 获取 sampler
+    SamplerHandle getOrCreateGltfSampler(const GltfSamplerData& source, const std::string& debugName, std::vector<SamplerHandle>& library);
     void createTextureSampler();
 
     void createSkyboxImage();
@@ -139,6 +167,11 @@ private:
     std::unordered_map<std::string, std::weak_ptr<Mesh>> meshCache;
     int selectedSceneObjectIndex = -1;
     char importModelPath[1024]{};
+
+    char importGltfPath[1024]{};
+    std::string gltfImportSummary;
+    std::string gltfImportError;
+
     std::string sceneStatusMessage;
     bool selectedModel = false;
     bool sceneClickConsumed = false;
@@ -172,10 +205,12 @@ private:
     std::vector<MaterialHandle> materialLibrary;
     MaterialHandle defaultMaterial;
 
-    // 按“资产路径 + image 索引 + Vulkan 格式” 唯一标识一张 GPU 纹理
-    using GltfImageKey = std::tuple<std::string, std::size_t, VkFormat>;
+    MaterialHandle defaultGltfMaterial;
+    static constexpr std::uint32_t maxMaterialCount = 128;
+    std::uint32_t allocatedMaterialSetCount = 0;
+
     // 缓存里只放 weak_ptr，这样缓存不会强行延长纹理生命周期。一个 gltf image 对应一个 gpu image
-    std::map<GltfImageKey, std::weak_ptr<ImageResource>> gltfImageCache;
+    GltfImageCache gltfImageCache;
 
     SamplerHandle defaultTextureSampler;
     std::vector<SamplerHandle> samplerLibrary;
@@ -217,7 +252,8 @@ private:
     MaterialHandle createGltfMaterial(
         const GltfImportData& imported,
         const GltfMaterialData& source,
-        const std::string& debugName
+        const std::string& debugName,
+        GltfMaterialUpload& upload
     );
 
     // skybox member

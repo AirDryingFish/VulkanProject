@@ -12,8 +12,8 @@
 struct DecodedImageData
 {
     std::string name;
-    int width;
-    int height;
+    int width = 0;
+    int height = 0;
     std::vector<std::uint8_t> rgba8;
 };
 
@@ -129,6 +129,9 @@ struct GltfNodeSummary
     std::string name;
     std::optional<std::size_t> meshIndex;
     std::vector<std::size_t> children;
+
+    // 节点相对于父节点的变换。单位矩阵表示没有平移、旋转或缩放
+    glm::mat4 localTransform{1.0f};
 };
 
 struct GltfSceneSummary

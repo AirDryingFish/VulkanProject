@@ -21,6 +21,11 @@ struct SceneObject
 
     MeshHandle mesh;
     MaterialHandle material;
+
+    // 从资产节点中计算出的变换
+    glm::mat4 assetTransform{1.0f};
+
+    // 用户在界面中调整的变换
     Transform transform;
 
     bool autoRotate = false;

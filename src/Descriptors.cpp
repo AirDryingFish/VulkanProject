@@ -8,7 +8,6 @@ namespace
 {
 constexpr uint32_t descriptorSetGroupCount = 2; // frame + skybox
 constexpr uint32_t skyboxImageDescriptorCount = 1;
-constexpr uint32_t maxMaterialCount = 128;
 }
 
 void TriangleApplication::createDescriptorPool()
@@ -18,7 +17,6 @@ void TriangleApplication::createDescriptorPool()
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // 每个飞行帧：一个 Frame UBO + 一个 Skybox UBO。
     poolSizes[0].descriptorCount = frameCount * descriptorSetGroupCount;
-
 
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     // imageDescriptor
@@ -42,6 +40,8 @@ void TriangleApplication::createDescriptorPool()
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    // 后续导入失败时，可以调用 vkFreeeDescriptorSets() 归还尚未发布的材质 set
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = frameCount * descriptorSetGroupCount + maxMaterialCount;
@@ -99,26 +99,99 @@ void TriangleApplication::createFrameDescriptorSets()
 
 void TriangleApplication::createMaterialDescriptorSets()
 {
-    if (materialLibrary.size() > maxMaterialCount)
+    allocateMaterialDescriptorSets(materialLibrary);
+}
+
+// 启动时：为 library 中尚未分配 Set 的默认材质创建 descriptor
+// allocateMaterialDescriptorSets(materialLibrary);
+
+// 后续导入时：只为本次新创建的材质分配 descriptor
+// allocateMaterialDescriptorSets(materialUpload.materials);
+void TriangleApplication::allocateMaterialDescriptorSets(const std::vector<MaterialHandle> &materials)
+{
+    if (materials.empty())
     {
-        throw std::runtime_error("material descriptor capacity exceeded");
+        return;
     }
-    for (const MaterialHandle& material : materialLibrary)
+
+    if (descriptorPool == VK_NULL_HANDLE)
     {
+        throw std::logic_error("descriptor pool has not been created");
+    }
+    ensureMaterialDescriptorCapacity(materials.size());
+
+    // 1. 检查本批材质都还没有分配 Set
+    for (size_t index = 0; index < materials.size(); ++index)
+    {
+        const MaterialHandle& material = materials[index];
         if (!material)
         {
-            throw std::runtime_error("material library contains null material");
+            throw std::runtime_error("material list contains a null handle");
         }
-        createMaterialDescriptorSet(*material);
+        if (material->descriptorSet != VK_NULL_HANDLE)
+        {
+            throw std::logic_error("material descriptor set already exists");
+        }
+
+        // 同一个材质对象不能在同一批中重复出现
+        for (std::size_t previous = 0; previous < index; ++previous)
+        {
+            if (materials[previous] == material)
+            {
+                throw std::logic_error("material list contains a duplicate handle");
+            }
+        }
+    }
+
+    // 2. 每个材质对应一个 set，所有 set 使用相同的 layout
+    const std::uint32_t count = static_cast<std::uint32_t>(materials.size());
+    std::vector<VkDescriptorSetLayout> layouts(count, renderer.materialDescriptorSetLayout());
+    std::vector<VkDescriptorSet> sets(count, VK_NULL_HANDLE);
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = count;
+    allocInfo.pSetLayouts = layouts.data();
+
+    VK_CHECK(vkAllocateDescriptorSets(
+        context.device(), &allocInfo, sets.data()
+    ));
+    allocatedMaterialSetCount += count;
+
+    // 3. 将分配结果交给对应材质
+    for (std::size_t index = 0; index < materials.size(); ++index)
+    {
+        materials[index]->descriptorSet = sets[index];
+    }
+    try
+    {
+        for (const MaterialHandle& material : materials)
+        {
+            writeMaterialDescriptorSet(*material);
+        }
+    }
+    catch(...)
+    {
+        // 写入失败，这个 set 还没有交给绘制流程
+        VK_CHECK(vkFreeDescriptorSets(
+            context.device(), descriptorPool, count, sets.data()
+        ));
+        allocatedMaterialSetCount -= count;
+        for (const MaterialHandle& material: materials)
+        {
+            material->descriptorSet = VK_NULL_HANDLE;
+        }
+        throw;
     }
 }
 
-void TriangleApplication::createMaterialDescriptorSet(Material &material)
+void TriangleApplication::writeMaterialDescriptorSet(Material &material)
 {
     // 一个 Material 只能创建一次 DescriptorSet
-    if (material.descriptorSet != VK_NULL_HANDLE)
+    if (material.descriptorSet == VK_NULL_HANDLE)
     {
-        throw std::logic_error("material descriptor set already exists");
+        throw std::logic_error("material descriptor set has not been allocated");
     }
 
     // 1. 按 shader binding 顺序收集材质的 5 个纹理槽
@@ -159,13 +232,6 @@ void TriangleApplication::createMaterialDescriptorSet(Material &material)
     }
     // 3. 从 DescriptorPool 中申请一个 DescripotrSet
     // DescripotrSetLayout 描述这个 set 的结构: binding 0/1 是什么类型
-    VkDescriptorSetLayout layout = renderer.materialDescriptorSetLayout();
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &layout;
-    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &material.descriptorSet));
 
     // 4. 准备 DescriptorSet 的写入
     // DescriptorSet 现在虽然 allocate 出来了，但里面还没有绑定具体的 texture
@@ -182,6 +248,16 @@ void TriangleApplication::createMaterialDescriptorSet(Material &material)
         descriptorWrites[binding].pImageInfo = &imageInfos[binding];
     }
     vkUpdateDescriptorSets(context.device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+}
+
+void TriangleApplication::ensureMaterialDescriptorCapacity(std::size_t additionalCount) const
+{
+    if (allocatedMaterialSetCount > maxMaterialCount || additionalCount > maxMaterialCount - allocatedMaterialSetCount)
+    {
+        throw std::runtime_error("material descriptor capacity exceeded: allocated=" + std::to_string(allocatedMaterialSetCount) +
+                                ", requested=" + std::to_string(additionalCount) +
+                                ", capacity=" + std::to_string(maxMaterialCount));
+    }
 }
 
 void TriangleApplication::createSkyboxDescriptorSets()

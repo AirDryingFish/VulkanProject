@@ -2,6 +2,8 @@
 #include "GltfLoader.hpp"
 
 #include <tiny_obj_loader.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/matrix.hpp>
 
 #include <cmath>
 #include <stdexcept>
@@ -9,6 +11,8 @@
 #include <utility>
 #include <filesystem>
 #include <memory>
+#include <type_traits>
+#include <vector>
 
 namespace
 {
@@ -58,7 +62,7 @@ std::string makeGltfPrimitiveCacheKey(
 {
     // gltf:/.../model.gltf#mesh=0/primitive=0
     // gltf:/.../model.gltf#mesh=0/primitive=1
-    return "gltf:" + sourcePath.generic_string() + "#mesh=" + std::to_string(meshIndex) + "/primitive=" + std::to_string(primitiveIndex);
+    return "gltf:" + sourcePath.generic_u8string() + "#mesh=" + std::to_string(meshIndex) + "/primitive=" + std::to_string(primitiveIndex);
 }
 
 MeshBuildData buildGltfPrimitiveMeshData(const GltfPrimitiveData& primitive)
@@ -202,17 +206,17 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
         const GltfImportData imported = loadGltfCpuData(path);
         if (imported.meshes.empty())
         {
-            throw std::runtime_error(imported.sourcePath.string() + ": asset contains no meshes");
+            throw std::runtime_error(imported.sourcePath.u8string() + ": asset contains no meshes");
         }
         const GltfMeshData &gltfMesh = imported.meshes.front();
         if (gltfMesh.primitiveIndices.empty())
         {
-            throw std::runtime_error(imported.sourcePath.string() + ": mesh[0] contains no primitives");
+            throw std::runtime_error(imported.sourcePath.u8string() + ": mesh[0] contains no primitives");
         }
         const std::size_t decodedPrimitiveIndex = gltfMesh.primitiveIndices.front();
         if (decodedPrimitiveIndex >= imported.primitives.size())
         {
-            throw std::logic_error(imported.sourcePath.string() + ": mesh[0] primitive[0] decoded index is out of range");
+            throw std::logic_error(imported.sourcePath.u8string() + ": mesh[0] primitive[0] decoded index is out of range");
         }
         return buildGltfPrimitiveMeshData(imported.primitives[decodedPrimitiveIndex]);
     }
@@ -357,14 +361,14 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     selectedPointLightIndex = -1;
 }
 
-void TriangleApplication::addGltfMeshObjects(const std::string &path)
+TriangleApplication::GltfImportResult TriangleApplication::addGltfMeshObjects(const std::string &path)
 {
     if (path.empty())
     {
         throw std::invalid_argument("glTF path must not be empty");
     }
 
-    const GltfImportData imported = loadGltfCpuData(path);
+    const GltfImportData imported = loadGltfCpuData(std::filesystem::u8path(path));
     std::size_t primitiveCount = 0;
     for (const GltfMeshData& mesh : imported.meshes)
     {
@@ -372,43 +376,139 @@ void TriangleApplication::addGltfMeshObjects(const std::string &path)
     }
     if (primitiveCount == 0)
     {
-        throw std::runtime_error(imported.sourcePath.string() + ": asset contains no mesh primitives");
+        throw std::runtime_error(imported.sourcePath.u8string() + ": asset contains no mesh primitives");
     }
 
-    const std::string normalizedSourcePath = imported.sourcePath.string();
-    const std::string assetName = imported.sourcePath.filename().string();
+    const std::string normalizedSourcePath = imported.sourcePath.u8string();
+    const std::string assetName = imported.sourcePath.filename().u8string();
 
-    // 场景中被 node 实例化出来的 primitive 的总数量
-    std::size_t instancePrimitiveCount = 0;
-    for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
+    //------------------------
+    // 1. 从选定 scene 的根结点出发，避免导入其他 scene 的对象
+    // 2. 将孩子放到待处理列表末尾，实现广度优先遍历
+    // 3. 计算 world = parentWorld * localTransform
+    //------------------------
+    if (imported.scenes.empty())
     {
-        const GltfNodeSummary& node = imported.nodes[nodeIndex];
+        throw std::runtime_error(normalizedSourcePath + ": asset contains no scenes");
+    }
+
+    // 优先使用默认场景，未指定时选择 scene 0
+    const std::size_t sceneIndex = imported.defaultSceneIndex.value_or(0);
+    if (sceneIndex >= imported.scenes.size())
+    {
+        throw std::runtime_error(normalizedSourcePath + ": scene index is out of range");
+    }
+
+    struct NodeInstance{
+        std::size_t nodeIndex;
+        glm::mat4 worldTransform;
+    };
+
+    // 当前要遍历 glTF 节点。以及这个节点对应的变换
+    std::vector<NodeInstance> nodeInstances;
+    std::vector<bool> visited(imported.nodes.size(), false);
+    for (std::size_t rootIndex : imported.scenes[sceneIndex].rootNodeIndices)
+    {
+        nodeInstances.push_back({rootIndex, glm::mat4(1.0f)});
+    }
+
+    // glTF 的 Y-UP 转换为项目的 Z-UP。绕 x 轴旋转90度
+    const glm::mat4 rootConversion = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    std::size_t instancePrimitiveCount = 0;
+    for (std::size_t cursor = 0; cursor < nodeInstances.size(); ++cursor)
+    {
+        // 使用值拷贝，避免后面的 push_back 扩容使引用失效
+        const NodeInstance pending = nodeInstances[cursor];
+        if (pending.nodeIndex >= imported.nodes.size())
+        {
+            throw std::runtime_error(normalizedSourcePath + ": node index is out of range");
+        }
+        const auto& node = imported.nodes[pending.nodeIndex];
+        const std::string nodeContext = normalizedSourcePath + ": node[" + std::to_string(pending.nodeIndex) + "]" + node.name;
+        if (visited[pending.nodeIndex])
+        {
+            throw std::runtime_error(nodeContext + ": cycle or repeated node reference");
+        }
+        visited[pending.nodeIndex] = true;
+
+        const glm::mat4 world = pending.worldTransform * node.localTransform;
+        nodeInstances[cursor].worldTransform = world;
+
+        // 没有 mesh 的父节点也必须继续遍历 children
+        for (std::size_t childIndex : node.children)
+        {
+            nodeInstances.push_back({childIndex, world});
+        }
         if (!node.meshIndex)
         {
             continue;
         }
-        const std::size_t meshIndex = *node.meshIndex;
-        if (meshIndex >= imported.meshes.size())
-        {
-            throw std::logic_error(normalizedSourcePath + ": node[" + std::to_string(nodeIndex) + "] mesh index is out of range");
-        }
-        instancePrimitiveCount += imported.meshes[meshIndex].primitiveIndices.size();
-    }
 
+        if (*node.meshIndex >= imported.meshes.size())
+        {
+            throw std::runtime_error(nodeContext + ": mesh index is out of range");
+        }
+
+        const glm::mat4 assetTransform = rootConversion * world;
+
+        for (int col = 0; col < 4; ++col)
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                if (!std::isfinite(assetTransform[col][row]))
+                {
+                    throw std::runtime_error(nodeContext + ": transform contains non-finite values");
+                }
+            }
+        }
+
+        const float determinant = glm::determinant(glm::mat3(assetTransform));
+
+        if (!std::isfinite(determinant) || std::abs(determinant) < 1e-8f)
+        {
+            throw std::runtime_error(nodeContext + ": singular or near-singular transform");
+        }
+        if (determinant < 0.0f)
+        {
+            throw std::runtime_error(nodeContext + ": mirrored transform is not supported");
+        }
+
+        instancePrimitiveCount += imported.meshes[*node.meshIndex].primitiveIndices.size();
+    }
     if (instancePrimitiveCount == 0)
     {
-        throw std::runtime_error(normalizedSourcePath + ": asset contains no mesh instances");
+        throw std::runtime_error(normalizedSourcePath + ": selected scene contains no mesh instances");
+    }
+    //------------------------
+
+    // 上传之前先确认 descriptor pool 能容纳本次新增材质
+    ensureMaterialDescriptorCapacity(imported.materials.size());
+    // 暂存本次导入的资源，成功后再更新应用中的资源库
+    GltfMaterialUpload materialUpload{gltfImageCache, samplerLibrary, {}};
+    materialUpload.materials.reserve(imported.materials.size());
+    for (std::size_t materialIndex = 0; materialIndex < imported.materials.size(); ++materialIndex)
+    {
+        // imported.materials[i]: 文件中解析出的材质描述
+        // materialUpload.materials[i]: 根据该描述创建的运行时材质
+        const std::string debugName = normalizedSourcePath + ": material[" + std::to_string(materialIndex) + "]";
+        MaterialHandle material = createGltfMaterial(imported, imported.materials[materialIndex], debugName, materialUpload);
+        materialUpload.materials.push_back(std::move(material));
     }
 
     // 导入事务中的临时强引用
     std::unordered_map<std::string, MeshHandle> stagedMeshes;
+    std::size_t uploadedMeshCount = 0;
     std::vector<SceneObject> stagedObjects;
     stagedMeshes.reserve(primitiveCount);
     stagedObjects.reserve(instancePrimitiveCount);
 
     // gltf decode
-    for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
+    // for (std::size_t nodeIndex = 0; nodeIndex < imported.nodes.size(); ++nodeIndex)
+    // 只实例化选定场景中遍历到的节点
+    for (const NodeInstance& instance : nodeInstances)
     {
+        const std::size_t nodeIndex = instance.nodeIndex;
         const GltfNodeSummary& node = imported.nodes[nodeIndex];
         if (!node.meshIndex)
         {
@@ -425,7 +525,7 @@ void TriangleApplication::addGltfMeshObjects(const std::string &path)
             {
                 throw std::logic_error(normalizedSourcePath + ": mesh[" + std::to_string(meshIndex) + "] primitive[" + std::to_string(primitiveIndex) + "] decoded primitive index is out if range");
             }
-            const std::string key = makeGltfPrimitiveCacheKey(normalizedSourcePath, meshIndex, primitiveIndex);
+            const std::string key = makeGltfPrimitiveCacheKey(imported.sourcePath, meshIndex, primitiveIndex);
             MeshHandle mesh;
             //先检查当前导入事务
             const auto stagedIt = stagedMeshes.find(key);
@@ -445,7 +545,9 @@ void TriangleApplication::addGltfMeshObjects(const std::string &path)
                 {
                     MeshBuildData meshData = buildGltfPrimitiveMeshData(imported.primitives[decodedPrimitiveIndex]);
                     Mesh uploadedMesh = createMesh(meshData);
+                    uploadedMesh.cacheKey = key;
                     mesh = std::make_shared<Mesh>(std::move(uploadedMesh));
+                    ++uploadedMeshCount;
                 }
                 stagedMeshes.emplace(key, mesh);
             }
@@ -455,9 +557,18 @@ void TriangleApplication::addGltfMeshObjects(const std::string &path)
             object.source = MeshSource::Gltf;
             object.sourcePath = normalizedSourcePath;
             object.mesh = std::move(mesh);
-            object.material = defaultMaterial;
+            object.assetTransform = rootConversion * instance.worldTransform;
 
-            // todo: gltf material 映射
+            // 根据 primitive 的索引选择材质
+            const auto& primitive = imported.primitives[decodedPrimitiveIndex];
+            if (primitive.materialIndex.has_value())
+            {
+                object.material = materialUpload.materials.at(*primitive.materialIndex);
+            }
+            else
+            {
+                object.material = defaultGltfMaterial;
+            }
 
             stagedObjects.push_back(std::move(object));
         }
@@ -470,11 +581,34 @@ void TriangleApplication::addGltfMeshObjects(const std::string &path)
         nextMeshCache.insert_or_assign(key, mesh);
     }
 
+    // 必须能够移动构造，并且移动构造不会抛异常
     static_assert(std::is_nothrow_move_constructible_v<SceneObject>);
+    static_assert(std::is_nothrow_move_constructible_v<MaterialHandle>);
 
+    // 提前完成可能发生内存分配的扩容
     sceneObjects.reserve(sceneObjects.size() + stagedObjects.size());
+    materialLibrary.reserve(materialLibrary.size() + materialUpload.materials.size());
 
+    // 为本次导入的新材质分配并写入 descripotr set
+    allocateMaterialDescriptorSets(materialUpload.materials);
+
+    GltfImportResult importResult;
+    importResult.objectCount = stagedObjects.size(); // 这次最终创建了多少个 SceneObject
+    importResult.uploadedMeshCount = uploadedMeshCount; // 这次真正新建并上传到 GPU 的 mesh 数量
+    importResult.reusedMeshCount = stagedMeshes.size() - uploadedMeshCount; // 这次复用了多少个已经存在的 mesh，而不是重新上传
+    importResult.materialCount = materialUpload.materials.size();           // 这次导入准备了多少个 glTF material
+    importResult.uploadedImageCount = materialUpload.uploadedImageCount;
+    importResult.createdSamplerCount = materialUpload.samplers.size() - samplerLibrary.size();
+
+    // 分配成功后，将暂存的资源提交给应用
     meshCache.swap(nextMeshCache);
+    gltfImageCache.swap(materialUpload.imageCache);
+    samplerLibrary.swap(materialUpload.samplers);
+
+    for (MaterialHandle& material : materialUpload.materials)
+    {
+        materialLibrary.push_back(std::move(material));
+    }
 
     for (SceneObject& object : stagedObjects)
     {
@@ -484,7 +618,7 @@ void TriangleApplication::addGltfMeshObjects(const std::string &path)
     selectedObject = SceneSelection::Model;
     selectedModel = true;
     selectedPointLightIndex = -1;
-
+    return importResult;
 }
 
 MeshHandle TriangleApplication::getOrCreateMesh(MeshSource source, const std::string &path)
@@ -502,6 +636,7 @@ MeshHandle TriangleApplication::getOrCreateMesh(MeshSource source, const std::st
 
     MeshBuildData meshData = buildMeshData(source, path);
     Mesh uploadedMesh = createMesh(meshData);
+    uploadedMesh.cacheKey = key;
     MeshHandle mesh = std::make_shared<Mesh>(std::move(uploadedMesh));
     meshCache[key] = mesh;
     return mesh;

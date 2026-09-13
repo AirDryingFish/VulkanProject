@@ -23,6 +23,65 @@
 
 namespace
 {
+// 负责保证后面的 importer 只会处理“当前渲染器真的支持”的 glTF 子集，
+// 避免把不支持的动画、骨骼和 morph target 静默加载成错误结果。
+void validateSupportedAssetFeatures(
+    const fastgltf::Asset &asset,
+    const std::filesystem::path &assetPath)
+{
+    const std::string source = assetPath.u8string();
+
+    // 当前只接受静态资产，不自动忽略动画。
+    if (!asset.animations.empty())
+    {
+        throw std::runtime_error(
+            source + ": animation[0]: animations are not supported");
+    }
+
+    for (std::size_t nodeIndex = 0;
+            nodeIndex < asset.nodes.size();
+            ++nodeIndex)
+    {
+        const fastgltf::Node &node = asset.nodes[nodeIndex];
+
+        if (node.skinIndex)
+        {
+            const std::string nodeName(
+                node.name.data(),
+                node.name.size());
+
+            throw std::runtime_error(
+                source + ": node[" +
+                std::to_string(nodeIndex) + "] " +
+                nodeName + ": skinning is not supported");
+        }
+    }
+
+    for (std::size_t meshIndex = 0;
+            meshIndex < asset.meshes.size();
+            ++meshIndex)
+    {
+        const auto &mesh = asset.meshes[meshIndex];
+
+        for (std::size_t primitiveIndex = 0;
+                primitiveIndex < mesh.primitives.size();
+                ++primitiveIndex)
+        {
+            const auto &primitive = mesh.primitives[primitiveIndex];
+
+            if (!primitive.targets.empty())
+            {
+                throw std::runtime_error(
+                    source + ": mesh[" +
+                    std::to_string(meshIndex) + "] primitive[" +
+                    std::to_string(primitiveIndex) +
+                    "]: morph targets are not supported");
+            }
+        }
+    }
+}
+
+
 // NormalTextureInfo 和 OcclusionTextureInfo 都继承
 GltfMaterialTextureSlot decodeMaterialTextureSlot(
     const fastgltf::TextureInfo& source,
@@ -50,6 +109,7 @@ GltfMaterialTextureSlot decodeMaterialTextureSlot(
     return result;
 }
 
+// 从 gltf 文件中解析 material，存入 cpu 的 GltfMaterialData 对象中
 GltfMaterialData decodeMaterial(
     const fastgltf::Asset& asset,
     const std::filesystem::path& assetPath,
@@ -58,7 +118,7 @@ GltfMaterialData decodeMaterial(
 {
     const fastgltf::Material& source = asset.materials[materialIndex];
     const fastgltf::PBRData& pbr = source.pbrData;
-    const std::string context = assetPath.string() + ": material[" + std::to_string(materialIndex) + "]";
+    const std::string context = assetPath.u8string() + ": material[" + std::to_string(materialIndex) + "]";
 
     GltfMaterialData result;
     result.name.assign(source.name.begin(), source.name.end());
@@ -134,6 +194,82 @@ GltfMaterialData decodeMaterial(
     return result;
 }
 
+// 检查 UV 编号是否合法
+void validatePrimitiveMaterial(
+    const GltfImportData &imported,
+    const GltfPrimitiveData &primitive,
+    std::size_t meshIndex,
+    std::size_t primitiveIndex)
+{
+    if (!primitive.materialIndex)
+    {
+        return;
+    }
+
+    const std::size_t materialIndex = *primitive.materialIndex;
+
+    const std::string context =
+        imported.sourcePath.u8string() +
+        ": mesh[" + std::to_string(meshIndex) + "]" +
+        " primitive[" + std::to_string(primitiveIndex) + "]" +
+        " material[" + std::to_string(materialIndex) + "]";
+
+    if (materialIndex >= imported.materials.size())
+    {
+        throw std::runtime_error(
+            context + ": material index is out of range");
+    }
+
+    const GltfMaterialData &material =
+        imported.materials[materialIndex];
+
+    if (material.alphaMode != GltfAlphaMode::Opaque)
+    {
+        throw std::runtime_error(
+            context + ": only OPAQUE materials are supported");
+    }
+
+    if (material.doubleSided)
+    {
+        throw std::runtime_error(
+            context + ": double-sided materials are not supported");
+    }
+
+    auto checkSlot = [&](const std::optional<GltfMaterialTextureSlot> &slot, const char *slotName)
+    {
+        if (!slot)
+        {
+            return;
+        }
+
+        if (slot->texCoord > 1u)
+        {
+            throw std::runtime_error(context + ": " + slotName + " requests an unsupported UV set");
+        }
+
+        const bool hasRequestedUv =
+            slot->texCoord == 0u
+                ? primitive.hasTexcoord0
+                : primitive.hasTexcoord1;
+
+        if (!hasRequestedUv)
+        {
+            throw std::runtime_error(
+                context + ": " + slotName +
+                " requires missing TEXCOORD_" +
+                std::to_string(slot->texCoord));
+        }
+    };
+
+    checkSlot(material.baseColorTexture, "baseColorTexture");
+    checkSlot(material.normalTexture, "normalTexture");
+    checkSlot(
+        material.metallicRoughnessTexture,
+        "metallicRoughnessTexture");
+    checkSlot(material.occlusionTexture, "occlusionTexture");
+    checkSlot(material.emissiveTexture, "emissiveTexture");
+}
+
 struct ByteRange
 {
     const std::byte* data = nullptr;
@@ -147,7 +283,7 @@ std::string imageContext(
 )
 {
     std::ostringstream message;
-    message << assetPath.string() << ": image[" << imageIndex << "]";
+    message << assetPath.u8string() << ": image[" << imageIndex << "]";
     if (!image.name.empty())
     {
         message << " name=\"" << image.name << "\"";
@@ -275,7 +411,7 @@ DecodedImageData decodeGltfImage(
 {
     if (imageIndex >= asset.images.size())
     {
-        throw std::logic_error(assetPath.string() + ": image index is out of range");
+        throw std::logic_error(assetPath.u8string() + ": image index is out of range");
     }
 
     const fastgltf::Image& image = asset.images[imageIndex];
@@ -369,7 +505,7 @@ DecodedImageData decodeGltfImage(
 )
 {
     std::ostringstream message;
-    message << assetPath.string() << ": mesh[" << meshIndex << "]"
+    message << assetPath.u8string() << ": mesh[" << meshIndex << "]"
             << " primitive[" << primitiveIndex << "]"
             << " semantic=" << semantic
             << " accessor[";
@@ -1291,7 +1427,7 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     if (data.error() != fastgltf::Error::None)
     {
         throw std::runtime_error(
-            normalizedPath.string() + ": read failed: " +
+            normalizedPath.u8string() + ": read failed: " +
             std::string(fastgltf::getErrorName(data.error())) + ": " +
             std::string(fastgltf::getErrorMessage(data.error()))
         );
@@ -1303,7 +1439,7 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     if (loaded.error() != fastgltf::Error::None)
     {
         throw std::runtime_error(
-            normalizedPath.string() + ": parse failed: " +
+            normalizedPath.u8string() + ": parse failed: " +
             std::string(fastgltf::getErrorName(loaded.error())) + ": " +
             std::string(fastgltf::getErrorMessage(loaded.error()))
         );
@@ -1314,12 +1450,13 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     if (validationError != fastgltf::Error::None)
     {
         throw std::runtime_error(
-            normalizedPath.string() + ": validation failed: " +
+            normalizedPath.u8string() + ": validation failed: " +
             std::string(fastgltf::getErrorName(validationError)) + ": " +
             std::string(fastgltf::getErrorMessage(validationError))
         );
     }
 
+    validateSupportedAssetFeatures(asset, normalizedPath);
     GltfImportData result;
     result.sourcePath = normalizedPath;
     result.materialCount = asset.materials.size();
@@ -1358,7 +1495,7 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
     for (std::size_t textureIndex = 0; textureIndex < asset.textures.size(); ++textureIndex)
     {
         const fastgltf::Texture& source = asset.textures[textureIndex];
-        const std::string context = normalizedPath.string() + ": texture[" + std::to_string(textureIndex) + "]";
+        const std::string context = normalizedPath.u8string() + ": texture[" + std::to_string(textureIndex) + "]";
         if (!source.imageIndex)
         {
             throw std::runtime_error(context + ": no supported image source");
@@ -1412,6 +1549,16 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
             summary.meshIndex = *node.meshIndex;
         }
         summary.children.assign(node.children.begin(), node.children.end());
+
+        const auto localMatrix = fastgltf::getTransformMatrix(node);
+        for (int column = 0; column < 4; ++column)
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                summary.localTransform[column][row] = localMatrix[column][row];
+            }
+        }
+
         result.nodes.push_back(std::move(summary));
     }
     result.meshes.reserve(asset.meshes.size());
@@ -1430,6 +1577,7 @@ GltfImportData loadGltfCpuData(const std::filesystem::path &path)
                 primitiveIndex,
                 sourceMesh.primitives[primitiveIndex]
             );
+            validatePrimitiveMaterial(result, primitiveData, meshIndex, primitiveIndex);
             meshData.primitiveIndices.push_back(result.primitives.size());
             result.primitives.push_back(std::move(primitiveData));
         }

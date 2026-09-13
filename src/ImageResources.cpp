@@ -69,9 +69,11 @@ DecodedImageData TriangleApplication::decodeTextureImageFromFileOrFallback(const
 ImageHandle TriangleApplication::getOrCreateGltfImage(
     const GltfImportData &imported,
     std::size_t imageIndex,
-    VkFormat format)
+    VkFormat format,
+    GltfMaterialUpload &upload)
 {
-    const std::string assetPath = imported.sourcePath.generic_string();
+    GltfImageCache& cache = upload.imageCache;
+    const std::string assetPath = imported.sourcePath.generic_u8string();
     const std::string debugName = assetPath + ": image[" + std::to_string(imageIndex) + "]";
     if (imageIndex >= imported.images.size())
     {
@@ -83,8 +85,8 @@ ImageHandle TriangleApplication::getOrCreateGltfImage(
     }
 
     const GltfImageKey key{assetPath, imageIndex, format};
-    const auto cached = gltfImageCache.find(key);
-    if (cached != gltfImageCache.end())
+    const auto cached = cache.find(key);
+    if (cached != cache.end())
     {
         if (ImageHandle gpuImage = cached->second.lock())
         {
@@ -96,7 +98,8 @@ ImageHandle TriangleApplication::getOrCreateGltfImage(
     ImageHandle gpuImage = std::make_shared<ImageResource>();
     gpuImage->name = debugName + (format == VK_FORMAT_R8G8B8A8_SRGB ? " SRGB" : " UNORM");
     gpuImage->image = uploadTexture2D(decoded, format, gpuImage->name);
-    gltfImageCache.insert_or_assign(key, std::weak_ptr<ImageResource>{gpuImage});
+    cache.insert_or_assign(key, std::weak_ptr<ImageResource>{gpuImage});
+    ++upload.uploadedImageCount;
     return gpuImage;
 }
 
@@ -301,7 +304,7 @@ void TriangleApplication::createMaterialResources()
             "Default MetallicRoughness",
             std::string(),
             VK_FORMAT_R8G8B8A8_UNORM,
-            {0, 0, 0, 255});
+            {255, 255, 255, 255}); // 默认白色
 
     // 表示缝隙等位置的环境遮蔽，主要影响间接光照
     defaultAoTexture =
@@ -347,10 +350,26 @@ void TriangleApplication::createMaterialResources()
     materialLibrary.push_back(defaultMaterial);
     materialLibrary.push_back(variantMaterial);
 
+    // gltf 没有指定 material 时使用的默认材质
+    defaultGltfMaterial = std::make_shared<Material>();
+    defaultGltfMaterial->name = "glTF Default";
+    defaultGltfMaterial->baseColorTexture = {
+        defaultBaseColorTexture, defaultTextureSampler, 0u};
+    defaultGltfMaterial->normalTexture = {
+        rustedNormalTexture, defaultTextureSampler, 0u};
+    defaultGltfMaterial->metallicRoughnessTexture = {
+        rustedMetallicRoughnessTexture, defaultTextureSampler, 0u};
+    defaultGltfMaterial->aoTexture = {
+        rustedAoTexture, defaultTextureSampler, 0u};
+    defaultGltfMaterial->emissiveTexture = {
+        defaultEmissiveTexture, defaultTextureSampler, 0u};
+
+    materialLibrary.push_back(defaultGltfMaterial);
+
     mipLevels = defaultMaterial->baseColorTexture.image->image.mipLevels();
 }
 
-SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData &source, const std::string &debugName)
+SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData &source, const std::string &debugName, std::vector<SamplerHandle> &library)
 {
     const GltfFilter magFilter = source.magFilter.value_or(GltfFilter::Linear);
     const GltfFilter minFilter = source.minFilter.value_or(GltfFilter::LinearMipmapLinear);
@@ -362,7 +381,7 @@ SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData 
         static_cast<std::uint16_t>(source.wrapT)
     };
 
-    for (const SamplerHandle& resource: samplerLibrary)
+    for (const SamplerHandle &resource : library)
     {
         if (resource->key == key)
         {
@@ -430,13 +449,13 @@ SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData 
     resource->name = debugName;
     resource->key = key;
     resource->sampler = context.createSampler(desc);
-    samplerLibrary.push_back(resource);
+    library.push_back(resource);
     return resource;
 }
 
 void TriangleApplication::createTextureSampler()
 {
-    defaultTextureSampler = getOrCreateGltfSampler(GltfSamplerData{}, "Default texture sampler");
+    defaultTextureSampler = getOrCreateGltfSampler(GltfSamplerData{}, "Default texture sampler", samplerLibrary);
 }
 
 void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
@@ -467,7 +486,9 @@ bool TriangleApplication::hasStencilComponent(VkFormat format)
 MaterialHandle TriangleApplication::createGltfMaterial(
     const GltfImportData &imported,
     const GltfMaterialData &source,
-    const std::string &debugName)
+    const std::string &debugName,
+    GltfMaterialUpload& upload
+)
 {
     if (source.alphaMode != GltfAlphaMode::Opaque)
     {
@@ -479,6 +500,7 @@ MaterialHandle TriangleApplication::createGltfMaterial(
     }
 
     // 把 gltf 里的一个材质纹理引用，转换为 Engine 自己的 MaterialTextureSlot
+    // 使用 [&] 捕获，所以它可以直接访问 upload 参数
     auto makeSlot = [&](
         const std::optional<GltfMaterialTextureSlot>& reference,
         const ImageHandle& fallback,
@@ -513,12 +535,13 @@ MaterialHandle TriangleApplication::createGltfMaterial(
             }
             sampler = getOrCreateGltfSampler(
                 imported.samplers[index],
-                imported.sourcePath.string() + ": sampler[" + std::to_string(index) + "]"
+                imported.sourcePath.u8string() + ": sampler[" + std::to_string(index) + "]",
+                upload.samplers
             );
         }
 
         ImageHandle image = getOrCreateGltfImage(
-            imported, texture.imageIndex, format
+            imported, texture.imageIndex, format, upload
         );
 
         return {image, sampler, reference->texCoord};
@@ -527,6 +550,7 @@ MaterialHandle TriangleApplication::createGltfMaterial(
     // Material 为完整的材质，包含多个 Material slot
     // 一个 Material slot 对应一个 Texture
     MaterialHandle material = std::make_shared<Material>();
+    material->name = source.name.empty() ? debugName : source.name;
     material->baseColorFactor = source.baseColorFactor;
     material->metallicFactor = source.metallicFactor;
     material->roughnessFactor = source.roughnessFactor;

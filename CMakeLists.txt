@@ -66,6 +66,7 @@ find_package(tinyobjloader CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
+find_package(nfd CONFIG REQUIRED)
 
 add_library(gltf_import STATIC
     src/GltfLoader.cpp
@@ -110,6 +111,7 @@ add_executable(vulkan
     src/TriangleApplication.cpp
     src/ThirdPartyImplementations.cpp
     src/ImGuiLayer.cpp
+    src/FileDialog.cpp
     src/Skybox.cpp
     src/VulkanResources.cpp
     src/VulkanContext.cpp
@@ -133,6 +135,7 @@ target_compile_definitions(vulkan PRIVATE
 )
 
 target_link_libraries(vulkan PRIVATE
+    nfd::nfd
     gltf_import
     Vulkan::Vulkan
     glfw

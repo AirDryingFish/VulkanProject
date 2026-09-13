@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include <memory>
+#include <string>
 
 enum class MeshSource
 {
@@ -26,6 +27,8 @@ struct MeshBuildData
 
 struct Mesh
 {
+    std::string cacheKey;
+
     GpuBuffer vertexBuffer;
     GpuBuffer indexBuffer;
 

@@ -17,6 +17,7 @@ glm::mat4 TriangleApplication::getObjectMatrix(const SceneObject &object) const
 {
     const Transform& transform = object.transform;
     glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
+    model = model * object.assetTransform;
     model = glm::rotate(model, glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
     model = glm::rotate(model, glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
     model = glm::rotate(model, glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));

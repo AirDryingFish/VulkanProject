@@ -5,6 +5,7 @@
   "dependencies": [
     "fastgltf",
     "glfw3",
+    "nativefiledialog-extended",
     "glm",
     "stb",
     "tinyobjloader",

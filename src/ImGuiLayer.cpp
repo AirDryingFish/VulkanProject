@@ -1,4 +1,5 @@
 #include "TriangleApplication.hpp"
+#include "FileDialog.hpp"
 
 #include <algorithm>
 #include <array>
@@ -304,6 +305,68 @@ void TriangleApplication::drawImGui()
         ImGui::TextWrapped("Import failed: %s", sceneStatusMessage.c_str());
     }
 
+    ImGui::SeparatorText("glTF Import");
+    ImGui::InputText("glTF/GLB path", importGltfPath, sizeof(importGltfPath));
+    ImGui::Text("Material slots: %u / %u", static_cast<unsigned int>(allocatedMaterialSetCount), static_cast<unsigned int>(maxMaterialCount));
+    bool importRequested = ImGui::Button("Import glTF Scene");
+    std::string requestedPath = importGltfPath;
+    ImGui::SameLine();
+    if (ImGui::Button("Browse and Import..."))
+    {
+        sceneClickConsumed = true;
+        try
+        {
+            const auto path = FileDialog::openGltf();
+            if (path)
+            {
+                requestedPath = *path;
+                importRequested = true;
+            }
+        }
+        catch (const std::exception& exception)
+        {
+            gltfImportError = exception.what();
+        }
+    }
+    if (importRequested)
+    {
+        sceneClickConsumed = true;
+        gltfImportError.clear();
+
+        GltfImportResult importResult{};
+        bool importSucceeded = false;
+
+        try{
+            importResult = addGltfMeshObjects(requestedPath);
+            importSucceeded = true;
+        }
+        catch(const std::exception& exception)
+        {
+            gltfImportError = exception.what();
+        }
+
+        if (importSucceeded)
+        {
+            gltfImportSummary =
+                "Objects: " + std::to_string(importResult.objectCount) +
+                ", uploaded meshes: " + std::to_string(importResult.uploadedMeshCount) +
+                ", reused meshes: " + std::to_string(importResult.reusedMeshCount) +
+                ", new materials: " + std::to_string(importResult.materialCount) +
+                ", uploaded images: " + std::to_string(importResult.uploadedImageCount) +
+                ", new samplers: " + std::to_string(importResult.createdSamplerCount);
+        }
+    }
+
+    if (!gltfImportSummary.empty())
+    {
+        ImGui::TextWrapped("Last successful import: %s", gltfImportSummary.c_str());
+    }
+
+    if (!gltfImportError.empty())
+    {
+        ImGui::TextWrapped("glTF import failed: %s", gltfImportError.c_str());
+    }
+
     ImGui::SeparatorText("Objects");
     for (size_t i = 0; i < sceneObjects.size(); i++)
     {
@@ -417,9 +480,37 @@ void TriangleApplication::drawImGui()
     {
         const Mesh& mesh = *selectedSceneObject->mesh;
 
+        if (!selectedSceneObject->sourcePath.empty())
+        {
+            ImGui::TextWrapped("Source: %s", selectedSceneObject->sourcePath.c_str());
+        }
+        ImGui::TextWrapped("Mesh Key: %s", mesh.cacheKey.c_str());
+        ImGui::Text("Vertex Tangents: %s", mesh.hasTangents ? "Available" : "Unavailable");
+
         if (selectedSceneObject->material)
         {
-            ImGui::Text("Material: %s", selectedSceneObject->material->name.c_str());
+            // ImGui::Text("Material: %s", selectedSceneObject->material->name.c_str());
+            const Material& material = *selectedSceneObject->material;
+            ImGui::Text("Material: %s", material.name.c_str());
+            if (ImGui::TreeNode("Material Texture Slots"))
+            {
+                auto showSlot = [](const char* label, const MaterialTextureSlot& slot)
+                {
+                    ImGui::Text("%s / UV%u", label, static_cast<unsigned int>(slot.texCoord));
+                    ImGui::Indent();
+                    ImGui::TextWrapped("Image: %s", slot.image ? slot.image->name.c_str() : "None");
+                    ImGui::TextWrapped("Sampler: %s", slot.sampler ? slot.sampler->name.c_str() : "None");
+                    ImGui::Unindent();
+                };
+
+                showSlot("Base Color", material.baseColorTexture);
+                showSlot("Normal", material.normalTexture);
+                showSlot("Metallic-Roughness", material.metallicRoughnessTexture);
+                showSlot("Occlusion", material.aoTexture);
+                showSlot("Emissive", material.emissiveTexture);
+
+                ImGui::TreePop();
+            }
         }
         ImGui::Text("Mesh References: %ld", selectedSceneObject->mesh.use_count());
         ImGui::Text("Vertices: %u", mesh.vertexCount);
@@ -428,8 +519,7 @@ void TriangleApplication::drawImGui()
         ImGui::Text("AABB Max: %.2f %.2f %.2f", mesh.boundsMax.x, mesh.boundsMax.y, mesh.boundsMax.z);
     }
 
-
-    ImGui::Text("Textures: %zu", textureLibrary.size());
+    ImGui::Text("Texture Library Entries: %zu", textureLibrary.size());
     ImGui::Text("Materials: %zu", materialLibrary.size());
     ImGui::Text("Mip Levels: %u", mipLevels);
 

@@ -75,14 +75,14 @@ void TriangleApplication::InitVulkan()
     createPrefilterResources();
     createBRDFLUTResources();
 
-    testSceneInit();
-
     createUniformBuffer();
 
     createDescriptorPool();
     createFrameDescriptorSets();
     createMaterialDescriptorSets();
     createSkyboxDescriptorSets();
+
+    testSceneInit();
 
     rendererReady = true;
 }
@@ -147,6 +147,7 @@ void TriangleApplication::cleanup() noexcept
     meshCache.clear();
     materialLibrary.clear();
     defaultMaterial.reset();
+    defaultGltfMaterial.reset();
 
     brdfLUTSampler.reset();
     prefilterSampler.reset();
