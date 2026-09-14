@@ -6,6 +6,8 @@
 > - [阶段 2：应用层拆分](stage-2-application-split.md)
 > - [阶段 3：通用 GPU 资源层](stage-3-gpu-resource-layer.md)
 > - [阶段 4：Scene、Mesh 与 Material 解耦](stage-4-scene-mesh-material.md)
+> - [阶段 5：glTF 2.0 资产管线](stage-5-gltf-asset-pipeline.md)
+> - [阶段 6：方向光与阴影](stage-6-directional-light-shadows.md)
 
 本文档记录 VulkanProject 从当前 PBR Renderer 继续演进为可扩展 Vulkan
 渲染引擎的开发计划。任务按依赖关系和风险排序，而不是单纯按照视觉效果排序。
@@ -343,6 +345,8 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 ## 阶段 6：方向光与阴影
 
 目标：在现有点光源和 IBL 基础上加入第一个完整阴影系统。
+
+> 当前 Stage 5 收尾评估、手敲顺序、每帧阴影资源和验收标准见：[阶段 6：方向光与阴影实施指南](stage-6-directional-light-shadows.md)。
 
 ### 6.1 Directional Light
 

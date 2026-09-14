@@ -145,6 +145,20 @@ target_link_libraries(vulkan PRIVATE
     imgui::imgui
 )
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    get_filename_component(
+        VULKAN_PROJECT_SYSTEM_VULKAN_DIR
+        "${VULKAN_PROJECT_SYSTEM_VULKAN_LOADER}"
+        DIRECTORY
+    )
+
+    set_property(
+        TARGET vulkan
+        PROPERTY BUILD_RPATH
+        "${VULKAN_PROJECT_SYSTEM_VULKAN_DIR}"
+    )
+endif()
+
 if(BUILD_TESTING)
     add_executable(gltf_loader_tests
         tests/GltfLoaderTests.cpp
