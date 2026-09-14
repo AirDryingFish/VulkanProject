@@ -2,7 +2,7 @@
 
 本文对应 [开发路线图](overview.md) 的 Stage 6。目标是在现有点光源、IBL 和 glTF 静态 PBR 场景上增加一盏方向光，以及一套可调试、无跨帧资源冲突的 shadow map。
 
-评估日期：2026-09-14。代码基线：`39416b0`（`Complete gltf upload and display`）。本文是后续手敲指南，文中的新接口、字段和 shader 尚未实现。
+评估日期：2026-09-14。Stage 5 功能基线：`39416b0`（`Complete gltf upload and display`）；Linux loader 修复基线：`5ccc85c`（`Fix link error`）。本文是后续手敲指南，文中的 Stage 6 新接口、字段和 shader 尚未实现。
 
 ## 1. Stage 5 是否已经完成
 
@@ -17,14 +17,16 @@
 | 奇异/镜像矩阵、缺失 UV、动画/skin/morph 限制 | importer 的显式检查 | 已有拒绝路径 |
 | 导入事务、descriptor 容量 | `GltfMaterialUpload`、`ensureMaterialDescriptorCapacity()`、批量分配和回滚 | 已有实现，故障路径仍需实测 |
 | fixture 测试 | `tests/GltfLoaderTests.cpp` | 覆盖 Triangle、无索引、Box/Interleaved、Sparse、外部/data URI 图片；没有完整 Node/材质/交互覆盖 |
-| Debug/Release 构建 | 本次尝试两个 preset | 都在 vcpkg 配置阶段失败，未验证当前代码编译结果 |
-| Validation、resize、重复导入、参考外观 | 本次没有启动 GUI 验收 | 待记录，不能宣称通过 |
+| Debug/Release 构建 | 初次检查均在 vcpkg 配置阶段因系统工具缺失失败；随后已有可执行文件及 loader 修复 | 初次失败作为历史记录保留；当前提交的完整构建与测试结果仍需记录 |
+| Linux Vulkan loader | `5ccc85c` 增加 `BUILD_RPATH`；当前 Debug 的 RUNPATH 和实际库路径已检查 | Debug 优先加载系统 loader；Release 当前也解析到系统 loader，但未观察到 RUNPATH，需重建确认 |
+| Validation、resize、重复导入、参考外观 | 已诊断 surface 创建问题，系统 loader 下曾验证 surface 创建成功 | 不等于完整渲染/交互验收，仍待记录 |
 
 ### 1.1 先恢复可复现构建
 
-本次 `nativefiledialog-extended` 引入的依赖安装过程，在 `libxcrypt` 构建中报告缺少系统工具。日志要求以下软件包；安装命令由使用者在 Ubuntu 上执行：
+首次检查时，`nativefiledialog-extended` 引入的依赖安装过程在 `libxcrypt` 构建中报告缺少系统工具。新环境遇到同一问题时，在 Ubuntu 上安装下列软件包；已经安装则无需重复处理：
 
 ```bash
+sudo apt update
 sudo apt install autoconf autoconf-archive automake libtool
 cmake --preset linux-debug
 cmake --build --preset linux-debug --parallel
@@ -35,7 +37,62 @@ cmake --build --preset linux-release --parallel
 
 这不是已确认的 C++ 编译错误。完成依赖安装后可能暴露其他环境或代码问题，以实际日志为准。不要把旧 build 目录里的可执行文件当作当前提交已通过的证据，也不要为绕过错误随意更新 vcpkg baseline。
 
-### 1.2 保留当前对象变换约定
+### 1.2 修复 Linux Vulkan loader 的运行时搜索路径
+
+依赖构建通过后，曾出现：
+
+```text
+glfwCreateWindowSurface(...) returned VK_ERROR_EXTENSION_NOT_PRESENT (-7)
+```
+
+已定位原因：CMake 的 `Vulkan_LIBRARY` 虽然指向系统 loader，但 Debug 可执行文件原来的 RUNPATH 优先指向 vcpkg 的 `debug/lib`，运行时加载了该目录的同名 `libvulkan.so.1`。这份 loader 的 `BUILD_WSI_XLIB_SUPPORT`、`BUILD_WSI_XCB_SUPPORT` 和 `BUILD_WSI_WAYLAND_SUPPORT` 均为 OFF；GLFW 没有得到创建 X11 surface 所需的扩展。日志里的 gfxstream 提示在切换 loader、surface 创建成功时仍然出现，不能把它直接判定为本次失败原因。
+
+修复需要同时处理链接与运行时搜索：保留现有 `find_library(VULKAN_PROJECT_SYSTEM_VULKAN_LOADER ...)` 和 `Vulkan_LIBRARY` 设置，在 `target_link_libraries(vulkan ...)` 后设置目标属性。当前 `5ccc85c` 已包含以下代码，**不要重复添加**：
+
+```cmake
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    get_filename_component(
+        VULKAN_PROJECT_SYSTEM_VULKAN_DIR
+        "${VULKAN_PROJECT_SYSTEM_VULKAN_LOADER}"
+        DIRECTORY
+    )
+
+    set_property(
+        TARGET vulkan
+        PROPERTY BUILD_RPATH
+        "${VULKAN_PROJECT_SYSTEM_VULKAN_DIR}"
+    )
+endif()
+```
+
+`BUILD_RPATH` 为 build tree 的程序增加运行时库搜索目录，并保留 CMake 自动生成的依赖路径。这里从找到的系统 loader 提取目录，不把机器架构写死。最终顺序以生成的 ELF 为准。[CMake BUILD_RPATH 文档](https://cmake.org/cmake/help/latest/prop_tgt/BUILD_RPATH.html)
+
+修改后依次重新配置和链接两个 preset，然后检查：
+
+```bash
+cmake --preset linux-debug
+cmake --build --preset linux-debug --parallel
+cmake --preset linux-release
+cmake --build --preset linux-release --parallel
+
+readelf -d build/linux-debug/vulkan | rg 'RPATH|RUNPATH'
+readelf -d build/linux-release/vulkan | rg 'RPATH|RUNPATH'
+env -u LD_LIBRARY_PATH ldd build/linux-debug/vulkan | rg 'libvulkan'
+env -u LD_LIBRARY_PATH ldd build/linux-release/vulkan | rg 'libvulkan'
+```
+
+当前 Debug 已观察到 `/usr/lib/x86_64-linux-gnu` 位于 vcpkg 目录之前，移除 `LD_LIBRARY_PATH` 后仍解析到系统 `libvulkan.so.1`。Release 当前解析到 `/lib/x86_64-linux-gnu/libvulkan.so.1`，但 `readelf` 未显示 RPATH/RUNPATH；这个结果只能证明该文件当前使用系统 loader，不能证明它已重建并带上新属性。
+
+验收时两个程序都不应解析到 `vcpkg_installed/.../libvulkan.so.1`。Ubuntu 上 `/lib/x86_64-linux-gnu` 与 `/usr/lib/x86_64-linux-gnu` 可能指向同一系统库。接着直接运行并检查完整启动、绘制和退出：
+
+```bash
+env -u LD_LIBRARY_PATH ./build/linux-debug/vulkan
+env -u LD_LIBRARY_PATH ./build/linux-release/vulkan
+```
+
+临时诊断也可以使用 `LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu ./build/linux-debug/vulkan`，但它只证明切换搜索路径有效，不代替持久修复验收。`LD_LIBRARY_PATH` 通常优先于 RUNPATH；不要在 shell 配置中长期插入 vcpkg 的 loader 路径，不要删除 vcpkg 的库或因此重装显卡驱动。未来安装/打包时单独设计 `INSTALL_RPATH`，本配置针对 build 目录直接运行。
+
+### 1.3 保留当前对象变换约定
 
 当前 `Buffers.cpp::getObjectMatrix()` 大致计算：
 
@@ -52,9 +109,10 @@ userTransform * assetTransform
 
 两者在有旋转/非均匀缩放的节点上并不等价。Stage 6 不改变现有编辑语义；若以后整体变换一次导入的场景，应单独设计共享 import-root。用带旋转父节点的资产验证旋转、缩放、拾取和 Gizmo；不要只用单位矩阵的 Box 验收。Stage 6 两个 pass 必须使用同一个最终 model 矩阵。
 
-### 1.3 进入阴影开发前的最小门槛
+### 1.4 进入阴影开发前的最小门槛
 
 - [ ] 当前提交 Debug/Release 构建通过，CPU tests 通过。
+- [ ] 两个 preset 无需临时 `LD_LIBRARY_PATH` 即可使用系统 Vulkan loader，正常创建窗口 surface。
 - [ ] Box、DamagedHelmet 和一个多 Node/多 primitive 场景能导入；记录外观和资源计数。
 - [ ] 按上述已有变换语义验收；主绘制与拾取一致。
 - [ ] 重复导入、删除、错误路径和容量超限后，原场景仍可绘制。

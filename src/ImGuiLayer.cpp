@@ -425,6 +425,13 @@ void TriangleApplication::drawImGui()
     ImGui::DragFloat("Ambient Intensity", &ambientLightIntensity, 0.01f, 0.0f, 2.0f);
     ImGui::DragFloat("IBL Intensity", &iblIntensity, 0.01f, 0.0f, 5.0f);
 
+    ImGui::Separator();
+    ImGui::TextUnformatted("Directional Light");
+    ImGui::Checkbox("Enabled##DirectionalLight", &directionalLight.enabled);
+    ImGui::DragFloat3("Direction##DirectionalLight", &directionalLight.direction.x, 0.02f);
+    ImGui::ColorEdit3("Color##DirectionalLight", &directionalLight.color.x);
+    ImGui::DragFloat("Intensity##DirectionalLight", &directionalLight.intensity, 0.05f, 0.0f, 20.0f);
+
     const bool canAddLight = pointLights.size() < MAX_POINT_LIGHTS;
     if (!canAddLight)
     {

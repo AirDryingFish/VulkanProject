@@ -134,6 +134,17 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.ambientLight = glm::vec4(ambientLightColor, ambientLightIntensity);
     ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
     ubo.renderParams = glm::vec4(iblIntensity, 0.0f, 0.0f, 0.0f);
+    glm::vec3 direction = directionalLight.direction;
+    float lengthSquared = glm::dot(direction, direction);
+    if (!std::isfinite(lengthSquared) || lengthSquared < 1e-8f)
+    {
+        direction = glm::vec3(-1.0f, -1.0f, -2.0f);
+        lengthSquared = glm::dot(direction, direction);
+    }
+    direction /= std::sqrt(lengthSquared);
+
+    ubo.directionalDirectionEnabled = glm::vec4(direction, directionalLight.enabled ? 1.0f : 0.0f);
+    ubo.directionalColorIntensity = glm::vec4(directionalLight.color, std::max(directionalLight.intensity, 0.0f));
 
     for (size_t i = 0; i < std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS); i++)
     {

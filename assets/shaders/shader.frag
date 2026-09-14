@@ -31,6 +31,9 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 
     PointLight pointLights[MAX_POINT_LIGHTS];
 
+    vec4 directionalDirectionEnabled;
+    vec4 directionalColorIntensity;
+
 } frame;
 
 layout(push_constant) uniform DrawPushConstants
@@ -222,6 +225,49 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     return ggx1 * ggx2;
 }
 
+// 计算一个直接光源对当前像素产生的 PBR 光照贡献
+vec3 evaluateDirectLight(
+    vec3 normal,
+    vec3 viewDir,
+    vec3 lightDir,
+    vec3 albedo,
+    float metallic,
+    float roughness,
+    vec3 F0,        // 垂直入射时的基础反射率
+    vec3 radiance   // 光源颜色 * 强度
+)
+{
+    float NdotL = max(dot(normal, lightDir), 0.0);
+    float NdotV = max(dot(normal, viewDir), 0.0);
+    // NdotL = 0 => 擦着表面
+    // NdotL < 0 => 光在表面背后
+    if (NdotL <= 0.0 || NdotV <= 0.0)
+    {
+        return vec3(0.0);
+    }
+
+    vec3 halfVector = lightDir + viewDir;
+    float halfLengthSquared = dot(halfVector, halfVector);
+    if (halfLengthSquared < 1e-8)
+    {
+        return vec3(0.0);
+    }
+    vec3 halfDir = halfVector * inversesqrt(halfLengthSquared);
+
+    // Fresnel项：在当前观察角度下，有多少光被表面镜面反射
+    vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
+    // Normal Distribution Function: 有多少微表面的法向朝向 H
+    float NDF = DistributionGGX(normal, halfDir, roughness);
+    // Geometry / Shadowing-Masking: 模拟微表面之前互相遮挡的问题
+    float G = GeometrySmith(normal, viewDir, lightDir, roughness);
+    // 完整的 Cook-Torrance specular BRDF:
+    vec3 specular = NDF * G * F / (4.0 * NdotV * NdotL + 0.0001);
+    // diffuse部分:
+    vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
+
+    return (kD * albedo / PI + specular) * radiance * NdotL;
+}
+
 void main()
 {
     vec4 metallicRoughness = texture(metallicRoughnessMap, materialUv(2u));
@@ -259,23 +305,32 @@ void main()
         attenuation *= attenuation;
 
         vec3 radiance = light.color.rgb * light.color.a * attenuation;
-        vec3 halfDir = normalize(lightDir + viewDir);
+        Lo += evaluateDirectLight(
+            normal,
+            viewDir,
+            lightDir,
+            albedo,
+            metallic,
+            roughness,
+            F0,
+            radiance
+        );
+    }
 
-        vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
-
-        float NDF = DistributionGGX(normal, halfDir, roughness);
-        float G = GeometrySmith(normal, viewDir, lightDir, roughness);
-
-        vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * max(dot(normal, lightDir), 0.0) + 0.0001;
-        vec3 specular = numerator / denominator;
-
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;
-
-        float NdotL = max(dot(normal, lightDir), 0.0);
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+    if (frame.directionalDirectionEnabled.w > 0.5)
+    {
+        vec3 lightDir = -frame.directionalDirectionEnabled.xyz;
+        vec3 radiance = frame.directionalColorIntensity.rgb * frame.directionalColorIntensity.w;
+        Lo += evaluateDirectLight(
+            normal,
+            viewDir,
+            lightDir,
+            albedo,
+            metallic,
+            roughness,
+            F0,
+            radiance
+        );
     }
 
     vec3 ambient = frame.ambientLight.rgb * frame.ambientLight.a * albedo * ao;

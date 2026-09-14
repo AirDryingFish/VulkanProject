@@ -34,6 +34,9 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 
     PointLight pointLights[MAX_POINT_LIGHTS];
 
+    vec4 directionalDirectionEnabled;
+    vec4 directionalColorIntensity;
+
 } ubo;
 
 layout(push_constant) uniform ModelPushConstants

@@ -148,6 +148,14 @@ struct PointLight
     bool enabled = true;
 };
 
+struct DirectionalLight
+{
+    glm::vec3 direction{-1.0f, -1.0f, -2.0f};
+    glm::vec3 color{1.0f};
+    float intensity = 3.0f;
+    bool enabled = true;
+};
+
 struct GpuPointLight
 {
     alignas(16) glm::vec4 position;
@@ -169,6 +177,9 @@ struct alignas(16) UniformBufferObject
     alignas(16) glm::vec4 renderParams;
 
     GpuPointLight pointLights[MAX_POINT_LIGHTS];
+
+    alignas(16) glm::vec4 directionalDirectionEnabled{}; // xyz: 归一化传播方向 w: enabled
+    alignas(16) glm::vec4 directionalColorIntensity{}; // xyz: 光的颜色 w: 强度
 };
 
 static_assert(offsetof(UniformBufferObject, proj) == 64);
@@ -177,4 +188,7 @@ static_assert(offsetof(UniformBufferObject, ambientLight) == 144);
 static_assert(offsetof(UniformBufferObject, lightCounts) == 160);
 static_assert(offsetof(UniformBufferObject, renderParams) == 176);
 static_assert(offsetof(UniformBufferObject, pointLights) == 192);
-static_assert(sizeof(UniformBufferObject) == 960);
+static_assert(offsetof(UniformBufferObject, directionalDirectionEnabled) == 960);
+static_assert(offsetof(UniformBufferObject, directionalColorIntensity) == 976);
+static_assert(sizeof(UniformBufferObject) == 992);
+
