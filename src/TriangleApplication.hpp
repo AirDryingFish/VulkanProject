@@ -245,6 +245,8 @@ private:
     glm::vec4 clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
     std::vector<PointLight> pointLights;
     DirectionalLight directionalLight;
+    bool showShadowProjection = false;
+
     glm::vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
     float ambientLightIntensity = 0.0f;
     float iblIntensity = 1.0f;

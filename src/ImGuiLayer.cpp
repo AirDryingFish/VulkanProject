@@ -431,6 +431,9 @@ void TriangleApplication::drawImGui()
     ImGui::DragFloat3("Direction##DirectionalLight", &directionalLight.direction.x, 0.02f);
     ImGui::ColorEdit3("Color##DirectionalLight", &directionalLight.color.x);
     ImGui::DragFloat("Intensity##DirectionalLight", &directionalLight.intensity, 0.05f, 0.0f, 20.0f);
+    // 调试显示
+    ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
+
 
     const bool canAddLight = pointLights.size() < MAX_POINT_LIGHTS;
     if (!canAddLight)

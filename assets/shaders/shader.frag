@@ -34,6 +34,10 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 directionalDirectionEnabled;
     vec4 directionalColorIntensity;
 
+    mat4 lightViewProjection;
+    vec4 shadowParams;
+    ivec4 shadowFlags;
+
 } frame;
 
 layout(push_constant) uniform DrawPushConstants
@@ -270,6 +274,34 @@ vec3 evaluateDirectLight(
 
 void main()
 {
+    // 用颜色显示光空间坐标
+    if (frame.shadowFlags.y != 0)
+    {
+        vec4 lightClip = frame.lightViewProjection * vec4(fragWorldPos, 1.0);
+        if (lightClip.w <= 0.0) // 点在相机后方
+        {
+            outColor = vec4(1.0, 0.0, 1.0, 1.0); // 把这个像素画成红色
+            return;
+        }
+
+        vec3 lightNdc = lightClip.xyz / lightClip.w; // vulkan ndc 坐标系范围 x[-1, 1] y[-1, 1] z[0, 1]
+        vec2 lightUv = lightNdc.xy * 0.5 + 0.5; // uv: [0, 1]
+
+        bool inside =
+            all(greaterThanEqual(lightUv, vec2(0.0))) &&
+            all(lessThanEqual(lightUv, vec2(1.0))) &&
+            lightNdc.z >= 0.0 &&
+            lightNdc.z <= 1.0;
+        if (!inside)
+        {
+            outColor = vec4(1.0, 0.0, 1.0, 1.0);
+            return;
+        }
+
+        outColor = vec4(lightUv, lightNdc.z, 1.0);
+        return;
+    }
+
     vec4 metallicRoughness = texture(metallicRoughnessMap, materialUv(2u));
     float metallic = clamp(metallicRoughness.b * draw.materialFactors.x, 0.0, 1.0);
     float roughness = clamp(metallicRoughness.g * draw.materialFactors.y, 0.04, 1.0);

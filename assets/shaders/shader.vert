@@ -37,6 +37,10 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 directionalDirectionEnabled;
     vec4 directionalColorIntensity;
 
+    mat4 lightViewProjection;
+    vec4 shadowParams;
+    ivec4 shadowFlags;
+
 } ubo;
 
 layout(push_constant) uniform ModelPushConstants

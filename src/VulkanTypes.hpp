@@ -180,6 +180,17 @@ struct alignas(16) UniformBufferObject
 
     alignas(16) glm::vec4 directionalDirectionEnabled{}; // xyz: 归一化传播方向 w: enabled
     alignas(16) glm::vec4 directionalColorIntensity{}; // xyz: 光的颜色 w: 强度
+
+    // 光空间矩阵，用颜色显示它的覆盖范围
+    alignas(16) glm::mat4 lightViewProjection{1.0f};
+    // xy: shadow map 单个像素的 UV 尺寸
+    // z: 后续使用的深度比较 bias
+    // w: 预留
+    alignas(16) glm::vec4 shadowParams{};
+    // x: 阴影是否启用，目前为 0
+    // y: 是否显示光空间坐标调试颜色
+    // zw: 预留
+    alignas(16) glm::ivec4 shadowFlags{};
 };
 
 static_assert(offsetof(UniformBufferObject, proj) == 64);
@@ -190,5 +201,8 @@ static_assert(offsetof(UniformBufferObject, renderParams) == 176);
 static_assert(offsetof(UniformBufferObject, pointLights) == 192);
 static_assert(offsetof(UniformBufferObject, directionalDirectionEnabled) == 960);
 static_assert(offsetof(UniformBufferObject, directionalColorIntensity) == 976);
-static_assert(sizeof(UniformBufferObject) == 992);
+static_assert(offsetof(UniformBufferObject, lightViewProjection) == 992);
+static_assert(offsetof(UniformBufferObject, shadowParams) == 1056);
+static_assert(offsetof(UniformBufferObject, shadowFlags) == 1072);
+static_assert(sizeof(UniformBufferObject) == 1088);
 

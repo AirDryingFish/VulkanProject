@@ -1,6 +1,9 @@
 #include "TriangleApplication.hpp"
 #include "UploadCommands.hpp"
 
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -134,6 +137,7 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.ambientLight = glm::vec4(ambientLightColor, ambientLightIntensity);
     ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
     ubo.renderParams = glm::vec4(iblIntensity, 0.0f, 0.0f, 0.0f);
+    // -- 计算方向光方向 --
     glm::vec3 direction = directionalLight.direction;
     float lengthSquared = glm::dot(direction, direction);
     if (!std::isfinite(lengthSquared) || lengthSquared < 1e-8f)
@@ -142,9 +146,55 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
         lengthSquared = glm::dot(direction, direction);
     }
     direction /= std::sqrt(lengthSquared);
+    // ----
 
     ubo.directionalDirectionEnabled = glm::vec4(direction, directionalLight.enabled ? 1.0f : 0.0f);
     ubo.directionalColorIntensity = glm::vec4(directionalLight.color, std::max(directionalLight.intensity, 0.0f));
+
+    // -- 计算 shadow 相关
+    const glm::vec3 shadowCenter{0.0f, 0.0f, 0.0f};
+    constexpr float lighDistance = 20.0f;
+    constexpr float halfExtent = 10.0f;
+    constexpr float shadowNear = 0.1f;
+    constexpr float shadowFar = 50.0f;
+    // 虚拟光源相机位置，为了从光的视角去渲染场景
+    const glm::vec3 lightPosition = shadowCenter - direction * lighDistance;
+    const glm::vec3 worldUp{0.0f, 0.0f, 1.0f};
+    const glm::vec3 lightUp = std::abs(glm::dot(direction, worldUp)) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f) : worldUp;
+    // 里面会进行 cross 操作，如果看向方向和 up 方向平行，cross 为 0，算不出 right 方向
+    const glm::mat4 lightView = glm::lookAtRH(lightPosition, shadowCenter, lightUp);
+    // 构建一个右手系、深度范围为 [0, 1] 的正交投影矩阵
+    glm::mat4 lightProjection = glm::orthoRH_ZO(
+        -halfExtent, halfExtent, -halfExtent, halfExtent,
+        shadowNear, shadowFar
+    );
+    // OpenGL framebuffer
+    // (0,H) -------- (W,H)
+    // |               |
+    // |               |
+    // |               |
+    // (0,0) -------- (W,0)
+
+    // Vulkan framebuffer
+    // (0,0) --------→ +X
+    // |
+    // |
+    // ↓
+    // +Y
+    lightProjection[1][1] *= -1.0f;
+    // 世界坐标系变换到 光源裁剪空间中
+    ubo.lightViewProjection = lightProjection * lightView;
+    ubo.shadowParams = glm::vec4(
+        1.0f / 2048.0f,
+        1.0f / 2048.0f,
+        0.0005f,
+        0.0f);
+    ubo.shadowFlags = glm::ivec4(
+        0,
+        showShadowProjection ? 1 : 0,
+        0,
+        0);
+    // ----
 
     for (size_t i = 0; i < std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS); i++)
     {
