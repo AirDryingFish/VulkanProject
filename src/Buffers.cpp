@@ -185,8 +185,8 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     // 世界坐标系变换到 光源裁剪空间中
     ubo.lightViewProjection = lightProjection * lightView;
     ubo.shadowParams = glm::vec4(
-        1.0f / 2048.0f,
-        1.0f / 2048.0f,
+        1.0f / static_cast<float>(directionalShadowResolution),
+        1.0f / static_cast<float>(directionalShadowResolution),
         0.0005f,
         0.0f);
     ubo.shadowFlags = glm::ivec4(

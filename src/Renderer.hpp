@@ -24,6 +24,11 @@ struct BufferUploadRequest
 class Renderer
 {
 private:
+    struct ShadowTarget
+    {
+        GpuImage depth;
+    };
+
     struct FrameContext
     {
         VkCommandPool commandPool = VK_NULL_HANDLE;
@@ -69,6 +74,11 @@ private:
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
 
+    std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
+    VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
+    GpuSampler shadowCompareSampler_; // 比较参考深度，输出可见度
+    GpuSampler shadowPreviewSampler_; // 读取原始深度，用于调试预览
+
     UploadContext uploadContext_{};
 
     uint32_t currentFrame_ = 0;
@@ -84,6 +94,9 @@ private:
 
     void createGraphicsPipeline();
     void createSkyboxPipeline();
+
+    void createShadowTargets();
+    void destroyShadowTargets() noexcept;
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
 
 public:

@@ -88,6 +88,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         }
 
         createUploadContext();
+        createShadowTargets();
 
         initialized_ = true;
     }
@@ -260,6 +261,8 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
+            destroyShadowTargets();
+
             for (FrameContext &frame : frames_)
             {
                 frame.retiredBuffers.clear(); // 析构时自动触发资源释放
@@ -510,7 +513,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadReq
         stagingDesc.size = request.size;
         stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         // GPU 内存可以映射到 CPU 地址空间，并且 CPU 写入后不需要手动 flush (不需要 vmaFlushAllocation，gpu 就能看到数据)
-        stagingDesc.requiredMemoryProperties = 
+        stagingDesc.requiredMemoryProperties =
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         stagingDesc.debugName = "synchronous upload staging buffer";
@@ -529,12 +532,12 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadReq
     {
         BufferDesc destinationDesc{};
         destinationDesc.size = request.size;
-        destinationDesc.usage = 
+        destinationDesc.usage =
             request.destinationUsage |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         destinationDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         destinationDesc.debugName = request.debugName;
-        
+
         destinationBuffers.push_back(context_->createBuffer(destinationDesc));
     }
 

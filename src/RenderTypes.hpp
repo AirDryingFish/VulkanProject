@@ -10,6 +10,7 @@
 
 inline constexpr std::size_t frameImageDescriptorCount = 3;
 inline constexpr std::size_t materialImageDescriptorCount = 5;
+inline constexpr std::uint32_t directionalShadowResolution = 2048;
 
 struct ImDrawData;
 

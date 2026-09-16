@@ -120,6 +120,7 @@ add_executable(vulkan
     src/FileUtils.cpp
     src/UploadCommands.cpp
     src/Mesh.hpp
+    src/ShadowMapping.cpp
 )
 
 target_include_directories(vulkan PRIVATE
