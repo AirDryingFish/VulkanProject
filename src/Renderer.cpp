@@ -89,6 +89,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
 
         createUploadContext();
         createShadowTargets();
+        createShadowRenderPass();
+        createShadowFramebuffers();
 
         initialized_ = true;
     }
@@ -640,7 +642,10 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
     VK_CHECK(vkBeginCommandBuffer(token.commandBuffer, &beginInfo));
+
+    recordShadowPass(token);
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{

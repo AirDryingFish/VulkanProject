@@ -27,6 +27,7 @@ private:
     struct ShadowTarget
     {
         GpuImage depth;
+        VkFramebuffer framebuffer = VK_NULL_HANDLE;
     };
 
     struct FrameContext
@@ -76,6 +77,7 @@ private:
 
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
+    VkRenderPass shadowRenderPass_ = VK_NULL_HANDLE;
     GpuSampler shadowCompareSampler_; // 比较参考深度，输出可见度
     GpuSampler shadowPreviewSampler_; // 读取原始深度，用于调试预览
 
@@ -97,6 +99,11 @@ private:
 
     void createShadowTargets();
     void destroyShadowTargets() noexcept;
+
+    void createShadowRenderPass();
+    void createShadowFramebuffers();
+    void recordShadowPass(const FrameToken& token);
+
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
 
 public:
