@@ -78,6 +78,10 @@ private:
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
     VkRenderPass shadowRenderPass_ = VK_NULL_HANDLE;
+
+    VkPipelineLayout shadowPipelineLayout_ = VK_NULL_HANDLE;
+    VkPipeline shadowPipeline_ = VK_NULL_HANDLE;
+
     GpuSampler shadowCompareSampler_; // 比较参考深度，输出可见度
     GpuSampler shadowPreviewSampler_; // 读取原始深度，用于调试预览
 
@@ -97,12 +101,15 @@ private:
     void createGraphicsPipeline();
     void createSkyboxPipeline();
 
+    // -- shadow --
     void createShadowTargets();
     void destroyShadowTargets() noexcept;
 
     void createShadowRenderPass();
+    void createShadowPipeline();
     void createShadowFramebuffers();
-    void recordShadowPass(const FrameToken& token);
+    void recordShadowPass(const FrameToken& token, const RenderFrameData& data);
+    // ----
 
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
 

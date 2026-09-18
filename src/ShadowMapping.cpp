@@ -1,6 +1,8 @@
 #include "Renderer.hpp"
 #include "VulkanContext.hpp"
 #include "VulkanCheck.hpp"
+#include "VulkanTypes.hpp"
+#include "FileUtils.hpp"
 
 #include <array>
 #include <iostream>
@@ -203,7 +205,113 @@ void Renderer::createShadowFramebuffers()
         ));
     }
 }
-void Renderer::recordShadowPass(const FrameToken &token)
+
+void Renderer::createShadowPipeline()
+{
+    // set 0 复用每帧 descriptor (因为 shader 里面用了ubo), push constant 只需要 push model
+    VkPushConstantRange pushRange{};
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.offset = 0;
+    pushRange.size = sizeof(glm::mat4);
+
+    VkPipelineLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.setLayoutCount = 1;
+    layoutInfo.pSetLayouts = &frameDescriptorSetLayout_;
+    layoutInfo.pushConstantRangeCount = 1;
+    layoutInfo.pPushConstantRanges = &pushRange;
+    VK_CHECK(vkCreatePipelineLayout(
+        context_->device(),
+        &layoutInfo,
+        nullptr,
+        &shadowPipelineLayout_
+    ));
+
+    const auto shaderCode = readBinaryFile(SHADOW_VERTEX_SHADER_PATH);
+    auto shaderModule = context_->createShaderModule(shaderCode);
+
+    VkPipelineShaderStageCreateInfo shaderStage{};
+    shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStage.module = shaderModule.get();
+    shaderStage.pName = "main";
+
+    // buffer 仍存放完整 vertex, 但此 pipeline 只读取 position
+    const auto binding = Vertex::getBindingDescription();
+    const auto positionAttribute = Vertex::getAttributeDescriptions()[0];
+    VkPipelineVertexInputStateCreateInfo vertexInput{};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInput.vertexBindingDescriptionCount = 1;
+    vertexInput.pVertexBindingDescriptions = &binding;
+    vertexInput.vertexAttributeDescriptionCount = 1;
+    vertexInput.pVertexAttributeDescriptions = &positionAttribute;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.depthBiasEnable = VK_TRUE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.attachmentCount = 0;
+
+    const std::array<VkDynamicState, 3> dynamicStates{
+        VkDynamicState::VK_DYNAMIC_STATE_VIEWPORT,
+        VkDynamicState::VK_DYNAMIC_STATE_SCISSOR,
+        VkDynamicState::VK_DYNAMIC_STATE_DEPTH_BIAS};
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 1;
+    pipelineInfo.pStages = &shaderStage;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = shadowPipelineLayout_;
+    pipelineInfo.renderPass = shadowRenderPass_;
+    pipelineInfo.subpass = 0; // 运行在 renderPass 的第 0 个 subpass 里
+
+    VK_CHECK(vkCreateGraphicsPipelines(
+        context_->device(),
+        VK_NULL_HANDLE,
+        1,
+        &pipelineInfo,
+        nullptr,
+        &shadowPipeline_
+    ));
+
+}
+
+void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &data)
 {
     const ShadowTarget& target = shadowTargets_.at(token.frameIndex);
 
@@ -227,8 +335,84 @@ void Renderer::recordShadowPass(const FrameToken &token)
         &beginInfo,
         VK_SUBPASS_CONTENTS_INLINE
     );
-    // 这里暂时没有 draw，但不是无效操作。render pass 会执行附件清空，以及相应的 layout 转换
-    // 不绘制就不需要绑定 graphics pipeline
+    // -- 在 shadow pass 内绘制模型 --
+    vkCmdBindPipeline(
+        token.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        shadowPipeline_
+    );
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(directionalShadowResolution);
+    viewport.height = static_cast<float>(directionalShadowResolution);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0;
+    vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = {directionalShadowResolution, directionalShadowResolution};
+    vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
+    // 先验证原始深度：接入阴影采样后再调节偏移
+    vkCmdSetDepthBias(token.commandBuffer, 0.0f, 0.0f, 0.0f);
+    vkCmdBindDescriptorSets(
+        token.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        shadowPipelineLayout_,
+        0,
+        1,
+        &data.frameDescriptorSet,
+        0,
+        nullptr
+    );
+    // 依次画各个物体的深度
+    if (data.objects != nullptr)
+    {
+        const VkDeviceSize offset = 0;
+        for (const RenderObjectView& object : *data.objects)
+        {
+            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE)
+            {
+                continue;
+            }
+
+            vkCmdPushConstants(
+                token.commandBuffer,
+                shadowPipelineLayout_,
+                VK_SHADER_STAGE_VERTEX_BIT,
+                0,
+                sizeof(glm::mat4), // 只传入模型的 model 矩阵
+                &object.pushConstants.model
+            );
+
+            vkCmdBindVertexBuffers(
+                token.commandBuffer,
+                0,
+                1,
+                &object.vertexBuffer,
+                &offset
+            );
+
+            vkCmdBindIndexBuffer(
+                token.commandBuffer,
+                object.indexBuffer,
+                offset,
+                VkIndexType::VK_INDEX_TYPE_UINT32
+            );
+
+            vkCmdDrawIndexed(
+                token.commandBuffer,
+                object.indexCount,
+                1,
+                0,
+                0,
+                0
+            );
+        }
+    }
+    // ----
 
     vkCmdEndRenderPass(token.commandBuffer);
 }
@@ -236,6 +420,20 @@ void Renderer::recordShadowPass(const FrameToken &token)
 void Renderer::destroyShadowTargets() noexcept
 {
     const VkDevice device = context_->device();
+
+    if (shadowPipeline_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device, shadowPipeline_, nullptr);
+        shadowPipeline_ = VK_NULL_HANDLE;
+    }
+
+    if (shadowPipelineLayout_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device, shadowPipelineLayout_, nullptr);
+        shadowPipelineLayout_ = VK_NULL_HANDLE;
+    }
+
+
     for (ShadowTarget& target : shadowTargets_)
     {
         if (target.framebuffer != VK_NULL_HANDLE)

@@ -23,5 +23,6 @@ compile prefilter.vert prefilter.vert.spv
 compile prefilter.frag prefilter.frag.spv
 compile brdf_lut.vert brdf_lut.vert.spv
 compile brdf_lut.frag brdf_lut.frag.spv
+compile shadow.vert shadow.vert.spv
 
 echo "Shader compilation complete."

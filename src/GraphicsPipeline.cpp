@@ -54,7 +54,7 @@ void Renderer::createDescriptorSetLayouts()
     materialLayoutInfo.bindingCount = static_cast<uint32_t>(materialBindings.size());
     materialLayoutInfo.pBindings = materialBindings.data();
     VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &materialLayoutInfo, nullptr, &materialDescriptorSetLayout_));
-    
+
     std::array<VkDescriptorSetLayoutBinding, 2> skyboxBindings{};
     skyboxBindings[0].binding = 0;
     skyboxBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -64,7 +64,7 @@ void Renderer::createDescriptorSetLayouts()
     skyboxBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     skyboxBindings[1].descriptorCount = 1;
     skyboxBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    
+
     VkDescriptorSetLayoutCreateInfo skyboxLayoutInfo{};
     skyboxLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     skyboxLayoutInfo.bindingCount = static_cast<uint32_t>(skyboxBindings.size());
@@ -116,7 +116,7 @@ void Renderer::createGraphicsPipeline()
     config.fragShaderPath = MAIN_FRAGMENT_SHADER_PATH;
     config.layout = scenePipelineLayout_;
     config.useVertexInput = true;
-    config.cullMode = VK_CULL_MODE_BACK_BIT;
+    config.cullMode = VK_CULL_MODE_NONE;
     config.depthTest = true;
     config.depthWrite = true;
     config.depthCompareOp = VK_COMPARE_OP_LESS;

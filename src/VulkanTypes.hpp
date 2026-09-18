@@ -51,6 +51,8 @@ struct Vertex
     // 第二套纹理坐标对应 gltf TEXCOORD_1
     glm::vec2 texcoord1{0.0f};
 
+    // 告诉vulkan：1. 在我们的 vertex buffer 里，一个顶点占用多少字节。
+    // 2. GPU 每读完一个顶点，要跨多少字节才能找到下一个顶点
     static VkVertexInputBindingDescription getBindingDescription()
     {
         VkVertexInputBindingDescription bindingDescription{};
@@ -60,6 +62,7 @@ struct Vertex
         return bindingDescription;
     }
 
+    // 告诉 vulkan: 一个 vertex 里面的每个属性分别放在哪里，以及他们要送到 vertex shader 的哪个 location
     static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions()
     {
         std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};

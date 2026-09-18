@@ -23,7 +23,7 @@ inline const std::string PBR_NORMAL_PATH = assetPath("textures/pbr/rustediron2_n
 inline const std::string PBR_METALLIC_PATH = assetPath("textures/pbr/rustediron2_metallic.png");
 inline const std::string PBR_ROUGHNESS_PATH = assetPath("textures/pbr/rustediron2_roughness.png");
 inline const std::string PBR_AO_PATH = assetPath("textures/pbr/rustediron2_ao.png");
-inline const std::string SKYBOX_HDR_PATH = assetPath("textures/pbr/aarfontein_pan_4k.hdr");
+inline const std::string SKYBOX_HDR_PATH = assetPath("textures/pbr/highway_bridge_sunset_4k.hdr");
 
 inline const std::array<std::string, 6> SKYBOX_FACE_PATHS = {
     assetPath("textures/skybox/right.jpg"),
@@ -44,6 +44,7 @@ inline const std::string PREFILTER_VERTEX_SHADER_PATH = assetPath("shaders/prefi
 inline const std::string PREFILTER_FRAGMENT_SHADER_PATH = assetPath("shaders/prefilter.frag.spv");
 inline const std::string BRDF_LUT_VERTEX_SHADER_PATH = assetPath("shaders/brdf_lut.vert.spv");
 inline const std::string BRDF_LUT_FRAGMENT_SHADER_PATH = assetPath("shaders/brdf_lut.frag.spv");
+inline const std::string SHADOW_VERTEX_SHADER_PATH = assetPath("shaders/shadow.vert.spv");
 
 inline constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
