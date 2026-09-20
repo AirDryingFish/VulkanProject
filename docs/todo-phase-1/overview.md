@@ -8,6 +8,7 @@
 > - [阶段 4：Scene、Mesh 与 Material 解耦](stage-4-scene-mesh-material.md)
 > - [阶段 5：glTF 2.0 资产管线](stage-5-gltf-asset-pipeline.md)
 > - [阶段 6：方向光与阴影](stage-6-directional-light-shadows.md)
+> - [阶段 7：HDR 主渲染目标与后处理](stage-7-hdr-post-processing.md)
 
 本文档记录 VulkanProject 从当前 PBR Renderer 继续演进为可扩展 Vulkan
 渲染引擎的开发计划。任务按依赖关系和风险排序，而不是单纯按照视觉效果排序。
@@ -385,6 +386,8 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 ## 阶段 7：HDR 主渲染目标与后处理
 
 目标：不再直接把主场景渲染到 Swapchain，建立可扩展的后处理链。
+
+> 当前代码基线、HDR/MSAA 迁移、颜色空间、resize 生命周期和逐提交手敲顺序见：[阶段 7：HDR 与后处理实施指南](stage-7-hdr-post-processing.md)。先完成 Gate A 的 HDR 基础链路，再完成 Gate B 的 Bloom、FXAA 和 Debug Views；不能把前者通过等同于全部完成。
 
 ### 7.1 HDR Scene Pass
 
