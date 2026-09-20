@@ -72,6 +72,7 @@ void TriangleApplication::createFrameDescriptorSets()
     for (std::size_t frameIndex = 0; frameIndex < MAX_FRAMES_IN_FLIGHT; frameIndex++)
     {
         imageInfos[3] = renderer.shadowDescriptorInfo(frameIndex);
+        imageInfos[4] = renderer.shadowPreviewDescriptorInfo(frameIndex);
 
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = uniformBuffers[frameIndex].get();

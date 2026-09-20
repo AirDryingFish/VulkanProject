@@ -32,6 +32,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createPipelineLayouts();
         createGraphicsPipeline();
         createSkyboxPipeline();
+        createShadowPreviewPipeline();
 
         QueueFamilyIndices indices = context.queueFamilies();
 
@@ -761,6 +762,11 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
                 0,
                 0);
         }
+    }
+
+    if (data.showShadowDepth)
+    {
+        recordShadowPreview(token, data);
     }
 
     if (data.imguiDrawData != nullptr)

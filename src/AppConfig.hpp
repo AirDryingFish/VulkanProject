@@ -45,6 +45,8 @@ inline const std::string PREFILTER_FRAGMENT_SHADER_PATH = assetPath("shaders/pre
 inline const std::string BRDF_LUT_VERTEX_SHADER_PATH = assetPath("shaders/brdf_lut.vert.spv");
 inline const std::string BRDF_LUT_FRAGMENT_SHADER_PATH = assetPath("shaders/brdf_lut.frag.spv");
 inline const std::string SHADOW_VERTEX_SHADER_PATH = assetPath("shaders/shadow.vert.spv");
+inline const std::string SHADOW_DEBUG_VERTEX_SHADER_PATH = assetPath("shaders/shadow_debug.vert.spv");
+inline const std::string SHADOW_DEBUG_FRAGMENT_SHADER_PATH = assetPath("shaders/shadow_debug.frag.spv");
 
 inline constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 

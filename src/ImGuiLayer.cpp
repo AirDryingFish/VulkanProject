@@ -433,6 +433,7 @@ void TriangleApplication::drawImGui()
     ImGui::DragFloat("Intensity##DirectionalLight", &directionalLight.intensity, 0.05f, 0.0f, 20.0f);
     ImGui::Checkbox("Shadows##DirectionalLight", &directionalShadowsEnabled);
     ImGui::Checkbox("Shadow PCF 3x3", &shadowPcfEnabled);
+    ImGui::Checkbox("show shadow depth", &showShadowDepth);
 
     ImGui::SliderFloat("Shadow constant bias", &shadowConstantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
     ImGui::SliderFloat("Shadow slope bias", &shadowSlopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
@@ -445,8 +446,6 @@ void TriangleApplication::drawImGui()
     }
     // 调试显示
     ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
-
-
 
     const bool canAddLight = pointLights.size() < MAX_POINT_LIGHTS;
     if (!canAddLight)

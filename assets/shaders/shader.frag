@@ -298,7 +298,24 @@ float directionalShadowVisibility(vec3 worldPosition)
     }
     // frame.shadowParams.z: 阴影比较使用的 bias
     float referenceDepth = lightNdc.z - frame.shadowParams.z;
-    return textureLod(shadowMap, vec3(lightUv, referenceDepth), 0.0);
+
+    // 未开启 pcf
+    if (frame.shadowFlags.z == 0)
+    {
+        return textureLod(shadowMap, vec3(lightUv, referenceDepth), 0.0);
+    }
+
+    vec2 texelSize = frame.shadowParams.xy;
+    float visibilitySum = 0.0;
+    for (int y = -1; y <= 1; ++y)
+    {
+        for (int x = -1; x <= 1; ++x)
+        {
+            vec2 sampleUv = lightUv + vec2(float(x), float(y)) * texelSize;
+            visibilitySum += textureLod(shadowMap, vec3(sampleUv, referenceDepth), 0.0);
+        }
+    }
+    return visibilitySum /= 9.0;
 }
 
 void main()

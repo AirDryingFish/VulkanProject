@@ -266,3 +266,17 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
 
     return pipeline;
 }
+
+void Renderer::createShadowPreviewPipeline()
+{
+    GraphicsPipelineConfig config{};
+    config.vertShaderPath = SHADOW_DEBUG_VERTEX_SHADER_PATH;
+    config.fragShaderPath = SHADOW_DEBUG_FRAGMENT_SHADER_PATH;
+    config.layout = scenePipelineLayout_;
+    config.useVertexInput = false;
+    config.cullMode = VK_CULL_MODE_NONE;
+    config.depthTest = false;
+    config.depthWrite = false;
+
+    shadowPreviewPipeline_ = createGraphicsPipelineFromConfig(config);
+}

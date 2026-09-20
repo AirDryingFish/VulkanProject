@@ -154,7 +154,7 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     // -- 计算 shadow 相关
     const glm::vec3 shadowCenter{0.0f, 0.0f, 0.0f};
     constexpr float lighDistance = 20.0f;
-    constexpr float halfExtent = 10.0f;
+    constexpr float halfExtent = 5.0f;
     constexpr float shadowNear = 0.1f;
     constexpr float shadowFar = 50.0f;
     // 虚拟光源相机位置，为了从光的视角去渲染场景

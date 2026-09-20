@@ -8,7 +8,7 @@
 #include <vector>
 #include <cstddef>
 
-inline constexpr std::size_t frameImageDescriptorCount = 4;
+inline constexpr std::size_t frameImageDescriptorCount = 5;
 inline constexpr std::size_t materialImageDescriptorCount = 5;
 inline constexpr std::uint32_t directionalShadowResolution = 2048;
 
@@ -90,6 +90,7 @@ struct RenderFrameData
     // 这里不放 shadowReceiverBias，因为它通过 UBO 传给 shader
     float shadowConstantBias = 0.0f;
     float shadowSlopeBias = 0.0f;
+    bool showShadowDepth = false;
 };
 
 // 本帧应该怎么处理

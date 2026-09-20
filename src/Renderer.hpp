@@ -85,6 +85,10 @@ private:
     GpuSampler shadowCompareSampler_; // 比较参考深度，输出可见度
     GpuSampler shadowPreviewSampler_; // 读取原始深度，用于调试预览
 
+    VkPipeline shadowPreviewPipeline_ = VK_NULL_HANDLE;
+    void createShadowPreviewPipeline();
+    void recordShadowPreview(const FrameToken& token, const RenderFrameData& data);
+
     UploadContext uploadContext_{};
 
     uint32_t currentFrame_ = 0;
@@ -148,4 +152,5 @@ public:
     std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferUploadRequest>& requests);
 
     VkDescriptorImageInfo shadowDescriptorInfo(std::size_t frameIndex) const;
+    VkDescriptorImageInfo shadowPreviewDescriptorInfo(std::size_t frameIndex) const;
 };

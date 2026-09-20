@@ -21,6 +21,8 @@ call :compile prefilter.frag prefilter.frag.spv || goto :failed
 call :compile brdf_lut.vert brdf_lut.vert.spv || goto :failed
 call :compile brdf_lut.frag brdf_lut.frag.spv || goto :failed
 call :compile shadow.vert shadow.vert.spv || goto :failed
+call :compile shadow_debug.vert shadow_debug.vert.spv || goto :failed
+call :compile shadow_debug.frag shadow_debug.frag.spv || goto :failed
 
 popd
 echo Shader compilation complete.

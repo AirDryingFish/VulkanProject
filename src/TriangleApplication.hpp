@@ -248,6 +248,8 @@ private:
     bool showShadowProjection = false;
     bool directionalShadowsEnabled = true;
     bool shadowPcfEnabled = false;
+
+    bool showShadowDepth = false;
     // Constant bias: 写入shadow map时，提供与深度格式精度相关的偏移
     // Slope bias: 写入shadow map时，随三角形深度斜率增加偏移
     // Receiver bias: 主画面采样比较时，从当前表面的参考深度中减去偏移

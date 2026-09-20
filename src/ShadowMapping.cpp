@@ -3,11 +3,13 @@
 #include "VulkanCheck.hpp"
 #include "VulkanTypes.hpp"
 #include "FileUtils.hpp"
+#include "Swapchain.hpp"
 
 #include <array>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <algorithm>
 
 void Renderer::createShadowTargets()
 {
@@ -418,6 +420,57 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
     vkCmdEndRenderPass(token.commandBuffer);
 }
 
+void Renderer::recordShadowPreview(const FrameToken &token, const RenderFrameData &data)
+{
+    const VkExtent2D extent = swapchain_->extent();
+    const std::uint32_t side = std::min(std::uint32_t{320}, std::min(extent.width, extent.height));
+    if (side == 0)
+    {
+        return;
+    }
+
+    const std::uint32_t left = extent.width - side;
+
+    VkViewport viewport{};
+    viewport.x = static_cast<float>(left);
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(side);
+    viewport.height = static_cast<float>(side);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor{};
+    scissor.offset = {static_cast<std::int32_t>(left), 0};
+    scissor.extent = {side, side};
+
+    vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
+    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPreviewPipeline_);
+    vkCmdBindDescriptorSets(
+        token.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        scenePipelineLayout_,
+        0,
+        1,
+        &data.frameDescriptorSet,
+        0,
+        nullptr
+    );
+    vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);
+
+    // 恢复全窗口 viewport 和 scissor
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(extent.width);
+    viewport.height = static_cast<float>(extent.height);
+
+    scissor.offset = {0, 0};
+    scissor.extent = extent;
+
+    vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
+}
+
 VkDescriptorImageInfo Renderer::shadowDescriptorInfo(std::size_t frameIndex) const
 {
     const ShadowTarget& target = shadowTargets_.at(frameIndex);
@@ -434,9 +487,29 @@ VkDescriptorImageInfo Renderer::shadowDescriptorInfo(std::size_t frameIndex) con
     return info;
 }
 
+VkDescriptorImageInfo Renderer::shadowPreviewDescriptorInfo(std::size_t frameIndex) const
+{
+    const ShadowTarget& target = shadowTargets_.at(frameIndex);
+    if (target.depth.view() == VK_NULL_HANDLE || shadowPreviewSampler_.get() == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("Shadow preview resources are not initialized");
+    }
+
+    VkDescriptorImageInfo info{};
+    info.sampler = shadowPreviewSampler_.get();
+    info.imageView = target.depth.view();
+    info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    return info;
+}
+
 void Renderer::destroyShadowTargets() noexcept
 {
     const VkDevice device = context_->device();
+    if (shadowPreviewPipeline_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device, shadowPreviewPipeline_, nullptr);
+        shadowPreviewPipeline_ = VK_NULL_HANDLE;
+    }
 
     if (shadowPipeline_ != VK_NULL_HANDLE)
     {

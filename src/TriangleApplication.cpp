@@ -308,6 +308,7 @@ void TriangleApplication::drawFrame()
     renderData.directionalShadowsEnabled = directionalShadowsEnabled && directionalLight.enabled;
     renderData.shadowConstantBias = shadowConstantBias;
     renderData.shadowSlopeBias = shadowSlopeBias;
+    renderData.showShadowDepth = showShadowDepth;
 
     renderer.recordFrame(frame, renderData);
 
