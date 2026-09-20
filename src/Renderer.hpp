@@ -52,7 +52,11 @@ private:
     {
         std::string vertShaderPath;
         std::string fragShaderPath;
+
         VkPipelineLayout layout = VK_NULL_HANDLE;
+        VkRenderPass renderPass = VK_NULL_HANDLE;
+        VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+
         bool useVertexInput = true;
         VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
         bool depthTest = true;

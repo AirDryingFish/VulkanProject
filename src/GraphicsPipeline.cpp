@@ -119,7 +119,11 @@ void Renderer::createGraphicsPipeline()
     GraphicsPipelineConfig config{};
     config.vertShaderPath = MAIN_VERTEX_SHADER_PATH;
     config.fragShaderPath = MAIN_FRAGMENT_SHADER_PATH;
+
     config.layout = scenePipelineLayout_;
+    config.renderPass = renderPass_;
+    config.samples = context_->msaaSamples();
+
     config.useVertexInput = true;
     config.cullMode = VK_CULL_MODE_NONE;
     config.depthTest = true;
@@ -134,7 +138,11 @@ void Renderer::createSkyboxPipeline()
     GraphicsPipelineConfig config{};
     config.vertShaderPath = SKYBOX_VERTEX_SHADER_PATH;
     config.fragShaderPath = SKYBOX_FRAGMENT_SHADER_PATH;
+
     config.layout = skyboxPipelineLayout_;
+    config.renderPass = renderPass_;
+    config.samples = context_->msaaSamples();
+
     config.useVertexInput = false;
     config.cullMode = VK_CULL_MODE_NONE;
     config.depthTest = true;
@@ -144,11 +152,34 @@ void Renderer::createSkyboxPipeline()
     skyboxPipeline_ = createGraphicsPipelineFromConfig(config);
 }
 
+void Renderer::createShadowPreviewPipeline()
+{
+    GraphicsPipelineConfig config{};
+    config.vertShaderPath = SHADOW_DEBUG_VERTEX_SHADER_PATH;
+    config.fragShaderPath = SHADOW_DEBUG_FRAGMENT_SHADER_PATH;
+
+    config.layout = scenePipelineLayout_;
+    config.renderPass = renderPass_;
+    config.samples = context_->msaaSamples();
+
+    config.useVertexInput = false;
+    config.cullMode = VK_CULL_MODE_NONE;
+    config.depthTest = false;
+    config.depthWrite = false;
+
+    shadowPreviewPipeline_ = createGraphicsPipelineFromConfig(config);
+}
+
 VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config)
 {
-    if (context_ == nullptr || renderPass_ == VK_NULL_HANDLE)
+    if (context_ == nullptr)
     {
-        throw std::logic_error("graphics pipeline requires an initialized renderer");
+        throw std::logic_error("graphics pipeline requires a Vulkan context");
+    }
+
+    if (config.renderPass == VK_NULL_HANDLE)
+    {
+        throw std::invalid_argument("graphics pipeline requires an explicit render pass");
     }
 
     if (config.layout == VK_NULL_HANDLE)
@@ -222,7 +253,7 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = context_->msaaSamples();
+    multisampling.rasterizationSamples = config.samples;
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -255,7 +286,7 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = config.layout;
-    pipelineInfo.renderPass = renderPass_;
+    pipelineInfo.renderPass = config.renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
@@ -265,18 +296,4 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     VK_CHECK_RESULT(pipelineResult, "vkCreateGraphicsPipelines");
 
     return pipeline;
-}
-
-void Renderer::createShadowPreviewPipeline()
-{
-    GraphicsPipelineConfig config{};
-    config.vertShaderPath = SHADOW_DEBUG_VERTEX_SHADER_PATH;
-    config.fragShaderPath = SHADOW_DEBUG_FRAGMENT_SHADER_PATH;
-    config.layout = scenePipelineLayout_;
-    config.useVertexInput = false;
-    config.cullMode = VK_CULL_MODE_NONE;
-    config.depthTest = false;
-    config.depthWrite = false;
-
-    shadowPreviewPipeline_ = createGraphicsPipelineFromConfig(config);
 }
