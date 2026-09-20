@@ -187,12 +187,15 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.shadowParams = glm::vec4(
         1.0f / static_cast<float>(directionalShadowResolution),
         1.0f / static_cast<float>(directionalShadowResolution),
-        0.0005f,
+        shadowReceiverBias,
         0.0f);
+    // x: 阴影是否启用，目前为 0
+    // y: 是否显示光空间坐标调试颜色
+    // zw: reserve
     ubo.shadowFlags = glm::ivec4(
-        0,
+        (directionalShadowsEnabled && directionalLight.enabled) ? 1 : 0,
         showShadowProjection ? 1 : 0,
-        0,
+        shadowPcfEnabled ? 1 : 0,
         0);
     // ----
 

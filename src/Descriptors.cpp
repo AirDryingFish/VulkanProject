@@ -71,6 +71,8 @@ void TriangleApplication::createFrameDescriptorSets()
 
     for (std::size_t frameIndex = 0; frameIndex < MAX_FRAMES_IN_FLIGHT; frameIndex++)
     {
+        imageInfos[3] = renderer.shadowDescriptorInfo(frameIndex);
+
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = uniformBuffers[frameIndex].get();
         bufferInfo.offset = 0;

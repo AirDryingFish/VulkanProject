@@ -61,6 +61,7 @@ layout(set = 1, binding = 4) uniform sampler2D emissiveMap;
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilterMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
+layout(set = 0, binding = 4) uniform sampler2DShadow shadowMap;
 
 // 按 slot index 去找要用第几套 uv
 vec2 materialUv(uint slot)
@@ -272,6 +273,34 @@ vec3 evaluateDirectLight(
     return (kD * albedo / PI + specular) * radiance * NdotL;
 }
 
+float directionalShadowVisibility(vec3 worldPosition)
+{
+    if (frame.shadowFlags.x == 0)
+    {
+        return 1.0;
+    }
+
+    vec4 lightClip = frame.lightViewProjection * vec4(worldPosition, 1.0);
+
+    if (lightClip.w <= 0.0)
+    {
+        return 1.0;
+    }
+    vec3 lightNdc = lightClip.xyz / lightClip.w;
+    vec2 lightUv = lightNdc.xy * 0.5 + 0.5;
+    bool outside = any(lessThan(lightUv, vec2(0.0))) || // lessThan 返回一个bvec2，any 只要有一个是 true 就返回 true
+                   any(greaterThan(lightUv, vec2(1.0))) ||
+                   lightNdc.z < 0.0 ||
+                   lightNdc.z > 1.0;
+    if (outside)
+    {
+        return 1.0;
+    }
+    // frame.shadowParams.z: 阴影比较使用的 bias
+    float referenceDepth = lightNdc.z - frame.shadowParams.z;
+    return textureLod(shadowMap, vec3(lightUv, referenceDepth), 0.0);
+}
+
 void main()
 {
     // 用颜色显示光空间坐标
@@ -353,7 +382,8 @@ void main()
     {
         vec3 lightDir = -frame.directionalDirectionEnabled.xyz;
         vec3 radiance = frame.directionalColorIntensity.rgb * frame.directionalColorIntensity.w;
-        Lo += evaluateDirectLight(
+        float visibility = directionalShadowVisibility(fragWorldPos);
+        Lo += visibility * evaluateDirectLight(
             normal,
             viewDir,
             lightDir,

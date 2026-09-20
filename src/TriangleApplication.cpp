@@ -305,9 +305,13 @@ void TriangleApplication::drawFrame()
     renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);
     renderData.imguiDrawData = ImGui::GetDrawData();
     renderData.clearColor = clearColor;
+    renderData.directionalShadowsEnabled = directionalShadowsEnabled && directionalLight.enabled;
+    renderData.shadowConstantBias = shadowConstantBias;
+    renderData.shadowSlopeBias = shadowSlopeBias;
 
     renderer.recordFrame(frame, renderData);
 
+    // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
     const FrameStatus endStatus = renderer.endFrame(frame);
 
     if (endStatus == FrameStatus::RecreateSwapchain || framebufferResized)

@@ -16,6 +16,11 @@
 #include <stdexcept>
 #include <unordered_map>
 
+// binding 0: Frame UBO
+// binding 1: Irradiance
+// binding 2: Prefilter
+// binding 3: BRDF LUT
+// binding 4: shadow map + comparison sampler
 void Renderer::createDescriptorSetLayouts()
 {
     // UBO, vertex和fragement shader都可见

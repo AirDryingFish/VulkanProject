@@ -294,6 +294,7 @@ void Renderer::createShadowPipeline()
     pipelineInfo.pInputAssemblyState = &inputAssembly;
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = shadowPipelineLayout_;
@@ -356,7 +357,7 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
     scissor.extent = {directionalShadowResolution, directionalShadowResolution};
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
     // 先验证原始深度：接入阴影采样后再调节偏移
-    vkCmdSetDepthBias(token.commandBuffer, 0.0f, 0.0f, 0.0f);
+    vkCmdSetDepthBias(token.commandBuffer, data.shadowConstantBias, 0.0f, data.shadowSlopeBias);
     vkCmdBindDescriptorSets(
         token.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -368,7 +369,7 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
         nullptr
     );
     // 依次画各个物体的深度
-    if (data.objects != nullptr)
+    if (data.directionalShadowsEnabled && data.objects != nullptr)
     {
         const VkDeviceSize offset = 0;
         for (const RenderObjectView& object : *data.objects)
@@ -415,6 +416,22 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
     // ----
 
     vkCmdEndRenderPass(token.commandBuffer);
+}
+
+VkDescriptorImageInfo Renderer::shadowDescriptorInfo(std::size_t frameIndex) const
+{
+    const ShadowTarget& target = shadowTargets_.at(frameIndex);
+    if (target.depth.view() == VK_NULL_HANDLE || shadowCompareSampler_.get() == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("Shadow resources are not initialized");
+    }
+
+    VkDescriptorImageInfo info{};
+    info.sampler = shadowCompareSampler_.get();
+    info.imageView = target.depth.view();
+    info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    return info;
 }
 
 void Renderer::destroyShadowTargets() noexcept

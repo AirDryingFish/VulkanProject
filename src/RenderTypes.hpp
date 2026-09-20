@@ -8,7 +8,7 @@
 #include <vector>
 #include <cstddef>
 
-inline constexpr std::size_t frameImageDescriptorCount = 3;
+inline constexpr std::size_t frameImageDescriptorCount = 4;
 inline constexpr std::size_t materialImageDescriptorCount = 5;
 inline constexpr std::uint32_t directionalShadowResolution = 2048;
 
@@ -85,6 +85,11 @@ struct RenderFrameData
     ImDrawData* imguiDrawData = nullptr;
 
     glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
+
+    bool directionalShadowsEnabled = false;
+    // 这里不放 shadowReceiverBias，因为它通过 UBO 传给 shader
+    float shadowConstantBias = 0.0f;
+    float shadowSlopeBias = 0.0f;
 };
 
 // 本帧应该怎么处理

@@ -146,4 +146,6 @@ public:
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 
     std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferUploadRequest>& requests);
+
+    VkDescriptorImageInfo shadowDescriptorInfo(std::size_t frameIndex) const;
 };
