@@ -24,6 +24,13 @@ struct BufferUploadRequest
 class Renderer
 {
 private:
+    struct HdrFrameTarget
+    {
+        GpuImage hdrColor;
+        GpuImage msaaColor;
+        GpuImage depth;
+    };
+
     struct ShadowTarget
     {
         GpuImage depth;
@@ -78,6 +85,11 @@ private:
     VkPipeline skyboxPipeline_ = VK_NULL_HANDLE;
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
+
+    std::array<HdrFrameTarget, MAX_FRAMES_IN_FLIGHT> hdrTargets_{};
+    VkFormat hdrFormat_ = VK_FORMAT_UNDEFINED;
+    VkFormat sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
+    VkSampleCountFlagBits sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
 
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
