@@ -254,362 +254,480 @@ void TriangleApplication::drawImGui()
     ImGuiIO &io = ImGui::GetIO();
     sceneClickConsumed = false;
 
-    ImGui::Text("FPS: %.1f", io.Framerate);
-    ImGui::Text("Frame Time: %.3f ms", 1000.0f / io.Framerate);
-    ImGui::Text("Swapchain Images: %zu", swapchain.imageCount());
-    ImGui::Text("Extent: %u x %u", swapchain.extent().width, swapchain.extent().height);
-    ImGui::Text("MSAA Samples: %d", context.msaaSamples());
-
-    ImGui::SeparatorText("Camera");
-    ImGui::Text("Position: %.2f %.2f %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
-    ImGui::Text("Front: %.2f %.2f %.2f", cameraFront.x, cameraFront.y, cameraFront.z);
-    ImGui::Text("Yaw/Pitch: %.1f %.1f", cameraYaw, cameraPitch);
-    ImGui::DragFloat("Near Plane", &cameraNear, 0.01f, 0.01f, 10.0f);
-    ImGui::DragFloat("Far Plane", &cameraFar, 1.0f, 10.0f, 10000.0f);
-    ImGui::DragFloat("Move Speed", &cameraMoveSpeed, 0.1f, 0.1f, 30.0f);
-    ImGui::DragFloat("Fast Multiplier", &cameraFastMultiplier, 0.1f, 1.0f, 10.0f);
-    ImGui::DragFloat("Scroll Speed", &cameraScrollSpeed, 0.1f, 0.1f, 20.0f);
-    ImGui::DragFloat("Pan Speed", &cameraPanSpeed, 0.001f, 0.001f, 0.2f, "%.3f");
-    ImGui::DragFloat("Mouse Sensitivity", &mouseSensitivity, 0.01f, 0.01f, 2.0f);
-
-    ImGui::SeparatorText("Scene");
-    auto addObject = [&](MeshSource source, const std::string &path = std::string()) {
-        try
-        {
-            addMeshObject(source, path);
-            sceneStatusMessage.clear();
-        }
-        catch (const std::exception &exception)
-        {
-            sceneStatusMessage = exception.what();
-        }
-        sceneClickConsumed = true;
-    };
-
-    if (ImGui::Button("Add Cube"))
+    const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(
+    mainViewport->WorkPos + ImVec2(12.0f, 12.0f),
+    ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(
+    ImVec2(std::min(460.0f, std::max(240.0f, mainViewport->WorkSize.x - 24.0f)),
+    std::max(240.0f, mainViewport->WorkSize.y - 24.0f)),
+    ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Scene Editor"))
     {
-        addObject(MeshSource::Cube);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Add Sphere"))
-    {
-        addObject(MeshSource::Sphere);
-    }
-    ImGui::InputText("OBJ Path", importModelPath, sizeof(importModelPath));
-    if (ImGui::Button("Import OBJ"))
-    {
-        addObject(MeshSource::Obj, importModelPath);
-    }
-    if (!sceneStatusMessage.empty())
-    {
-        ImGui::TextWrapped("Import failed: %s", sceneStatusMessage.c_str());
-    }
-
-    ImGui::SeparatorText("glTF Import");
-    ImGui::InputText("glTF/GLB path", importGltfPath, sizeof(importGltfPath));
-    ImGui::Text("Material slots: %u / %u", static_cast<unsigned int>(allocatedMaterialSetCount), static_cast<unsigned int>(maxMaterialCount));
-    bool importRequested = ImGui::Button("Import glTF Scene");
-    std::string requestedPath = importGltfPath;
-    ImGui::SameLine();
-    if (ImGui::Button("Browse and Import..."))
-    {
-        sceneClickConsumed = true;
-        try
-        {
-            const auto path = FileDialog::openGltf();
-            if (path)
-            {
-                requestedPath = *path;
-                importRequested = true;
-            }
-        }
-        catch (const std::exception& exception)
-        {
-            gltfImportError = exception.what();
-        }
-    }
-    if (importRequested)
-    {
-        sceneClickConsumed = true;
-        gltfImportError.clear();
-
-        GltfImportResult importResult{};
-        bool importSucceeded = false;
-
-        try{
-            importResult = addGltfMeshObjects(requestedPath);
-            importSucceeded = true;
-        }
-        catch(const std::exception& exception)
-        {
-            gltfImportError = exception.what();
-        }
-
-        if (importSucceeded)
-        {
-            gltfImportSummary =
-                "Objects: " + std::to_string(importResult.objectCount) +
-                ", uploaded meshes: " + std::to_string(importResult.uploadedMeshCount) +
-                ", reused meshes: " + std::to_string(importResult.reusedMeshCount) +
-                ", new materials: " + std::to_string(importResult.materialCount) +
-                ", uploaded images: " + std::to_string(importResult.uploadedImageCount) +
-                ", new samplers: " + std::to_string(importResult.createdSamplerCount);
-        }
-    }
-
-    if (!gltfImportSummary.empty())
-    {
-        ImGui::TextWrapped("Last successful import: %s", gltfImportSummary.c_str());
-    }
-
-    if (!gltfImportError.empty())
-    {
-        ImGui::TextWrapped("glTF import failed: %s", gltfImportError.c_str());
-    }
-
-    ImGui::SeparatorText("Objects");
-    for (size_t i = 0; i < sceneObjects.size(); i++)
-    {
-        SceneObject &object = sceneObjects[i];
-        ImGui::PushID(static_cast<int>(i));
-        const bool selected = selectedObject == SceneSelection::Model && selectedSceneObjectIndex == static_cast<int>(i);
-        if (ImGui::Selectable(object.name.c_str(), selected))
-        {
-            selectedObject = SceneSelection::Model;
-            selectedSceneObjectIndex = static_cast<int>(i);
-            selectedModel = true;
-            selectedPointLightIndex = -1;
-            sceneClickConsumed = true;
-        }
-        ImGui::PopID();
-    }
-
-
-
-    SceneObject *selectedSceneObject = getSelectedSceneObject();
-
-    ImGui::SeparatorText("Object Transform");
-    ImGui::Text("Selected: %s", selectedSceneObject != nullptr ? selectedSceneObject->name.c_str() : "None");
-    if (selectedObject == SceneSelection::Model && selectedSceneObject != nullptr)
-    {
-        Transform& transform = selectedSceneObject->transform;
-        ImGui::Text("Pick Distance: %.3f", modelPickDistance);
-        ImGui::Checkbox("Auto Rotate", &selectedSceneObject->autoRotate);
-        ImGui::DragFloat("Auto Rotate Speed", &selectedSceneObject->autoRotateSpeed, 1.0f, -720.0f, 720.0f);
-        ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
-        ImGui::DragFloat3("Rotation", &transform.rotation.x, 0.5f, -360.0f, 360.0f);
-        ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f, 0.01f, 20.0f);
-        if (ImGui::Button("Reset Transform"))
-        {
-            transform.position = glm::vec3(0.0f);
-            transform.rotation = glm::vec3(0.0f);
-            transform.scale = glm::vec3(1.0f);
-            selectedSceneObject->autoRotation = 0.0f;
-        }
-        if (ImGui::Button("Delete Selected"))
-        {
-            SceneObject& object = sceneObjects[selectedSceneObjectIndex];
-            releaseMesh(object.mesh);
-            selectedSceneObject = nullptr;
-            sceneObjects.erase(sceneObjects.begin() + selectedSceneObjectIndex);
-            selectedSceneObjectIndex = -1;
-            selectedObject = SceneSelection::None;
-            selectedModel = false;
-            modelPickDistance = 0.0f;
-            sceneClickConsumed = true;
-        }
-    }
-
-    ImGui::SeparatorText("Lights");
-    ImGui::ColorEdit3("Ambient Color", &ambientLightColor.x);
-    ImGui::DragFloat("Ambient Intensity", &ambientLightIntensity, 0.01f, 0.0f, 2.0f);
-    ImGui::DragFloat("IBL Intensity", &iblIntensity, 0.01f, 0.0f, 5.0f);
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("Directional Light");
-    ImGui::Checkbox("Enabled##DirectionalLight", &directionalLight.enabled);
-    ImGui::DragFloat3("Direction##DirectionalLight", &directionalLight.direction.x, 0.02f);
-    ImGui::ColorEdit3("Color##DirectionalLight", &directionalLight.color.x);
-    ImGui::DragFloat("Intensity##DirectionalLight", &directionalLight.intensity, 0.05f, 0.0f, 20.0f);
-    ImGui::Checkbox("Shadows##DirectionalLight", &directionalShadowsEnabled);
-    ImGui::Checkbox("Shadow PCF 3x3", &shadowPcfEnabled);
-    ImGui::Checkbox("show shadow depth", &showShadowDepth);
-
-    ImGui::SliderFloat("Shadow constant bias", &shadowConstantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SliderFloat("Shadow slope bias", &shadowSlopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SliderFloat("Shadow receiver bias", &shadowReceiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
-    if (ImGui::Button("Reset shadow bias"))
-    {
-        shadowConstantBias = 1.25f;
-        shadowSlopeBias = 1.75f;
-        shadowReceiverBias = 0.0f;
-    }
-    // 调试显示
-    ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
-
-    const bool canAddLight = pointLights.size() < MAX_POINT_LIGHTS;
-    if (!canAddLight)
-    {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button("Add Light"))
-    {
-        PointLight light{};
-        light.position = cameraPos + cameraFront * 2.0f;
-        pointLights.push_back(light);
-        selectedObject = SceneSelection::PointLight;
-        selectedModel = false;
-        selectedSceneObjectIndex = -1;
-        selectedPointLightIndex = static_cast<int>(pointLights.size()) - 1;
-        sceneClickConsumed = true;
-    }
-    if (!canAddLight)
-    {
-        ImGui::EndDisabled();
-    }
-    ImGui::SameLine();
-    ImGui::Text("%zu / %u", pointLights.size(), MAX_POINT_LIGHTS);
-
-    for (size_t i = 0; i < pointLights.size(); i++)
-    {
-        PointLight &light = pointLights[i];
-        ImGui::PushID(static_cast<int>(i));
-
-        const bool selected = selectedObject == SceneSelection::PointLight && selectedPointLightIndex == static_cast<int>(i);
-        if (ImGui::Selectable("Point Light", selected))
-        {
-            selectedObject = SceneSelection::PointLight;
-            selectedModel = false;
-            selectedSceneObjectIndex = -1;
-            selectedPointLightIndex = static_cast<int>(i);
-            sceneClickConsumed = true;
-        }
-
-        ImGui::Checkbox("Enabled", &light.enabled);
-        ImGui::DragFloat3("Position", &light.position.x, 0.05f);
-        ImGui::ColorEdit3("Color", &light.color.x);
-        ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 100.0f);
-        ImGui::DragFloat("Range", &light.range, 0.05f, 0.1f, 100.0f);
-
+        ImGui::Text("%.1f FPS  |  %.2f ms", io.Framerate,
+        io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f);
         ImGui::Separator();
-        ImGui::PopID();
-    }
 
-    ImGui::SeparatorText("Resources");
-
-    ImGui::Text("Objects: %zu", sceneObjects.size());
-    if (selectedSceneObject != nullptr && selectedSceneObject->mesh)
-    {
-        const Mesh& mesh = *selectedSceneObject->mesh;
-
-        if (!selectedSceneObject->sourcePath.empty())
+        if (ImGui::BeginTabBar("EditorTabs", ImGuiTabBarFlags_FittingPolicyScroll))
         {
-            ImGui::TextWrapped("Source: %s", selectedSceneObject->sourcePath.c_str());
-        }
-        ImGui::TextWrapped("Mesh Key: %s", mesh.cacheKey.c_str());
-        ImGui::Text("Vertex Tangents: %s", mesh.hasTangents ? "Available" : "Unavailable");
-
-        if (selectedSceneObject->material)
-        {
-            // ImGui::Text("Material: %s", selectedSceneObject->material->name.c_str());
-            const Material& material = *selectedSceneObject->material;
-            ImGui::Text("Material: %s", material.name.c_str());
-            if (ImGui::TreeNode("Material Texture Slots"))
+            if (ImGui::BeginTabItem("Scene"))
             {
-                auto showSlot = [](const char* label, const MaterialTextureSlot& slot)
-                {
-                    ImGui::Text("%s / UV%u", label, static_cast<unsigned int>(slot.texCoord));
-                    ImGui::Indent();
-                    ImGui::TextWrapped("Image: %s", slot.image ? slot.image->name.c_str() : "None");
-                    ImGui::TextWrapped("Sampler: %s", slot.sampler ? slot.sampler->name.c_str() : "None");
-                    ImGui::Unindent();
+                ImGui::BeginChild("SceneContent", ImVec2(0.0f, 0.0f));
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                ImGui::SeparatorText("Scene");
+                auto addObject = [&](MeshSource source, const std::string &path = std::string()) {
+                    try
+                    {
+                        addMeshObject(source, path);
+                        sceneStatusMessage.clear();
+                    }
+                    catch (const std::exception &exception)
+                    {
+                        sceneStatusMessage = exception.what();
+                    }
+                    sceneClickConsumed = true;
                 };
 
-                showSlot("Base Color", material.baseColorTexture);
-                showSlot("Normal", material.normalTexture);
-                showSlot("Metallic-Roughness", material.metallicRoughnessTexture);
-                showSlot("Occlusion", material.aoTexture);
-                showSlot("Emissive", material.emissiveTexture);
-
-                ImGui::TreePop();
-            }
-        }
-        ImGui::Text("Mesh References: %ld", selectedSceneObject->mesh.use_count());
-        ImGui::Text("Vertices: %u", mesh.vertexCount);
-        ImGui::Text("Indices: %u", mesh.indexCount);
-        ImGui::Text("AABB Min: %.2f %.2f %.2f", mesh.boundsMin.x, mesh.boundsMin.y, mesh.boundsMin.z);
-        ImGui::Text("AABB Max: %.2f %.2f %.2f", mesh.boundsMax.x, mesh.boundsMax.y, mesh.boundsMax.z);
-    }
-
-    ImGui::Text("Texture Library Entries: %zu", textureLibrary.size());
-    ImGui::Text("Materials: %zu", materialLibrary.size());
-    ImGui::Text("Mip Levels: %u", mipLevels);
-
-    ImGui::SeparatorText("PBR Material");
-
-    if (selectedSceneObject == nullptr)
-    {
-        ImGui::TextDisabled("Select a scene object to edit its material");
-    }
-    else
-    {
-        MaterialHandle& selectedMaterial = selectedSceneObject->material;
-        const char* previewName = selectedMaterial && !selectedMaterial->name.empty() ? selectedMaterial->name.c_str() : "None";
-        if (ImGui::BeginCombo("Material", previewName))
-        {
-            for (std::size_t materialIndex = 0; materialIndex < materialLibrary.size(); ++materialIndex)
-            {
-                const MaterialHandle& candidate = materialLibrary[materialIndex];
-                if (!candidate)
+                if (ImGui::Button("Add Cube"))
                 {
-                    continue;
+                    addObject(MeshSource::Cube);
                 }
-                ImGui::PushID(static_cast<int>(materialIndex));
-                const bool isSelected = candidate == selectedMaterial;
-                if (ImGui::Selectable(candidate->name.c_str(), isSelected))
+                ImGui::SameLine();
+                if (ImGui::Button("Add Sphere"))
                 {
-                    selectedMaterial = candidate;
+                    addObject(MeshSource::Sphere);
+                }
+                if (ImGui::CollapsingHeader("Import OBJ##Section"))
+                {
+                    ImGui::InputText("OBJ Path", importModelPath, sizeof(importModelPath));
+                    if (ImGui::Button("Import OBJ"))
+                    {
+                        addObject(MeshSource::Obj, importModelPath);
+                    }
+                }
+
+                if (!sceneStatusMessage.empty())
+                {
+                    ImGui::TextWrapped("Import failed: %s", sceneStatusMessage.c_str());
+                }
+
+                if (ImGui::CollapsingHeader("Import glTF / GLB"))
+                {
+                    ImGui::InputText("glTF/GLB path", importGltfPath, sizeof(importGltfPath));
+                    ImGui::Text("Material slots: %u / %u", static_cast<unsigned int>(allocatedMaterialSetCount), static_cast<unsigned int>(maxMaterialCount));
+                    bool importRequested = ImGui::Button("Import glTF Scene");
+                    std::string requestedPath = importGltfPath;
+                    ImGui::SameLine();
+                    if (ImGui::Button("Browse and Import..."))
+                    {
+                        sceneClickConsumed = true;
+                        try
+                        {
+                            const auto path = FileDialog::openGltf();
+                            if (path)
+                            {
+                                requestedPath = *path;
+                                importRequested = true;
+                            }
+                        }
+                        catch (const std::exception& exception)
+                        {
+                            gltfImportError = exception.what();
+                        }
+                    }
+                    if (importRequested)
+                    {
+                        sceneClickConsumed = true;
+                        gltfImportError.clear();
+
+                        GltfImportResult importResult{};
+                        bool importSucceeded = false;
+
+                        try{
+                            importResult = addGltfMeshObjects(requestedPath);
+                            importSucceeded = true;
+                        }
+                        catch(const std::exception& exception)
+                        {
+                            gltfImportError = exception.what();
+                        }
+
+                        if (importSucceeded)
+                        {
+                            gltfImportSummary =
+                            "Objects: " + std::to_string(importResult.objectCount) +
+                            ", uploaded meshes: " + std::to_string(importResult.uploadedMeshCount) +
+                            ", reused meshes: " + std::to_string(importResult.reusedMeshCount) +
+                            ", new materials: " + std::to_string(importResult.materialCount) +
+                            ", uploaded images: " + std::to_string(importResult.uploadedImageCount) +
+                            ", new samplers: " + std::to_string(importResult.createdSamplerCount);
+                        }
+                    }
+
+                    if (!gltfImportSummary.empty())
+                    {
+                        ImGui::TextWrapped("Last successful import: %s", gltfImportSummary.c_str());
+                    }
+
+                    if (!gltfImportError.empty())
+                    {
+                        ImGui::TextWrapped("glTF import failed: %s", gltfImportError.c_str());
+                    }
+
+                }
+
+                ImGui::SeparatorText("Objects");
+                ImGui::TextDisabled("%zu scene object(s)", sceneObjects.size());
+                ImGui::BeginChild("ObjectList", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders);
+                for (size_t i = 0; i < sceneObjects.size(); i++)
+                {
+                    SceneObject &object = sceneObjects[i];
+                    ImGui::PushID(static_cast<int>(i));
+                    const bool selected = selectedObject == SceneSelection::Model && selectedSceneObjectIndex == static_cast<int>(i);
+                    if (ImGui::Selectable(object.name.c_str(), selected))
+                    {
+                        selectedObject = SceneSelection::Model;
+                        selectedSceneObjectIndex = static_cast<int>(i);
+                        selectedModel = true;
+                        selectedPointLightIndex = -1;
+                        sceneClickConsumed = true;
+                    }
+                    ImGui::PopID();
+                }
+
+
+
+
+                ImGui::EndChild();
+
+                ImGui::PopItemWidth();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Inspector"))
+            {
+                ImGui::BeginChild("InspectorContent", ImVec2(0.0f, 0.0f));
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                SceneObject* selectedSceneObject = getSelectedSceneObject();
+                ImGui::SeparatorText("Object Transform");
+                ImGui::Text("Selected: %s", selectedSceneObject != nullptr ? selectedSceneObject->name.c_str() : "None");
+                if (selectedObject == SceneSelection::Model && selectedSceneObject != nullptr)
+                {
+                    Transform& transform = selectedSceneObject->transform;
+                    ImGui::Text("Pick Distance: %.3f", modelPickDistance);
+                    ImGui::Checkbox("Auto Rotate", &selectedSceneObject->autoRotate);
+                    ImGui::DragFloat("Auto Rotate Speed", &selectedSceneObject->autoRotateSpeed, 1.0f, -720.0f, 720.0f);
+                    ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
+                    ImGui::DragFloat3("Rotation", &transform.rotation.x, 0.5f, -360.0f, 360.0f);
+                    ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f, 0.01f, 20.0f);
+                    if (ImGui::Button("Reset Transform"))
+                    {
+                        transform.position = glm::vec3(0.0f);
+                        transform.rotation = glm::vec3(0.0f);
+                        transform.scale = glm::vec3(1.0f);
+                        selectedSceneObject->autoRotation = 0.0f;
+                    }
+                    if (ImGui::Button("Delete Selected"))
+                    {
+                        SceneObject& object = sceneObjects[selectedSceneObjectIndex];
+                        releaseMesh(object.mesh);
+                        selectedSceneObject = nullptr;
+                        sceneObjects.erase(sceneObjects.begin() + selectedSceneObjectIndex);
+                        selectedSceneObjectIndex = -1;
+                        selectedObject = SceneSelection::None;
+                        selectedModel = false;
+                        modelPickDistance = 0.0f;
+                        sceneClickConsumed = true;
+                    }
+                }
+
+                ImGui::SeparatorText("PBR Material");
+
+                if (selectedSceneObject == nullptr)
+                {
+                    ImGui::TextDisabled("Select a scene object to edit its material");
+                }
+                else
+                {
+                    MaterialHandle& selectedMaterial = selectedSceneObject->material;
+                    const char* previewName = selectedMaterial && !selectedMaterial->name.empty() ? selectedMaterial->name.c_str() : "None";
+                    if (ImGui::BeginCombo("Material", previewName))
+                    {
+                        for (std::size_t materialIndex = 0; materialIndex < materialLibrary.size(); ++materialIndex)
+                        {
+                            const MaterialHandle& candidate = materialLibrary[materialIndex];
+                            if (!candidate)
+                            {
+                                continue;
+                            }
+                            ImGui::PushID(static_cast<int>(materialIndex));
+                            const bool isSelected = candidate == selectedMaterial;
+                            if (ImGui::Selectable(candidate->name.c_str(), isSelected))
+                            {
+                                selectedMaterial = candidate;
+                                sceneClickConsumed = true;
+                            }
+
+                            if (isSelected)
+                            {
+                                ImGui::SetItemDefaultFocus();
+                            }
+                            ImGui::PopID();
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    if (selectedMaterial)
+                    {
+                        Material& material = *selectedMaterial;
+                        ImGui::Text("Editing: %s", material.name.c_str());
+                        ImGui::ColorEdit3("Albedo Tint", &material.baseColorFactor.x); // 修改从&material.baseColorFactor.x地址起的3个分量
+                        ImGui::SliderFloat("Metallic multiplier", &material.metallicFactor, 0.0f, 1.0f);
+                        ImGui::SliderFloat("Roughness multiplier", &material.roughnessFactor, 0.0f, 1.0f);
+                        ImGui::SliderFloat("Occlusion strength", &material.occlusionStrength, 0.0f, 1.0f);
+                        ImGui::SliderFloat("Normal scale", &material.normalScale, 0.0f, 2.0f);
+                        ImGui::ColorEdit3("Emissive Factor", &material.emissiveFactor.x);
+                        std::size_t objectReferenceCount = 0;
+                        for (const SceneObject& object : sceneObjects)
+                        {
+                            if (object.material == selectedMaterial)
+                            {
+                                ++objectReferenceCount;
+                            }
+                        }
+                        ImGui::TextDisabled("Used by %zu scene object(s)", objectReferenceCount);
+                    }
+                }
+
+
+                if (ImGui::CollapsingHeader("Mesh and texture details"))
+                {
+                    ImGui::SeparatorText("Resources");
+
+                    ImGui::Text("Objects: %zu", sceneObjects.size());
+                    if (selectedSceneObject != nullptr && selectedSceneObject->mesh)
+                    {
+                        const Mesh& mesh = *selectedSceneObject->mesh;
+
+                        if (!selectedSceneObject->sourcePath.empty())
+                        {
+                            ImGui::TextWrapped("Source: %s", selectedSceneObject->sourcePath.c_str());
+                        }
+                        ImGui::TextWrapped("Mesh Key: %s", mesh.cacheKey.c_str());
+                        ImGui::Text("Vertex Tangents: %s", mesh.hasTangents ? "Available" : "Unavailable");
+
+                        if (selectedSceneObject->material)
+                        {
+                            // ImGui::Text("Material: %s", selectedSceneObject->material->name.c_str());
+                            const Material& material = *selectedSceneObject->material;
+                            ImGui::Text("Material: %s", material.name.c_str());
+                            if (ImGui::TreeNode("Material Texture Slots"))
+                            {
+                                auto showSlot = [](const char* label, const MaterialTextureSlot& slot)
+                                {
+                                    ImGui::Text("%s / UV%u", label, static_cast<unsigned int>(slot.texCoord));
+                                    ImGui::Indent();
+                                    ImGui::TextWrapped("Image: %s", slot.image ? slot.image->name.c_str() : "None");
+                                    ImGui::TextWrapped("Sampler: %s", slot.sampler ? slot.sampler->name.c_str() : "None");
+                                    ImGui::Unindent();
+                                };
+
+                                showSlot("Base Color", material.baseColorTexture);
+                                showSlot("Normal", material.normalTexture);
+                                showSlot("Metallic-Roughness", material.metallicRoughnessTexture);
+                                showSlot("Occlusion", material.aoTexture);
+                                showSlot("Emissive", material.emissiveTexture);
+
+                                ImGui::TreePop();
+                            }
+                        }
+                        ImGui::Text("Mesh References: %ld", selectedSceneObject->mesh.use_count());
+                        ImGui::Text("Vertices: %u", mesh.vertexCount);
+                        ImGui::Text("Indices: %u", mesh.indexCount);
+                        ImGui::Text("AABB Min: %.2f %.2f %.2f", mesh.boundsMin.x, mesh.boundsMin.y, mesh.boundsMin.z);
+                        ImGui::Text("AABB Max: %.2f %.2f %.2f", mesh.boundsMax.x, mesh.boundsMax.y, mesh.boundsMax.z);
+                    }
+
+                    ImGui::Text("Texture Library Entries: %zu", textureLibrary.size());
+                    ImGui::Text("Materials: %zu", materialLibrary.size());
+                    ImGui::Text("Mip Levels: %u", mipLevels);
+
+                }
+
+                ImGui::PopItemWidth();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Lighting"))
+            {
+                ImGui::BeginChild("LightingContent", ImVec2(0.0f, 0.0f));
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                ImGui::SeparatorText("Environment");
+                ImGui::ColorEdit3("Ambient Color", &ambientLightColor.x);
+                ImGui::DragFloat("Ambient Intensity", &ambientLightIntensity, 0.01f, 0.0f, 2.0f);
+                ImGui::DragFloat("IBL Intensity", &iblIntensity, 0.01f, 0.0f, 5.0f);
+
+                ImGui::Separator();
+                ImGui::TextUnformatted("Directional Light");
+                ImGui::Checkbox("Enabled##DirectionalLight", &directionalLight.enabled);
+                ImGui::DragFloat3("Direction##DirectionalLight", &directionalLight.direction.x, 0.02f);
+                ImGui::ColorEdit3("Color##DirectionalLight", &directionalLight.color.x);
+                ImGui::DragFloat("Intensity##DirectionalLight", &directionalLight.intensity, 0.05f, 0.0f, 20.0f);
+
+                ImGui::SeparatorText("Point lights");
+                const bool canAddLight = pointLights.size() < MAX_POINT_LIGHTS;
+                if (!canAddLight)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (ImGui::Button("Add Point Light"))
+                {
+                    PointLight light{};
+                    light.position = cameraPos + cameraFront * 2.0f;
+                    pointLights.push_back(light);
+                    selectedObject = SceneSelection::PointLight;
+                    selectedModel = false;
+                    selectedSceneObjectIndex = -1;
+                    selectedPointLightIndex = static_cast<int>(pointLights.size()) - 1;
                     sceneClickConsumed = true;
                 }
-
-                if (isSelected)
+                if (!canAddLight)
                 {
-                    ImGui::SetItemDefaultFocus();
+                    ImGui::EndDisabled();
                 }
-                ImGui::PopID();
-            }
-            ImGui::EndCombo();
-        }
+                ImGui::SameLine();
+                ImGui::Text("%zu / %u", pointLights.size(), MAX_POINT_LIGHTS);
 
-        if (selectedMaterial)
-        {
-            Material& material = *selectedMaterial;
-            ImGui::Text("Editing: %s", material.name.c_str());
-            ImGui::ColorEdit3("Albedo Tint", &material.baseColorFactor.x); // 修改从&material.baseColorFactor.x地址起的3个分量
-            ImGui::SliderFloat("Metallic multiplier", &material.metallicFactor, 0.0f, 1.0f);
-            ImGui::SliderFloat("Roughness multiplier", &material.roughnessFactor, 0.0f, 1.0f);
-            ImGui::SliderFloat("Occlusion strength", &material.occlusionStrength, 0.0f, 1.0f);
-            ImGui::SliderFloat("Normal scale", &material.normalScale, 0.0f, 2.0f);
-            ImGui::ColorEdit3("Emissive Factor", &material.emissiveFactor.x);
-            std::size_t objectReferenceCount = 0;
-            for (const SceneObject& object : sceneObjects)
+                for (size_t i = 0; i < pointLights.size(); i++)
+                {
+                    PointLight &light = pointLights[i];
+                    ImGui::PushID(static_cast<int>(i));
+
+                    const bool selected = selectedObject == SceneSelection::PointLight && selectedPointLightIndex == static_cast<int>(i);
+                    const std::string lightLabel = "Point Light " + std::to_string(i + 1);
+                    if (ImGui::Selectable(lightLabel.c_str(), selected))
+                    {
+                        selectedObject = SceneSelection::PointLight;
+                        selectedModel = false;
+                        selectedSceneObjectIndex = -1;
+                        selectedPointLightIndex = static_cast<int>(i);
+                        sceneClickConsumed = true;
+                    }
+
+                    if (ImGui::TreeNode("Properties"))
+                    {
+                        ImGui::Checkbox("Enabled", &light.enabled);
+                        ImGui::DragFloat3("Position", &light.position.x, 0.05f);
+                        ImGui::ColorEdit3("Color", &light.color.x);
+                        ImGui::DragFloat("Intensity", &light.intensity, 0.05f, 0.0f, 100.0f);
+                        ImGui::DragFloat("Range", &light.range, 0.05f, 0.1f, 100.0f);
+
+                        ImGui::TreePop();
+                    }
+                    ImGui::Separator();
+                    ImGui::PopID();
+                }
+
+
+                ImGui::PopItemWidth();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Shadows"))
             {
-                if (object.material == selectedMaterial)
+                ImGui::BeginChild("ShadowsContent", ImVec2(0.0f, 0.0f));
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                ImGui::SeparatorText("Directional shadows");
+                ImGui::Checkbox("Shadows##DirectionalLight", &directionalShadowsEnabled);
+                ImGui::Checkbox("Shadow PCF 3x3", &shadowPcfEnabled);
+
+                ImGui::SeparatorText("Depth bias");
+                ImGui::SliderFloat("Shadow constant bias", &shadowConstantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("Shadow slope bias", &shadowSlopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("Shadow receiver bias", &shadowReceiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
+                if (ImGui::Button("Reset shadow bias"))
                 {
-                    ++objectReferenceCount;
+                    shadowConstantBias = 1.25f;
+                    shadowSlopeBias = 1.75f;
+                    shadowReceiverBias = 0.0f;
                 }
+                ImGui::SeparatorText("Debug views");
+                ImGui::Checkbox("Show shadow depth", &showShadowDepth);
+                // 调试显示
+                ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
+
+
+                ImGui::TextWrapped("Bias corrects depth comparisons; PCF filters shadow edges. The depth preview shows raw depth, not visibility.");
+
+                ImGui::PopItemWidth();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
             }
-            ImGui::TextDisabled("Used by %zu scene object(s)", objectReferenceCount);
+
+            if (ImGui::BeginTabItem("Camera"))
+            {
+                ImGui::BeginChild("CameraContent", ImVec2(0.0f, 0.0f));
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                ImGui::SeparatorText("Camera");
+                ImGui::Text("Position: %.2f %.2f %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
+                ImGui::Text("Front: %.2f %.2f %.2f", cameraFront.x, cameraFront.y, cameraFront.z);
+                ImGui::Text("Yaw/Pitch: %.1f %.1f", cameraYaw, cameraPitch);
+                ImGui::DragFloat("Near Plane", &cameraNear, 0.01f, 0.01f, 10.0f);
+                ImGui::DragFloat("Far Plane", &cameraFar, 1.0f, 10.0f, 10000.0f);
+                ImGui::DragFloat("Move Speed", &cameraMoveSpeed, 0.1f, 0.1f, 30.0f);
+                ImGui::DragFloat("Fast Multiplier", &cameraFastMultiplier, 0.1f, 1.0f, 10.0f);
+                ImGui::DragFloat("Scroll Speed", &cameraScrollSpeed, 0.1f, 0.1f, 20.0f);
+                ImGui::DragFloat("Pan Speed", &cameraPanSpeed, 0.001f, 0.001f, 0.2f, "%.3f");
+                ImGui::DragFloat("Mouse Sensitivity", &mouseSensitivity, 0.01f, 0.01f, 2.0f);
+
+
+                ImGui::PopItemWidth();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Diagnostics"))
+            {
+                ImGui::BeginChild("DiagnosticsContent", ImVec2(0.0f, 0.0f));
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                ImGui::Text("FPS: %.1f", io.Framerate);
+                ImGui::Text("Frame Time: %.3f ms", io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f);
+                ImGui::Text("Swapchain Images: %zu", swapchain.imageCount());
+                ImGui::Text("Extent: %u x %u", swapchain.extent().width, swapchain.extent().height);
+                ImGui::Text("MSAA Samples: %d", context.msaaSamples());
+
+
+                ImGui::SeparatorText("Resources");
+                ImGui::Text("Objects: %zu", sceneObjects.size());
+                ImGui::Text("Point lights: %zu / %u", pointLights.size(), MAX_POINT_LIGHTS);
+                ImGui::Text("Materials: %zu", materialLibrary.size());
+                ImGui::Text("Texture library entries: %zu", textureLibrary.size());
+                ImGui::Text("Material slots: %u / %u",
+                static_cast<unsigned int>(allocatedMaterialSetCount),
+                static_cast<unsigned int>(maxMaterialCount));
+                ImGui::Text("Shadow resolution: %u x %u",
+                directionalShadowResolution, directionalShadowResolution);
+
+                ImGui::PopItemWidth();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
         }
     }
+    ImGui::End();
 
     ImDrawList *drawList = ImGui::GetForegroundDrawList();
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     const float radius = 50.0f;
     const float margin = 24.0f;
     const ImVec2 origin(
-        viewport->Pos.x + viewport->Size.x - margin - radius,
-        viewport->Pos.y + margin + radius);
+    viewport->Pos.x + viewport->Size.x - margin - radius,
+    viewport->Pos.y + viewport->Size.y - margin - radius);
 
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat3 viewRotation(view);
