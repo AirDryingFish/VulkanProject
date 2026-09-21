@@ -320,7 +320,7 @@ void Renderer::createSceneRenderPass()
     dependencies[1].dstStageMask =
         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     dependencies[1].dstAccessMask =
-        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        VK_ACCESS_SHADER_READ_BIT;
     dependencies[1].dependencyFlags = 0;
 
     VkRenderPassCreateInfo createInfo{};
@@ -339,6 +339,62 @@ void Renderer::createSceneRenderPass()
         &sceneRenderPass_
     ));
 }
+
+void Renderer::createPresentRenderPass()
+{
+    if (context_ == nullptr || swapchain_ == nullptr || swapchain_->format() == VK_FORMAT_UNDEFINED)
+    {
+        throw std::logic_error("Present render pass requires a valid swapchain");
+    }
+
+    // 唯一的附件：当前 swapchain 图片
+    VkAttachmentDescription color{};
+    // 输出附件必须匹配实际交换链格式
+    color.format = swapchain_->format();
+    // MSAA 已在 Scene Pass resolve，显示阶段使用单采样
+    color.samples = VK_SAMPLE_COUNT_1_BIT;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // 这里必须 store，因为后面还要 vkQueuePresentKHR 把这张 swapchain image 显示出去
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // 关心它进入这个 Render Pass 之前里面原来的内容，也不打算保留，所以可以把旧内容直接丢掉。
+    color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorReference{};
+    colorReference.attachment = 0;
+    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorReference;
+
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    // 外部的 subpass 源 stage 是 COLOR_ATTACHMENT_OUTPUT
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    // 当前 subpass 的 COLOR_ATTACHMENT_OUTPUT
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    // 不需要等待某个具体的 “之前的内存读/写访问” 变得可见
+    dependency.srcAccessMask = 0;
+    // 当前 subpass 接下来要进行的是 color attachment write
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    createInfo.attachmentCount = 1;
+    createInfo.pAttachments = &color;
+    createInfo.subpassCount = 1;
+    createInfo.pSubpasses = &subpass;
+    createInfo.dependencyCount = 1;
+    createInfo.pDependencies = &dependency;
+
+    VK_CHECK(vkCreateRenderPass(context_->device(), &createInfo, nullptr, &presentRenderPass_));
+}
+
 void Renderer::createHdrFramebuffers()
 {
     if (context_ == nullptr || sceneRenderPass_ == VK_NULL_HANDLE)
@@ -409,4 +465,109 @@ void Renderer::destroyHdrTargets() noexcept // 释放图像
     hdrFormat_ = VK_FORMAT_UNDEFINED;
     sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
     sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
+}
+
+// 创建 sampler、layout、pool 和 sets
+void Renderer::createPostDescriptors()
+{
+    const VkDevice device = context_->device();
+    SamplerDesc samplerDesc{};
+    samplerDesc.magFilter = VK_FILTER_LINEAR;
+    samplerDesc.minFilter = VK_FILTER_LINEAR;
+    samplerDesc.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerDesc.compareEnable = VK_FALSE;
+    samplerDesc.anisotropyEnable = VK_FALSE;
+    samplerDesc.minLod = 0.0f;
+    samplerDesc.maxLod = 0.0f;
+    samplerDesc.debugName = "Post-process HDR sampler";
+
+    postSampler_ = context_->createSampler(samplerDesc);
+
+    // 一个 binding：供 fragment shader 读取 HDR 图片
+    VkDescriptorSetLayoutBinding binding{};
+    binding.binding = 0;
+    binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    binding.descriptorCount = 1;
+    binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &binding;
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &postDescriptorSetLayout_));
+
+    const uint32_t count = static_cast<uint32_t>(postDescriptorSets_.size()); // 有多少个 frames
+    // 每个飞行帧一个 set，每个 set 一个 combined image sampler
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = count;
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.maxSets = count;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &postDescriptorPool_));
+
+    std::array<VkDescriptorSetLayout, MAX_FRAMES_IN_FLIGHT> layouts{};
+    layouts.fill(postDescriptorSetLayout_);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = postDescriptorPool_;
+    allocInfo.descriptorSetCount = count;
+    allocInfo.pSetLayouts = layouts.data();
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, postDescriptorSets_.data()));
+
+    writePostDescriptors();
+}
+
+// 把每个飞行帧对应的 HDR 图像 + post-process sampler，真正写进对应的 VkDescriptorSet
+// 这样后处理 fragment shader 才能采样 HDR 结果
+void Renderer::writePostDescriptors()
+{
+    for (std::size_t index = 0; index < postDescriptorSets_.size(); ++index)
+    {
+        const VkImageView view = hdrTargets_[index].hdrColor.view();
+        if (view == VK_NULL_HANDLE || postDescriptorSets_[index] == VK_NULL_HANDLE || !postSampler_)
+        {
+            throw std::logic_error("Post descriptor requires an HDR image, sampler and set");
+        }
+
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.sampler = postSampler_.get();
+        imageInfo.imageView = view;
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = postDescriptorSets_[index];
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
+    }
+}
+
+void Renderer::destroyPostDescriptors() noexcept
+{
+    const VkDevice device = context_->device();
+
+    if (postDescriptorPool_ != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorPool(device, postDescriptorPool_, nullptr);
+        postDescriptorPool_ = VK_NULL_HANDLE;
+    }
+
+    postDescriptorSets_.fill(VK_NULL_HANDLE);
+
+    if (postDescriptorSetLayout_ != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, postDescriptorSetLayout_, nullptr);
+        postDescriptorSetLayout_ = VK_NULL_HANDLE;
+    }
+
+    postSampler_.reset();
 }

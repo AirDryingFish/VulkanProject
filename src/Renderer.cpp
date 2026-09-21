@@ -39,7 +39,6 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         for (FrameContext &frame : frames_)
         {
             // 创建 frame.commandPool
-
             VkCommandPoolCreateInfo poolInfo{};
             poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
             // TRANSIENT_BIT 表示该 command pool 中的 command buffer 会频繁分配和释放
@@ -94,10 +93,12 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createShadowRenderPass();
         createShadowFramebuffers();
         createShadowPipeline();
-        // ----
+        // -- hdr 资源--
         createHdrTargets();
         createSceneRenderPass();
         createHdrFramebuffers();
+        createPostDescriptors();
+        createPresentRenderPass();
 
         initialized_ = true;
     }
@@ -270,6 +271,13 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
+            if (presentRenderPass_ != VK_NULL_HANDLE)
+            {
+                vkDestroyRenderPass(device, presentRenderPass_, nullptr);
+                presentRenderPass_ = VK_NULL_HANDLE;
+            }
+
+            destroyPostDescriptors();
             destroyHdrTargets();
             if (sceneRenderPass_ != VK_NULL_HANDLE)
             {

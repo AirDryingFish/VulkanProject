@@ -89,11 +89,24 @@ private:
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
 
+    // -- HDR render pass --
+    // Scene pass: 场景 -> HDR 图片
     std::array<HdrFrameTarget, MAX_FRAMES_IN_FLIGHT> hdrTargets_{};
     VkFormat hdrFormat_ = VK_FORMAT_UNDEFINED;
     VkFormat sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
     VkSampleCountFlagBits sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
     VkRenderPass sceneRenderPass_ = VK_NULL_HANDLE;
+    // Present pass: 采样 HDR 图片 -> tone mapping -> 交换链图片
+    VkRenderPass presentRenderPass_ = VK_NULL_HANDLE;
+
+    // ----
+
+    // -- 后处理 Descriptor set --
+    GpuSampler postSampler_{};
+    VkDescriptorSetLayout postDescriptorSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorPool postDescriptorPool_ = VK_NULL_HANDLE;
+    std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> postDescriptorSets_{};
+    // ----
 
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
@@ -129,8 +142,15 @@ private:
     void selectHdrConfiguration(); // 选择支持的格式和采样数
     void createHdrTargets(); // 创建图像
     void createSceneRenderPass();
+    void createPresentRenderPass();
     void createHdrFramebuffers();
     void destroyHdrTargets() noexcept; // 释放图像
+    // ----
+
+    // -- post processing --
+    void createPostDescriptors();
+    void writePostDescriptors();
+    void destroyPostDescriptors() noexcept;
     // ----
 
     // -- shadow --
