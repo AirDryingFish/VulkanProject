@@ -121,6 +121,12 @@ private:
     void createGraphicsPipeline();
     void createSkyboxPipeline();
 
+    // -- hdr --
+    void selectHdrConfiguration(); // 选择支持的格式和采样数
+    void createHdrTargets(); // 创建图像
+    void destroyHdrTargets() noexcept; // 释放图像
+    // ----
+
     // -- shadow --
     void createShadowTargets();
     void destroyShadowTargets() noexcept;

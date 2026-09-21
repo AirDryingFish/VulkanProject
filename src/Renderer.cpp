@@ -95,6 +95,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createShadowFramebuffers();
         createShadowPipeline();
         // ----
+        createHdrTargets();
 
         initialized_ = true;
     }
@@ -267,6 +268,7 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
+            destroyHdrTargets();
             destroyShadowTargets();
 
             for (FrameContext &frame : frames_)

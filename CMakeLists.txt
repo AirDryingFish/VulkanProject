@@ -117,6 +117,7 @@ add_executable(vulkan
     src/VulkanContext.cpp
     src/Swapchain.cpp
     src/Renderer.cpp
+    src/PostProcessing.cpp
     src/FileUtils.cpp
     src/UploadCommands.cpp
     src/Mesh.hpp
