@@ -96,6 +96,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createShadowPipeline();
         // ----
         createHdrTargets();
+        createSceneRenderPass();
+        createHdrFramebuffers();
 
         initialized_ = true;
     }
@@ -269,6 +271,14 @@ void Renderer::shutdown() noexcept
         if (device != VK_NULL_HANDLE)
         {
             destroyHdrTargets();
+            if (sceneRenderPass_ != VK_NULL_HANDLE)
+            {
+                vkDestroyRenderPass(
+                    device,
+                    sceneRenderPass_,
+                    nullptr);
+                sceneRenderPass_ = VK_NULL_HANDLE;
+            }
             destroyShadowTargets();
 
             for (FrameContext &frame : frames_)
@@ -359,6 +369,10 @@ void Renderer::shutdown() noexcept
     frameDescriptorSetLayout_ = VK_NULL_HANDLE;
     skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
     renderPass_ = VK_NULL_HANDLE;
+    sceneRenderPass_ = VK_NULL_HANDLE;
+    hdrFormat_ = VK_FORMAT_UNDEFINED;
+    sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
+    sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
 
     currentFrame_ = 0;
     hasActiveFrame_ = false;

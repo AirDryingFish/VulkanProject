@@ -1,6 +1,7 @@
 #include "Renderer.hpp"
 #include "VulkanContext.hpp"
 #include "Swapchain.hpp"
+#include "VulkanCheck.hpp"
 
 #include <array>
 #include <iostream>
@@ -174,13 +175,232 @@ void Renderer::createHdrTargets()
         << static_cast<unsigned int>(sceneSamples_)
         << '\n';
 }
+
+// ---------开始 Scene RenderPass-----------------------
+//         ↓
+// Subpass 0
+// ├─ Vertex Shader
+// ├─ Rasterization
+// ├─ Fragment Shader
+// │
+// ├─ Depth Test
+// │    └─ 读写 4x depth
+// │
+// ├─ Color Output
+// │    └─ 写 4x msaaColor
+// │
+// └─ Resolve
+//      └─ 4x msaaColor
+//           ↓
+//         1x hdrColor
+
+//         ↓
+// 结束 Scene RenderPass
+// ---------------------------------------------------
+// ---------------- External subpass -----------------
+// ---------------------------------------------------
+// hdrColor 进入 SHADER_READ_ONLY_OPTIMAL
+//         ↓
+// PostProcess Pass
+//         ↓
+// Fragment Shader 采样 hdrColor
+//         ↓
+// Tone Mapping
+//         ↓
+// Swapchain
+void Renderer::createSceneRenderPass()
+{
+    if (context_ == nullptr || hdrFormat_ == VK_FORMAT_UNDEFINED || sceneDepthFormat_ == VK_FORMAT_UNDEFINED)
+    {
+        throw std::logic_error("Scene render pass requires an HDR configuration");
+    }
+
+    // 不开 MSAA: 直接把场景画到最终 HDR 图里
+    // 开 MSAA: 先画到 MSAA Color，再 resolve 到单采样 hdr 图
+    const bool useMsaa = sceneSamples_ != VK_SAMPLE_COUNT_1_BIT;
+    std::array<VkAttachmentDescription, 3> attachments{};
+
+    // 附件 0: 直接绘制的颜色附件
+    VkAttachmentDescription& color= attachments[0];
+    color.format = hdrFormat_;
+    color.samples = sceneSamples_;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // renderpass 结束后，这个 attachment 里的结果还要不要保存
+    // 1. 不开启 msaa，render pass 结束后还要 tone mapping -> sample hdrColor，所以颜色结果必须保留下来
+    // 2. 开启 msaa, attachments[0] 是 MSAA color image (Raster -> MSAA color -> single-sample hdrColor)，它只是中间结果在 resolve 完就没用了
+    color.storeOp = useMsaa ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
+    color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // 1. 不开 msaa，第 0 个 attachment 本身就是最终 HDR Color。下一步一般是 tone mapping pass，它会把 hdr image当纹理读，所以必须进入 SHADER_READ_ONLY_OPTIMAL
+    // 2. 开启 msaa，第 0 个 attachment 是临时的，它结束后仍然可以作为 attachment，因为它下一帧大概率继续当 attachment
+    color.finalLayout = useMsaa ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // 附件 1: 场景深度
+    VkAttachmentDescription& depth = attachments[1];
+    depth.format = sceneDepthFormat_;
+    depth.samples = sceneSamples_;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // 附件 2: MSAA resolve 后的单采样 HDR 颜色 (1x 分支不会把这个附件交给 vulkan)
+    VkAttachmentDescription& resolve = attachments[2];
+    resolve.format = hdrFormat_;
+    resolve.samples = VK_SAMPLE_COUNT_1_BIT;
+    resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    resolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    resolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    resolve.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorReference{};
+    colorReference.attachment = 0;
+    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthReference{};
+    depthReference.attachment = 1;
+    depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference resolveReference{};
+    resolveReference.attachment = 2;
+    resolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorReference;
+    subpass.pDepthStencilAttachment = &depthReference;
+    subpass.pResolveAttachments = useMsaa ? &resolveReference : nullptr;
+
+    std::array<VkSubpassDependency, 2> dependencies{};
+    // 定义一个 external -> subpass 0 的同步依赖：
+    // 在进入这个 scene render pass 之前，先确保“之前对这些 image 的读写”已经完成，并且这些 image 现在可以安全地拿来当 color/depth attachment
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL; // VK_SUBPASS_EXTERNAL 不是 “另一个 subpass”，而是 “当前 render pass” 之外的操作。
+    dependencies[0].dstSubpass = 0;
+    // 1. srcStageMask: 我要等 “之前哪些 Pipeline”
+    dependencies[0].srcStageMask =
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |         // fragment shader 在读某张 image
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | // 之前可能有 color attachment write 比如上一帧 scene pass 写过它
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |    // depth attachment 的读写
+        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    // 2. srcAccessMask: 之前到底在访问什么，这个阶段对资源做了什么
+    dependencies[0].srcAccessMask =
+        // VK_ACCESS_SHADER_READ_BIT 通常与 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT一起看
+        // 表示 fragment shader 之前在读取 image
+        VK_ACCESS_SHADER_READ_BIT |
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |          // 之前在写 color attachment
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;   // 之前在写 depth stencil attachment
+    // 3. dstStageMask: 当前要在哪些阶段开始使用，subpass 0 中 image 会被使用的阶段
+    // 是在告诉 vulkan 这些阶段不能太早执行，要等 src 那边完成
+    dependencies[0].dstStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    // 4. dstAccessMask: 当前要怎么访问
+    // 当前 subpass 里，color attachment 可能读/写，depth attachment 也可能读/写
+    dependencies[0].dstAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags = 0;
+
+    // 本次颜色写入/resolve -> 后处理 fragment shader 采样
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].srcAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstStageMask =
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].dstStageMask =
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+    dependencies[1].dependencyFlags = 0;
+
+    VkRenderPassCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    createInfo.attachmentCount = useMsaa ? 3u : 2u;
+    createInfo.pAttachments = attachments.data();
+    createInfo.subpassCount = 1;
+    createInfo.pSubpasses = &subpass;
+    createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    createInfo.pDependencies = dependencies.data();
+
+    VK_CHECK(vkCreateRenderPass(
+        context_->device(),
+        &createInfo,
+        nullptr,
+        &sceneRenderPass_
+    ));
+}
+void Renderer::createHdrFramebuffers()
+{
+    if (context_ == nullptr || sceneRenderPass_ == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("HDR framebuffers require a scene render pass");
+    }
+
+    const bool useMsaa = sceneSamples_ != VK_SAMPLE_COUNT_1_BIT;
+
+    for (HdrFrameTarget& target : hdrTargets_)
+    {
+        std::array<VkImageView, 3> attachments;
+        attachments[0] = useMsaa ? target.msaaColor.view() : target.hdrColor.view();
+        attachments[1] = target.depth.view();
+        if (useMsaa)
+        {
+            attachments[2] = target.msaaColor.view();
+        }
+
+        if (attachments[0] == VK_NULL_HANDLE || attachments[1] == VK_NULL_HANDLE ||
+            (useMsaa && attachments[2] == VK_NULL_HANDLE))
+        {
+            throw std::logic_error("HDR framebuffer requires valid attachments views");
+        }
+
+        const VkExtent3D extent = target.hdrColor.extent();
+
+        VkFramebufferCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        createInfo.renderPass = sceneRenderPass_;
+        createInfo.attachmentCount = useMsaa ? 3u : 2u;
+        createInfo.pAttachments = attachments.data();
+        createInfo.width = extent.width;
+        createInfo.height = extent.height;
+        createInfo.layers = 1;
+        VK_CHECK(vkCreateFramebuffer(
+            context_->device(),
+            &createInfo,
+            nullptr,
+            &target.framebuffer));
+    }
+    std::cout
+        << "HDR framebuffers prepared: "
+        << hdrTargets_.size()
+        << ", attachments per framebuffer="
+        << (useMsaa ? 3 : 2)
+        << '\n';
+}
+
 void Renderer::destroyHdrTargets() noexcept // 释放图像
 {
     for (HdrFrameTarget& target : hdrTargets_)
     {
-        target.depth.reset();
-        target.msaaColor.reset();
-        target.hdrColor.reset();
+        if (target.framebuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyFramebuffer(
+                context_->device(),
+                target.framebuffer,
+                nullptr
+            );
+            target.framebuffer = VK_NULL_HANDLE;
+        }
     }
 
     hdrFormat_ = VK_FORMAT_UNDEFINED;

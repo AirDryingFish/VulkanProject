@@ -29,6 +29,8 @@ private:
         GpuImage hdrColor;
         GpuImage msaaColor;
         GpuImage depth;
+
+        VkFramebuffer framebuffer = VK_NULL_HANDLE;
     };
 
     struct ShadowTarget
@@ -74,6 +76,7 @@ private:
     VulkanContext *context_ = nullptr;
     Swapchain *swapchain_ = nullptr;
 
+    // 原来的显示路径
     VkRenderPass renderPass_ = VK_NULL_HANDLE;
 
     VkDescriptorSetLayout frameDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -90,6 +93,7 @@ private:
     VkFormat hdrFormat_ = VK_FORMAT_UNDEFINED;
     VkFormat sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
     VkSampleCountFlagBits sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
+    VkRenderPass sceneRenderPass_ = VK_NULL_HANDLE;
 
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
@@ -124,6 +128,8 @@ private:
     // -- hdr --
     void selectHdrConfiguration(); // 选择支持的格式和采样数
     void createHdrTargets(); // 创建图像
+    void createSceneRenderPass();
+    void createHdrFramebuffers();
     void destroyHdrTargets() noexcept; // 释放图像
     // ----
 
