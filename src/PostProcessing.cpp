@@ -319,7 +319,7 @@ void Renderer::createSceneRenderPass()
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dependencies[1].dstStageMask =
         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[1].dstStageMask =
+    dependencies[1].dstAccessMask =
         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
     dependencies[1].dependencyFlags = 0;
 
@@ -355,7 +355,7 @@ void Renderer::createHdrFramebuffers()
         attachments[1] = target.depth.view();
         if (useMsaa)
         {
-            attachments[2] = target.msaaColor.view();
+            attachments[2] = target.hdrColor.view();
         }
 
         if (attachments[0] == VK_NULL_HANDLE || attachments[1] == VK_NULL_HANDLE ||
@@ -401,6 +401,9 @@ void Renderer::destroyHdrTargets() noexcept // 释放图像
             );
             target.framebuffer = VK_NULL_HANDLE;
         }
+        target.depth.reset();
+        target.msaaColor.reset();
+        target.hdrColor.reset();
     }
 
     hdrFormat_ = VK_FORMAT_UNDEFINED;
