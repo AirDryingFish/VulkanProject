@@ -106,6 +106,8 @@ struct RenderFrameData
     float shadowConstantBias = 0.0f;
     float shadowSlopeBias = 0.0f;
     bool showShadowDepth = false;
+
+    bool bypassToneMapping = false;
 };
 
 // 本帧应该怎么处理

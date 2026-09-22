@@ -76,9 +76,6 @@ private:
     VulkanContext *context_ = nullptr;
     Swapchain *swapchain_ = nullptr;
 
-    // 原来的显示路径
-    VkRenderPass renderPass_ = VK_NULL_HANDLE;
-
     VkDescriptorSetLayout frameDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout materialDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -111,7 +108,6 @@ private:
     VkPipeline tonemapPipeline_ = VK_NULL_HANDLE;
     // ----
 
-
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
     VkRenderPass shadowRenderPass_ = VK_NULL_HANDLE;
@@ -134,7 +130,6 @@ private:
     bool initialized_ = false;
 
     void createUploadContext();
-    void createRenderPass();
 
     void createDescriptorSetLayouts();
     void createPipelineLayouts();
@@ -196,7 +191,11 @@ public:
 
     bool hasActiveFrame() const noexcept;
 
-    VkRenderPass renderPass() const noexcept;
+    VkRenderPass sceneRenderPass() const noexcept;
+    VkRenderPass presentRenderPass() const noexcept;
+    VkSampleCountFlagBits sceneSamples() const noexcept;
+
+    void recreateHdrTargets();
 
     VkDescriptorSetLayout frameDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout skyboxDescriptorSetLayout() const noexcept;

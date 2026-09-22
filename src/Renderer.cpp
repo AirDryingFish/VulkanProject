@@ -27,12 +27,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         context_ = &context;
         swapchain_ = &swapchain;
 
-        createRenderPass();
         createDescriptorSetLayouts();
         createPipelineLayouts();
-        createGraphicsPipeline();
-        createSkyboxPipeline();
-        createShadowPreviewPipeline();
 
         QueueFamilyIndices indices = context.queueFamilies();
 
@@ -97,9 +93,15 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createHdrTargets();
         createSceneRenderPass();
         createHdrFramebuffers();
+
         createPostDescriptors();
         createPresentRenderPass();
         createPostPipelineLayout();
+
+        // -- 创建 pipeline --
+        createGraphicsPipeline();
+        createSkyboxPipeline();
+        createShadowPreviewPipeline();
         createTonemapPipeline();
 
         initialized_ = true;
@@ -139,130 +141,6 @@ void Renderer::createUploadContext()
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     VK_CHECK(vkCreateFence(context_->device(), &fenceInfo, nullptr, &uploadContext_.fence));
-}
-
-void Renderer::createRenderPass()
-{
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = swapchain_->format(); // swap chain图像的格式
-    // colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // 不使用多重采样
-    colorAttachment.samples = context_->msaaSamples();
-
-    // LoadOp和storeOp决定如何处理attachment中的数据
-    // LoadOp:
-    // * VK_ATTACHMENT_LOAD_OP_LOAD: 保留attachment现有内容
-    // * VK_ATTACHMENT_LOAD_OP_CLEAR: 在渲染开始时把attachment清空为一个常量值（clear color）
-    // * VK_ATTACHMENT_LOAD_OP_DONT_CARE: 现有内容未定义，不关心attachment开始时是什么
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    // StoreOp:
-    // * VK_ATTACHMENT_STORE_OP_STORE: 渲染后的内容存储在内存中，稍后可以读取
-    // * VK_ATTACHMENT_STORE_OP_DONT_CARE: 渲染后的内容未定义，不关心attachment结束时是什么
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;   // 不使用模板缓冲区，所以不关心它的内容
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // 不使用模板缓冲区，所以不关心它的内容
-
-    // vulkan中的texture和framebuffer由具体特定像素格式的VkImage对象表示，内存中像素的布局可以根据对图像的操作而改变
-    // * VK_IMAGE_LAYOUT_UNDEFINED: render pass 开始时不关心图像开始时的布局，渲染开始时图像中的数据会被丢弃
-    // * VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: 渲染过程中图像的最佳布局
-    // * VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Render pass结束时，自动把图像转换成适合呈现到屏幕的布局。这样Render pass结束后图像就可以直接被显示器使用了。
-    // initialLayout和finalLayout的转换由vulkan自动完成，我们只需要告诉vulkan我们不关心初始布局是什么，渲染结束后要把它转换成适合显示的布局就行了。
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    // colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // 这张 image 即将被呈现到屏幕
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // 这张 image 还要继续被当作颜色附件使用
-
-    // 一个 render pass 里可以有多个 subpass，每个 subpass 是一个渲染步骤，后面的 subpass 可以读取前面 subpass 的输出结果。
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;                                    // 指定我们要使用第一个attachment
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // subpass使用attachment时的布局
-
-    VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = context_->findDepthFormat();
-    // depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.samples = context_->msaaSamples();
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentDescription colorAttachmentResolve{};
-    colorAttachmentResolve.format = swapchain_->format();
-    colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    VkAttachmentReference colorAttachmentResolveRef{};
-    colorAttachmentResolveRef.attachment = 2;
-    colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    // pColorAttachments是关键部分。传入的是一个数组，数组的索引直接对应fragment shader里的layout(location = 0) out vec4 outColor;中的location。
-    // 比如如果传入两个attachment，索引分别是0和1，那么fragment shader里就可以有两个输出变量，分别是layout(location = 0) out vec4 outColor0;和layout(location = 1) out vec4 outColor1;。
-    // 如果fragment shader里只有一个输出变量，直接写layout(location = 0) out vec4 outColor;就行了，vulkan会自动把它绑定到索引为0的attachment上。
-    // 这就是Multiple Render Targets (MRT)技术，可以在一个subpass里同时输出到多张图像上，性能更好。
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
-    subpass.pResolveAttachments = &colorAttachmentResolveRef;
-
-    std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-    renderPassInfo.pAttachments = attachments.data();
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-
-    // Render pass开始时会做布局转换(比如把图像从“未定义”转成“可以写颜色”的布局)
-    // vulkan默认在管线最开头做这个转换，但是那时候图像可能还没从swap chain中那到。往一个没准备好的图像上做布局转换，会出问题
-    // 解决思路：告诉vulkan，布局转换等到真正要写颜色的阶段再做
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // 外部，renderpass之间的操作
-    dependency.dstSubpass = 0;                   // 我们的子通道
-
-    /*
-        顶点输入 (VERTEX_INPUT)
-            ↓
-        顶点着色 (VERTEX_SHADER)
-            ↓
-        几何着色 (GEOMETRY_SHADER)
-            ↓
-        光栅化早期 (EARLY_FRAGMENT_TESTS)  ← 早期深度测试
-            ↓
-        片段着色 (FRAGMENT_SHADER)
-            ↓
-        光栅化晚期 (LATE_FRAGMENT_TESTS)
-            ↓
-        颜色附件输出 (COLOR_ATTACHMENT_OUTPUT)  ← fragment 写到 framebuffer
-            ↓
-        传输 (TRANSFER)  ← 单独的阶段, vkCmdCopyImage 等在这运行
-            ↓
-        计算着色 (COMPUTE_SHADER)
-    */
-
-    // src 在 <某stage做的某种access> 完成， dst端的 <某stage做的某种access> 才能开始
-    // => "上一次的 color/depth 写入(包括 LATE 测试阶段)必须真正完成、cache 都 flush 干净,这一次的 color/depth 写入(从 EARLY 测试阶段开始)才能动手。"
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
-
-    VK_CHECK(vkCreateRenderPass(context_->device(), &renderPassInfo, nullptr, &renderPass_));
 }
 
 void Renderer::shutdown() noexcept
@@ -370,12 +248,6 @@ void Renderer::shutdown() noexcept
             {
                 vkDestroyDescriptorSetLayout(device, frameDescriptorSetLayout_, nullptr);
             }
-
-
-            if (renderPass_ != VK_NULL_HANDLE)
-            {
-                vkDestroyRenderPass(device, renderPass_, nullptr);
-            }
         }
     }
 
@@ -390,7 +262,6 @@ void Renderer::shutdown() noexcept
     materialDescriptorSetLayout_ = VK_NULL_HANDLE;
     frameDescriptorSetLayout_ = VK_NULL_HANDLE;
     skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
-    renderPass_ = VK_NULL_HANDLE;
     sceneRenderPass_ = VK_NULL_HANDLE;
     hdrFormat_ = VK_FORMAT_UNDEFINED;
     sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
@@ -448,10 +319,6 @@ bool Renderer::hasActiveFrame() const noexcept
     return hasActiveFrame_;
 }
 
-VkRenderPass Renderer::renderPass() const noexcept
-{
-    return renderPass_;
-}
 
 VkDescriptorSetLayout Renderer::frameDescriptorSetLayout() const noexcept
 {
@@ -466,6 +333,19 @@ VkDescriptorSetLayout Renderer::skyboxDescriptorSetLayout() const noexcept
 VkDescriptorSetLayout Renderer::materialDescriptorSetLayout() const noexcept
 {
     return materialDescriptorSetLayout_;
+}
+
+VkRenderPass Renderer::sceneRenderPass() const noexcept
+{
+    return sceneRenderPass_;
+}
+VkRenderPass Renderer::presentRenderPass() const noexcept
+{
+    return presentRenderPass_;
+}
+VkSampleCountFlagBits Renderer::sceneSamples() const noexcept
+{
+    return sceneSamples_;
 }
 
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
@@ -700,8 +580,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = renderPass_;
-    renderPassInfo.framebuffer = swapchain_->framebuffer(token.imageIndex);
+    renderPassInfo.renderPass = sceneRenderPass_;
+    renderPassInfo.framebuffer = hdrTargets_.at(token.frameIndex).framebuffer;
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = swapchain_->extent();
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -722,24 +602,28 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     scissor.extent = swapchain_->extent();
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
 
-    // 绘制 skybox
-    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
+    // -- 绘制 skybox --
+    if (!data.bypassToneMapping)
+    {
+        vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
 
-    vkCmdBindDescriptorSets(
-        token.commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        skyboxPipelineLayout_,
-        0,
-        1,
-        &data.skyboxDescriptorSet,
-        0,
-        nullptr);
-    vkCmdDraw(
-        token.commandBuffer,
-        36,
-        1,
-        0,
-        0);
+        vkCmdBindDescriptorSets(
+            token.commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            skyboxPipelineLayout_,
+            0,
+            1,
+            &data.skyboxDescriptorSet,
+            0,
+            nullptr);
+        vkCmdDraw(
+            token.commandBuffer,
+            36,
+            1,
+            0,
+            0);
+    }
+    // ----
 
     vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
 
@@ -801,6 +685,46 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
                 0);
         }
     }
+
+    // -- 结束 HDR scene pass --
+    // hdrColor 的最终布局及输出依赖由 sceneRenderPass_ 处理
+    vkCmdEndRenderPass(token.commandBuffer);
+
+    VkClearValue presentClear{};
+    presentClear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    VkRenderPassBeginInfo presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    presentInfo.renderPass = presentRenderPass_;
+    presentInfo.framebuffer = swapchain_->framebuffer(token.imageIndex);
+    presentInfo.renderArea.offset = {0, 0};
+    presentInfo.renderArea.extent = swapchain_->extent();
+    presentInfo.clearValueCount = 1;
+    presentInfo.pClearValues = &presentClear;
+
+    vkCmdBeginRenderPass(token.commandBuffer, &presentInfo, VK_SUBPASS_CONTENTS_INLINE);
+    // 使用前面已设置好的全窗口 viewport/scissor
+    vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
+    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapPipeline_);
+    // 绑定 descriptor set
+    const VkDescriptorSet postSet = postDescriptorSets_.at(token.frameIndex);
+    vkCmdBindDescriptorSets(
+        token.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        postPipelineLayout_,
+        0,
+        1,
+        &postSet,
+        0,
+        nullptr
+    );
+
+    PostPushConstants post{};
+    post.modes.y = data.bypassToneMapping ? 1 : 0;
+    vkCmdPushConstants(token.commandBuffer, postPipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(sizeof(PostPushConstants)), &post);
+    vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);
+    // ----
 
     if (data.showShadowDepth)
     {

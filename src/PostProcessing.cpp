@@ -461,10 +461,6 @@ void Renderer::destroyHdrTargets() noexcept // 释放图像
         target.msaaColor.reset();
         target.hdrColor.reset();
     }
-
-    hdrFormat_ = VK_FORMAT_UNDEFINED;
-    sceneDepthFormat_ = VK_FORMAT_UNDEFINED;
-    sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
 }
 
 // 创建 sampler、layout、pool 和 sets
@@ -616,4 +612,29 @@ void Renderer::createTonemapPipeline()
     config.depthWrite = false;
     tonemapPipeline_ = createGraphicsPipelineFromConfig(config);
     std::cout << "Tone mapping pipeline prepared!\n";
+}
+
+void Renderer::recreateHdrTargets()
+{
+    if (!initialized_ || context_ == nullptr || swapchain_ == nullptr || hasActiveFrame_)
+    {
+        throw std::logic_error("HDR resize requires an initialized renderer outside na activate");
+    }
+
+    // 调用方必须已经等待 gpu 空闲
+    const VkFormat oldHdrFormat = hdrFormat_;
+    const VkFormat oldDepthFormat = sceneDepthFormat_;
+    const VkSampleCountFlagBits oldSamples = sceneSamples_;
+
+    destroyHdrTargets();
+    createHdrTargets();
+
+    if (hdrFormat_ != oldHdrFormat || sceneDepthFormat_ != oldDepthFormat || sceneSamples_ != oldSamples)
+    {
+        throw std::runtime_error("HDR configuration changed; restart required");
+    }
+
+    createHdrFramebuffers();
+    // 原来的 post set 指向旧 imageView。图像重建后需要让每帧的 set 指向新 view，而且更新时不能还有 GPU 提交在使用他们
+    writePostDescriptors();
 }

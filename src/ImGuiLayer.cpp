@@ -235,10 +235,10 @@ void TriangleApplication::initImGui()
     initInfo.QueueFamily = indices.graphicsFamily.value();
     initInfo.Queue = context.graphicsQueue();
     initInfo.DescriptorPool = imguiDescriptorPool;
-    initInfo.PipelineInfoMain.RenderPass = renderer.renderPass();
-    initInfo.MinImageCount = MAX_FRAMES_IN_FLIGHT;
+    initInfo.PipelineInfoMain.RenderPass = renderer.presentRenderPass();
+    initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    initInfo.MinImageCount = std::max(2u, swapchain.minImageCount());
     initInfo.ImageCount = static_cast<uint32_t>(swapchain.imageCount());
-    initInfo.PipelineInfoMain.MSAASamples = context.msaaSamples();
 
     if (!ImGui_ImplVulkan_Init(&initInfo))
     {
@@ -697,7 +697,7 @@ void TriangleApplication::drawImGui()
                 ImGui::Text("Frame Time: %.3f ms", io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f);
                 ImGui::Text("Swapchain Images: %zu", swapchain.imageCount());
                 ImGui::Text("Extent: %u x %u", swapchain.extent().width, swapchain.extent().height);
-                ImGui::Text("MSAA Samples: %d", context.msaaSamples());
+                ImGui::Text("MSAA Samples: %d", renderer.sceneSamples());
 
 
                 ImGui::SeparatorText("Resources");

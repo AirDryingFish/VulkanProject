@@ -29,8 +29,7 @@ private:
     VkPresentModeKHR presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
     VkExtent2D extent_{};
 
-    GpuImage depthImage_;
-    GpuImage colorImage_;
+    uint32_t minImageCount_ = 0;
 
     std::vector<VkFramebuffer> framebuffers_;
 
@@ -39,7 +38,7 @@ private:
     VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR &capabilities) const;
     void createImageViews();
     void createPresentSemaphores();
-    void createAttachments();
+
 
 public:
     Swapchain() noexcept = default;
@@ -65,8 +64,11 @@ public:
     VkImageView imageView(std::size_t index) const;
     VkSemaphore renderFinishedSemaphore(std::size_t index) const;
 
+    VkColorSpaceKHR colorSpace() const noexcept;
+    uint32_t minImageCount() const noexcept;
+
     void createFramebuffers(VkRenderPass renderPass);
-    void destroyFramebuffersAndAttachments() noexcept;
+    void destroyFramebuffers() noexcept;
     VkFramebuffer framebuffer(std::size_t index) const;
 
     SwapchainBuildStatus buildStatus() const noexcept;

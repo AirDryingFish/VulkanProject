@@ -121,8 +121,8 @@ void Renderer::createGraphicsPipeline()
     config.fragShaderPath = MAIN_FRAGMENT_SHADER_PATH;
 
     config.layout = scenePipelineLayout_;
-    config.renderPass = renderPass_;
-    config.samples = context_->msaaSamples();
+    config.renderPass = sceneRenderPass_;
+    config.samples = sceneSamples_;
 
     config.useVertexInput = true;
     config.cullMode = VK_CULL_MODE_NONE;
@@ -140,8 +140,8 @@ void Renderer::createSkyboxPipeline()
     config.fragShaderPath = SKYBOX_FRAGMENT_SHADER_PATH;
 
     config.layout = skyboxPipelineLayout_;
-    config.renderPass = renderPass_;
-    config.samples = context_->msaaSamples();
+    config.renderPass = sceneRenderPass_;
+    config.samples = sceneSamples_;
 
     config.useVertexInput = false;
     config.cullMode = VK_CULL_MODE_NONE;
@@ -159,8 +159,9 @@ void Renderer::createShadowPreviewPipeline()
     config.fragShaderPath = SHADOW_DEBUG_FRAGMENT_SHADER_PATH;
 
     config.layout = scenePipelineLayout_;
-    config.renderPass = renderPass_;
-    config.samples = context_->msaaSamples();
+    // 预览属于显示段叠图，不参与场景 tone mapping
+    config.renderPass = presentRenderPass_;
+    config.samples = VK_SAMPLE_COUNT_1_BIT;
 
     config.useVertexInput = false;
     config.cullMode = VK_CULL_MODE_NONE;

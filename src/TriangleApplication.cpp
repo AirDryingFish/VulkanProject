@@ -62,7 +62,7 @@ void TriangleApplication::InitVulkan()
 
     renderer.initialize(context, swapchain);
 
-    swapchain.createFramebuffers(renderer.renderPass());
+    swapchain.createFramebuffers(renderer.presentRenderPass());
 
     initImGui();
 
@@ -170,7 +170,7 @@ void TriangleApplication::cleanup() noexcept
     prefilterImage.reset();
     brdfLUTImage.reset();
 
-    swapchain.destroyFramebuffersAndAttachments();
+    swapchain.destroyFramebuffers();
 
     renderer.shutdown();
     swapchain.shutdown();
@@ -192,7 +192,13 @@ void TriangleApplication::cleanup() noexcept
 
 void TriangleApplication::recreateSwapChain()
 {
+    framebufferResized = true;
+
     const VkFormat oldFormat = swapchain.format();
+    const VkColorSpaceKHR oldColorSpace = swapchain.colorSpace();
+    const uint32_t oldMinImageCount = swapchain.minImageCount();
+    const std::size_t oldImageCount = swapchain.imageCount();
+
     const SwapchainBuildStatus status = swapchain.rebuildCore();
 
     if (status != SwapchainBuildStatus::Ready)
@@ -200,14 +206,20 @@ void TriangleApplication::recreateSwapChain()
         return;
     }
 
-    if (oldFormat != VK_FORMAT_UNDEFINED && oldFormat != swapchain.format())
+    if (oldFormat != swapchain.format() ||
+        oldColorSpace != swapchain.colorSpace() ||
+        oldMinImageCount != swapchain.minImageCount() ||
+        oldImageCount != swapchain.imageCount()
+    )
     {
         throw std::runtime_error(
             "swapchain format changed; renderer "
             "resources must be rebuilt");
     }
+    renderer.recreateHdrTargets();
+    swapchain.createFramebuffers(renderer.presentRenderPass());
 
-    swapchain.createFramebuffers(renderer.renderPass());
+    framebufferResized = false;
 }
 
 void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int width, int height)
@@ -236,7 +248,6 @@ void TriangleApplication::drawFrame()
 
     if (framebufferResized)
     {
-        framebufferResized = false;
         recreateSwapChain();
         return;
     }
@@ -263,12 +274,11 @@ void TriangleApplication::drawFrame()
     // 应用层更新
     processCameraInput(deltaTime);
 
-    updateUniformBuffer(frame.frameIndex, deltaTime);
-
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     drawImGui();
+    updateUniformBuffer(frame.frameIndex, deltaTime);
     processModelPicking();
     ImGui::Render();
 
@@ -309,7 +319,7 @@ void TriangleApplication::drawFrame()
     renderData.shadowConstantBias = shadowConstantBias;
     renderData.shadowSlopeBias = shadowSlopeBias;
     renderData.showShadowDepth = showShadowDepth;
-
+    renderData.bypassToneMapping = showShadowProjection;
     renderer.recordFrame(frame, renderData);
 
     // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
@@ -317,7 +327,6 @@ void TriangleApplication::drawFrame()
 
     if (endStatus == FrameStatus::RecreateSwapchain || framebufferResized)
     {
-        framebufferResized = false;
         recreateSwapChain();
     }
 }

@@ -78,6 +78,7 @@ void Swapchain::initializeCore(VulkanContext &context, GLFWwindow *window)
         extent_ = extent;
         colorSpace_ = surfaceFormat.colorSpace;
         presentMode_ = presentMode;
+        minImageCount_ = swapChainSupport.capabilities.minImageCount;
 
         createImageViews();
         createPresentSemaphores();
@@ -96,7 +97,7 @@ void Swapchain::shutdown() noexcept
         const VkDevice device = context_->device();
         if (device != VK_NULL_HANDLE)
         {
-            destroyFramebuffersAndAttachments();
+            destroyFramebuffers();
 
             for (VkImageView imageView : imageViews_)
             {
@@ -127,6 +128,7 @@ void Swapchain::shutdown() noexcept
     format_ = VK_FORMAT_UNDEFINED;
     colorSpace_ = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
+    minImageCount_ = 0;
     extent_ = {};
 
     window_ = nullptr;
@@ -168,6 +170,15 @@ VkSemaphore Swapchain::renderFinishedSemaphore(std::size_t index) const
     return renderFinishedSemaphores_.at(index);
 }
 
+VkColorSpaceKHR Swapchain::colorSpace() const noexcept
+{
+    return colorSpace_;
+}
+uint32_t Swapchain::minImageCount() const noexcept
+{
+    return minImageCount_;
+}
+
 void Swapchain::createFramebuffers(VkRenderPass renderPass)
 {
     if (context_ == nullptr || swapchain_ == VK_NULL_HANDLE)
@@ -180,35 +191,20 @@ void Swapchain::createFramebuffers(VkRenderPass renderPass)
         throw std::invalid_argument("createFramebuffers requires a valid render pass");
     }
 
-    if (!framebuffers_.empty() ||
-        depthImage_ ||
-        colorImage_)
-    {
-        throw std::logic_error("swapchain framebuffers already exist");
-    }
-
     try
     {
-        createAttachments();
         // 1 个swap chain图像对应1个framebuffer，所以framebuffer的数量和swap chain图像的数量一样多
         framebuffers_.assign(images_.size(), VK_NULL_HANDLE);
         // 遍历 ImageView，给每个ImageView创建一个对应的framebuffer
         for (size_t i = 0; i < imageViews_.size(); i++)
         {
-
-            // std::array<VkImageView, 3> attachments = {
-            //     swapChainImageViews[i],
-            //     depthImageView,
-            //     colorImageView};
-            std::array<VkImageView, 3> attachments = {
-                colorImage_.view(),
-                depthImage_.view(),
-                imageViews_.at(i)};
+            // 现在每个 swapchain 只有一张 imageView，没有depth 和 resolve
+            const VkImageView attachments = imageViews_.at(i);
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             framebufferInfo.renderPass = renderPass; // framebuffer要兼容哪个render pass
-            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-            framebufferInfo.pAttachments = attachments.data(); // framebuffer要绑定哪些图像作为附件
+            framebufferInfo.attachmentCount = 1;
+            framebufferInfo.pAttachments = &attachments;       // framebuffer要绑定哪些图像作为附件
             framebufferInfo.width = extent_.width;             // framebuffer的宽高必须和render pass里定义的视口大小一致
             framebufferInfo.height = extent_.height;           // framebuffer的宽高必须和render pass里定义的视口大小一致
             framebufferInfo.layers = 1;                        // 只有一层
@@ -218,12 +214,12 @@ void Swapchain::createFramebuffers(VkRenderPass renderPass)
     }
     catch (...)
     {
-        destroyFramebuffersAndAttachments();
+        destroyFramebuffers();
         throw;
     }
 }
 
-void Swapchain::destroyFramebuffersAndAttachments() noexcept
+void Swapchain::destroyFramebuffers() noexcept
 {
     if (context_ != nullptr)
     {
@@ -240,8 +236,6 @@ void Swapchain::destroyFramebuffersAndAttachments() noexcept
         }
     }
     framebuffers_.clear();
-    depthImage_.reset();
-    colorImage_.reset();
 }
 
 VkFramebuffer Swapchain::framebuffer(std::size_t index) const
@@ -292,24 +286,21 @@ SwapchainBuildStatus Swapchain::rebuildCore()
     return SwapchainBuildStatus::Ready;
 }
 
+// 后处理 shader 输出线性颜色，使用 _SRGB 附件完成编码，不再让任意 UNORM fallback 改变颜色解释
 VkSurfaceFormatKHR Swapchain::chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &formats) const
 {
-    for (const auto &availableForat : formats)
+    const std::array<VkFormat, 2> preferredFormats{VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_SRGB};
+    for (VkFormat preferred : preferredFormats)
     {
-        if (availableForat.format == VK_FORMAT_B8G8R8A8_SRGB &&
-            availableForat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        for (const VkSurfaceFormatKHR& available : formats)
         {
-            return availableForat;
+            if (available.format == preferred && available.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            {
+                return available;
+            }
         }
     }
-
-    const SwapChainSupportDetails support = context_->querySwapchainSupport();
-    if (support.formats.empty() || support.presentModes.empty())
-    {
-        throw std::runtime_error("swapchain support is incomplete");
-    }
-
-    return formats.at(0);
+    throw std::runtime_error("HDR presentation requires an sRGB swapchain format with SRGB_NONLINEAR color space");
 }
 
 VkPresentModeKHR Swapchain::choosePresentMode(const std::vector<VkPresentModeKHR> &presentMode) const
@@ -369,65 +360,6 @@ void Swapchain::createPresentSemaphores()
     {
         VK_CHECK(vkCreateSemaphore(context_->device(), &semaphoreInfo, nullptr, &renderFinished));
     }
-}
-
-void Swapchain::createAttachments()
-{
-    assert(context_ != nullptr);
-    assert(swapchain_ != VK_NULL_HANDLE);
-
-    const VkFormat depthFormat = context_->findDepthFormat();
-
-    ImageDesc depthDesc{};
-    depthDesc.extent = {
-        extent_.width,
-        extent_.height,
-        1
-    };
-    depthDesc.mipLevels = 1;
-    depthDesc.samples = context_->msaaSamples();
-    depthDesc.format = depthFormat;
-    depthDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
-    depthDesc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    depthDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    depthDesc.flags = 0;
-    depthDesc.debugName = "swapchain depth attchment";
-
-    depthImage_ = context_->createImage(depthDesc);
-
-    depthImage_.setView(
-        context_->createImageView(
-            depthImage_.get(),
-            depthFormat,
-            1,
-            VK_IMAGE_ASPECT_DEPTH_BIT));
-
-    ImageDesc colorDesc{};
-    colorDesc.extent = {
-        extent_.width,
-        extent_.height,
-        1
-    };
-
-    colorDesc.mipLevels = 1;
-    colorDesc.arrayLayers = 1;
-    colorDesc.samples = context_->msaaSamples();
-    colorDesc.format = format_;
-    colorDesc.tiling = VK_IMAGE_TILING_OPTIMAL;
-    colorDesc.usage =
-        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    colorDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    colorDesc.flags = 0;
-    colorDesc.debugName = "swapchain MSAA color attachment";
-
-    colorImage_ = context_->createImage(colorDesc);
-
-    colorImage_.setView(
-        context_->createImageView(
-            colorImage_.get(),
-            format_,
-            1));
 }
 
 Swapchain::~Swapchain() noexcept
