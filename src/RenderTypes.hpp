@@ -14,6 +14,7 @@ inline constexpr std::uint32_t directionalShadowResolution = 2048;
 
 struct ImDrawData;
 
+// 服务于模型绘制，包含模型矩阵和材质参数
 struct alignas(16) DrawPushConstants
 {
     alignas(16) glm::mat4 model{1.0f};
@@ -39,6 +40,20 @@ struct alignas(16) DrawPushConstants
         0u, 0u, 0u, 0u
     };
 };
+
+// 后处理只需要少量显示参数，不需要模型数据
+struct alignas(16) PostPushConstants
+{
+    // x 后续用于曝光 EV: 目前 reserve
+    glm::vec4 params{};
+
+    // x 后续用于 tone mapper 选择
+    // y 表示是否跳过 tone mapping, 用于数据调试视图
+    glm::ivec4 modes{0};
+};
+static_assert(offsetof(PostPushConstants, params) == 0);
+static_assert(offsetof(PostPushConstants, modes) == 16);
+static_assert(sizeof(PostPushConstants) == 32);
 
 // offset
 // 0

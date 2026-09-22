@@ -106,7 +106,11 @@ private:
     VkDescriptorSetLayout postDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool postDescriptorPool_ = VK_NULL_HANDLE;
     std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> postDescriptorSets_{};
+
+    VkPipelineLayout postPipelineLayout_ = VK_NULL_HANDLE;
+    VkPipeline tonemapPipeline_ = VK_NULL_HANDLE;
     // ----
+
 
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
@@ -151,6 +155,9 @@ private:
     void createPostDescriptors();
     void writePostDescriptors();
     void destroyPostDescriptors() noexcept;
+
+    void createPostPipelineLayout();
+    void createTonemapPipeline();
     // ----
 
     // -- shadow --

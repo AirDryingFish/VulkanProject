@@ -23,6 +23,8 @@ call :compile brdf_lut.frag brdf_lut.frag.spv || goto :failed
 call :compile shadow.vert shadow.vert.spv || goto :failed
 call :compile shadow_debug.vert shadow_debug.vert.spv || goto :failed
 call :compile shadow_debug.frag shadow_debug.frag.spv || goto :failed
+call :compile fullscreen.vert fullscreen.vert.spv || goto :failed
+call :compile tonemap.frag tonemap.frag.spv || goto :failed
 
 popd
 echo Shader compilation complete.

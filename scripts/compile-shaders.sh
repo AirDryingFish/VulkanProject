@@ -26,5 +26,7 @@ compile brdf_lut.frag brdf_lut.frag.spv
 compile shadow.vert shadow.vert.spv
 compile shadow_debug.vert shadow_debug.vert.spv
 compile shadow_debug.frag shadow_debug.frag.spv
+compile fullscreen.vert fullscreen.vert.spv
+compile tonemap.frag tonemap.frag.spv
 
 echo "Shader compilation complete."

@@ -432,6 +432,7 @@ void main()
     vec3 emissive = texture(emissiveMap, materialUv(4u)).rgb * draw.emissiveFactor.rgb;
 
     vec3 color = ambient + ibl + Lo + emissive;
+    // Reinhard hdr
     color = color / (color + vec3(1.0));
 
     outColor = vec4(color, 1.0);

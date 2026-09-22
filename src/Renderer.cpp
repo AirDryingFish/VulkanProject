@@ -99,6 +99,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createHdrFramebuffers();
         createPostDescriptors();
         createPresentRenderPass();
+        createPostPipelineLayout();
+        createTonemapPipeline();
 
         initialized_ = true;
     }
@@ -271,6 +273,18 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
+            if (tonemapPipeline_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, tonemapPipeline_, nullptr);
+                tonemapPipeline_ = VK_NULL_HANDLE;
+            }
+
+            if (postPipelineLayout_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipelineLayout(device, postPipelineLayout_, nullptr);
+                postPipelineLayout_ = VK_NULL_HANDLE;
+            }
+
             if (presentRenderPass_ != VK_NULL_HANDLE)
             {
                 vkDestroyRenderPass(device, presentRenderPass_, nullptr);

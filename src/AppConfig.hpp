@@ -47,6 +47,8 @@ inline const std::string BRDF_LUT_FRAGMENT_SHADER_PATH = assetPath("shaders/brdf
 inline const std::string SHADOW_VERTEX_SHADER_PATH = assetPath("shaders/shadow.vert.spv");
 inline const std::string SHADOW_DEBUG_VERTEX_SHADER_PATH = assetPath("shaders/shadow_debug.vert.spv");
 inline const std::string SHADOW_DEBUG_FRAGMENT_SHADER_PATH = assetPath("shaders/shadow_debug.frag.spv");
+inline const std::string FULLSCREEN_VERTEX_SHADER_PATH = assetPath("shaders/fullscreen.vert.spv");
+inline const std::string TONEMAP_FRAGMENT_SHADER_PATH = assetPath("shaders/tonemap.frag.spv");
 
 inline constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 

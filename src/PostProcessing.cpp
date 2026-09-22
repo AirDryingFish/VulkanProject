@@ -571,3 +571,49 @@ void Renderer::destroyPostDescriptors() noexcept
 
     postSampler_.reset();
 }
+
+// layout 明确了后处理 shader 的两个输入接口：
+// 1. descriptor: HDR 图像和 sampler
+// 2. push constants: 后处理参数
+void Renderer::createPostPipelineLayout()
+{
+    if (context_ == nullptr || postDescriptorSetLayout_ == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("Post pipeline layout requires a descriptor set layout");
+    }
+
+    VkPushConstantRange pushRange{};
+    pushRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushRange.offset = 0;
+    pushRange.size = static_cast<uint32_t>(sizeof(PostPushConstants));
+
+    VkPipelineLayoutCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    createInfo.pushConstantRangeCount = 1;
+    createInfo.pPushConstantRanges = &pushRange;
+    createInfo.setLayoutCount = 1;
+    createInfo.pSetLayouts = &postDescriptorSetLayout_;
+
+    VK_CHECK(vkCreatePipelineLayout(context_->device(), &createInfo, nullptr, &postPipelineLayout_));
+}
+
+void Renderer::createTonemapPipeline()
+{
+    if (context_ == nullptr || presentRenderPass_ == VK_NULL_HANDLE || postPipelineLayout_ == VK_NULL_HANDLE)
+    {
+        throw std::logic_error("Tone mapping pipeline requires a present pass and post pipeline layout");
+    }
+
+    GraphicsPipelineConfig config{};
+    config.vertShaderPath = FULLSCREEN_VERTEX_SHADER_PATH;
+    config.fragShaderPath = TONEMAP_FRAGMENT_SHADER_PATH;
+    config.layout = postPipelineLayout_;
+    config.renderPass = presentRenderPass_;
+    config.samples = VK_SAMPLE_COUNT_1_BIT;
+    config.useVertexInput = false;
+    config.cullMode = VK_CULL_MODE_NONE;
+    config.depthTest = false;
+    config.depthWrite = false;
+    tonemapPipeline_ = createGraphicsPipelineFromConfig(config);
+    std::cout << "Tone mapping pipeline prepared!\n";
+}
