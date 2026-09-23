@@ -212,14 +212,20 @@ void Renderer::createShadowPipeline()
 {
     // set 0 复用每帧 descriptor (因为 shader 里面用了ubo), push constant 只需要 push model
     VkPushConstantRange pushRange{};
-    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.offset = 0;
-    pushRange.size = sizeof(glm::mat4);
+    pushRange.size = sizeof(DrawPushConstants);
+
+    // 这里连接 shader 中 layout(set = 0, xxx) layout(set = 1, xxx)
+    const std::array<VkDescriptorSetLayout, 2> setLayouts{
+        frameDescriptorSetLayout_,
+        materialDescriptorSetLayout_
+    };
 
     VkPipelineLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutInfo.setLayoutCount = 1;
-    layoutInfo.pSetLayouts = &frameDescriptorSetLayout_;
+    layoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+    layoutInfo.pSetLayouts = setLayouts.data();
     layoutInfo.pushConstantRangeCount = 1;
     layoutInfo.pPushConstantRanges = &pushRange;
     VK_CHECK(vkCreatePipelineLayout(
@@ -229,24 +235,36 @@ void Renderer::createShadowPipeline()
         &shadowPipelineLayout_
     ));
 
-    const auto shaderCode = readBinaryFile(SHADOW_VERTEX_SHADER_PATH);
-    auto shaderModule = context_->createShaderModule(shaderCode);
+    const auto vertCode = readBinaryFile(SHADOW_VERTEX_SHADER_PATH);
+    const auto fragCode = readBinaryFile(SHADOW_FRAGMENT_SHADER_PATH);
 
-    VkPipelineShaderStageCreateInfo shaderStage{};
-    shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shaderStage.module = shaderModule.get();
-    shaderStage.pName = "main";
+    auto vertModule = context_->createShaderModule(vertCode);
+    auto fragModule = context_->createShaderModule(fragCode);
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStage{};
+    shaderStage[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStage[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStage[0].module = vertModule.get();
+    shaderStage[0].pName = "main";
+
+    shaderStage[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStage[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shaderStage[1].module = fragModule.get();
+    shaderStage[1].pName = "main";
 
     // buffer 仍存放完整 vertex, 但此 pipeline 只读取 position
     const auto binding = Vertex::getBindingDescription();
-    const auto positionAttribute = Vertex::getAttributeDescriptions()[0];
+    const auto allAttributes = Vertex::getAttributeDescriptions();
+    const std::array<VkVertexInputAttributeDescription, 4> attributes{
+        allAttributes[0], allAttributes[1], allAttributes[2], allAttributes[5]
+    };
+
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInput.vertexBindingDescriptionCount = 1;
     vertexInput.pVertexBindingDescriptions = &binding;
-    vertexInput.vertexAttributeDescriptionCount = 1;
-    vertexInput.pVertexAttributeDescriptions = &positionAttribute;
+    vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
+    vertexInput.pVertexAttributeDescriptions = attributes.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -290,8 +308,8 @@ void Renderer::createShadowPipeline()
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 1;
-    pipelineInfo.pStages = &shaderStage;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStage.size());
+    pipelineInfo.pStages = shaderStage.data();
     pipelineInfo.pVertexInputState = &vertexInput;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
     pipelineInfo.pViewportState = &viewportState;
@@ -299,6 +317,7 @@ void Renderer::createShadowPipeline()
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.layout = shadowPipelineLayout_;
     pipelineInfo.renderPass = shadowRenderPass_;
     pipelineInfo.subpass = 0; // 运行在 renderPass 的第 0 个 subpass 里
@@ -378,7 +397,11 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
         const VkDeviceSize offset = 0;
         for (const RenderObjectView& object : *data.objects)
         {
-            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE)
+            if (object.indexCount == 0 ||
+                object.vertexBuffer == VK_NULL_HANDLE ||
+                object.indexBuffer == VK_NULL_HANDLE ||
+                object.materialDescriptorSet == VK_NULL_HANDLE
+            )
             {
                 continue;
             }
@@ -390,13 +413,24 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                 pipeline);
 
+            vkCmdBindDescriptorSets(
+                token.commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                shadowPipelineLayout_,
+                1, // 材质绑定到 set 1
+                1,
+                &object.materialDescriptorSet,
+                0,
+                nullptr
+            );
+
             vkCmdPushConstants(
                 token.commandBuffer,
                 shadowPipelineLayout_,
-                VK_SHADER_STAGE_VERTEX_BIT,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                 0,
-                sizeof(glm::mat4), // 只传入模型的 model 矩阵
-                &object.pushConstants.model
+                sizeof(DrawPushConstants), // 只传入模型的 model 矩阵
+                &object.pushConstants
             );
 
             vkCmdBindVertexBuffers(

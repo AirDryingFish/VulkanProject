@@ -11,7 +11,7 @@ struct PointLight
     vec4 params;
 };
 
-layout(location = 0) in vec3 fragColor;
+layout(location = 0) in vec4 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragWorldPos;
 layout(location = 3) in vec3 fragNormal;
@@ -320,9 +320,18 @@ float directionalShadowVisibility(vec3 worldPosition)
 
 void main()
 {
-    // 用颜色显示光空间坐标
+    // 主画面执行 alpha 裁剪，把 alpha 值小于 cutoff 的丢弃。大于的当作不透明片元绘制
+    vec4 baseColor = texture(albedoMap, materialUv(0u)) * draw.baseColorFactor * fragColor;
+    bool alphaRejected = draw.textureInfo.z == 1u && baseColor.a < draw.emissiveFactor.w;
+
+    // -- 用颜色显示光空间坐标 (debug use) --
     if (frame.shadowFlags.y != 0)
     {
+        if (alphaRejected)
+        {
+            discard;
+        }
+
         vec4 lightClip = frame.lightViewProjection * vec4(fragWorldPos, 1.0);
         if (lightClip.w <= 0.0) // 点在相机后方
         {
@@ -359,7 +368,8 @@ void main()
     // draw.materialFactors.z(strength) 控制 AO 贴图对最终光照产生多大影响
     float ao = mix(1.0, samplerdOcclusion, clamp(draw.materialFactors.z, 0.0, 1.0));
 
-    vec3 albedo = fragColor * texture(albedoMap, materialUv(0u)).rgb * draw.baseColorFactor.rgb;
+    vec3 albedo = baseColor.rgb;
+
     vec3 normal = getNormalFromNormalMap();
     if (!gl_FrontFacing)
     {
@@ -437,6 +447,11 @@ void main()
     vec3 emissive = texture(emissiveMap, materialUv(4u)).rgb * draw.emissiveFactor.rgb;
 
     vec3 color = ambient + ibl + Lo + emissive;
+
+    if (alphaRejected)
+    {
+        discard;
+    }
 
     outColor = vec4(color, 1.0);
 }

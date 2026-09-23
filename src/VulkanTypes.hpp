@@ -39,7 +39,7 @@ struct SwapChainSupportDetails
 struct Vertex
 {
     glm::vec3 pos{0.0f};
-    glm::vec3 color{1.0f};
+    glm::vec4 color{1.0f};
     glm::vec2 texcoord{0.0f};
     glm::vec3 normal{0.0f, 0.0f, 1.0f};
 
@@ -74,7 +74,7 @@ struct Vertex
 
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributeDescriptions[1].offset = offsetof(Vertex, color);
 
         attributeDescriptions[2].binding = 0;
@@ -131,7 +131,7 @@ struct hash<Vertex>
         };
 
         combine(hash<glm::vec3>()(vertex.pos));
-        combine(hash<glm::vec3>()(vertex.color));
+        combine(hash<glm::vec4>()(vertex.color));
         combine(hash<glm::vec2>()(vertex.texcoord));
         combine(hash<glm::vec3>()(vertex.normal));
         combine(hash<glm::vec4>()(vertex.tangent));

@@ -490,9 +490,9 @@ MaterialHandle TriangleApplication::createGltfMaterial(
     GltfMaterialUpload& upload
 )
 {
-    if (source.alphaMode != GltfAlphaMode::Opaque)
+    if (source.alphaMode == GltfAlphaMode::Blend)
     {
-        throw std::runtime_error(debugName + ": only OPAQUE materials are supported");
+        throw std::runtime_error(debugName + ": BLEND materials are not supported");
     }
 
     // 把 gltf 里的一个材质纹理引用，转换为 Engine 自己的 MaterialTextureSlot
@@ -554,6 +554,8 @@ MaterialHandle TriangleApplication::createGltfMaterial(
     material->normalScale = source.normalScale;
     material->occlusionStrength = source.occlusionStrength;
     material->doubleSided = source.doubleSided;
+    material->alphaMode = source.alphaMode == GltfAlphaMode::Mask ? MaterialAlphaMode::Mask : MaterialAlphaMode::Opaque;
+    material->alphaCutoff = source.alphaCutoff;
 
     material->baseColorTexture = makeSlot(
         source.baseColorTexture,

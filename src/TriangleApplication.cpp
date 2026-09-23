@@ -298,9 +298,9 @@ void TriangleApplication::drawFrame()
         view.pushConstants.model = getObjectMatrix(object);
         view.pushConstants.baseColorFactor = material.baseColorFactor;
         view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.occlusionStrength, material.normalScale);
-        view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, 0.0f);
+        view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, material.alphaCutoff);
         const bool useVertexTangents = mesh.hasTangents && material.normalTexture.texCoord == 0u;
-        view.pushConstants.textureInfo = glm::uvec4(material.textureUvMask(), useVertexTangents, 0u, 0u);
+        view.pushConstants.textureInfo = glm::uvec4(material.textureUvMask(), useVertexTangents, material.alphaMode == MaterialAlphaMode::Mask ? 1u : 0u, 0u);
         view.materialDescriptorSet = material.descriptorSet;
 
         renderObjects.push_back(view);

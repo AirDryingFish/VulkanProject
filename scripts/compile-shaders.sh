@@ -24,6 +24,7 @@ compile prefilter.frag prefilter.frag.spv
 compile brdf_lut.vert brdf_lut.vert.spv
 compile brdf_lut.frag brdf_lut.frag.spv
 compile shadow.vert shadow.vert.spv
+compile shadow.frag shadow.frag.spv
 compile shadow_debug.vert shadow_debug.vert.spv
 compile shadow_debug.frag shadow_debug.frag.spv
 compile fullscreen.vert fullscreen.vert.spv

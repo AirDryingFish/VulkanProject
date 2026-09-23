@@ -223,10 +223,10 @@ void validatePrimitiveMaterial(
     const GltfMaterialData &material =
         imported.materials[materialIndex];
 
-    if (material.alphaMode != GltfAlphaMode::Opaque)
+    if (material.alphaMode == GltfAlphaMode::Blend)
     {
         throw std::runtime_error(
-            context + ": only OPAQUE materials are supported");
+            context + ": BLEND materials are not supported");
     }
 
     auto checkSlot = [&](const std::optional<GltfMaterialTextureSlot> &slot, const char *slotName)

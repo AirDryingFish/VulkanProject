@@ -74,7 +74,7 @@ MeshBuildData buildGltfPrimitiveMeshData(const GltfPrimitiveData& primitive)
     {
         Vertex vertex{};
         vertex.pos = decodedVertex.position;
-        vertex.color = glm::vec3(decodedVertex.color);
+        vertex.color = decodedVertex.color;
         vertex.texcoord = decodedVertex.texcoord0;
         vertex.texcoord1 = decodedVertex.texcoord1;
         vertex.normal = decodedVertex.normal;
@@ -130,10 +130,10 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
 
         auto addFace = [&](int a, int b, int c, int d, const glm::vec3 &normal) {
             const uint32_t start = static_cast<uint32_t>(meshData.vertices.size());
-            meshData.vertices.push_back({positions[a], glm::vec3(1.0f), glm::vec2(0.0f, 0.0f), normal});
-            meshData.vertices.push_back({positions[b], glm::vec3(1.0f), glm::vec2(1.0f, 0.0f), normal});
-            meshData.vertices.push_back({positions[c], glm::vec3(1.0f), glm::vec2(1.0f, 1.0f), normal});
-            meshData.vertices.push_back({positions[d], glm::vec3(1.0f), glm::vec2(0.0f, 1.0f), normal});
+            meshData.vertices.push_back({positions[a], glm::vec4(1.0f), glm::vec2(0.0f, 0.0f), normal});
+            meshData.vertices.push_back({positions[b], glm::vec4(1.0f), glm::vec2(1.0f, 0.0f), normal});
+            meshData.vertices.push_back({positions[c], glm::vec4(1.0f), glm::vec2(1.0f, 1.0f), normal});
+            meshData.vertices.push_back({positions[d], glm::vec4(1.0f), glm::vec2(0.0f, 1.0f), normal});
             //
             meshData.indices.insert(meshData.indices.end(),
                 {start, start + 2, start + 1,
@@ -175,7 +175,7 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
 
                 Vertex vertex{};
                 vertex.pos = normal;
-                vertex.color = glm::vec3(1.0f);
+                vertex.color = glm::vec4(1.0f);
                 vertex.texcoord = glm::vec2(u, v);
                 vertex.normal = glm::normalize(normal);
                 meshData.vertices.push_back(vertex);
@@ -256,7 +256,7 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
                     1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
             }
 
-            vertex.color = {1.0f, 1.0f, 1.0f};
+            vertex.color = {1.0f, 1.0f, 1.0f, 1.0f};
             if (index.normal_index >= 0)
             {
                 vertex.normal = {

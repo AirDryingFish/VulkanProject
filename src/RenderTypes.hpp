@@ -31,11 +31,15 @@ struct alignas(16) DrawPushConstants
         1.0f,
         1.0f
     };
+
+    // rgb: 继续保存 emissive
+    // w: alphaCutoff
     alignas(16) glm::vec4 emissiveFactor{0.0f};
 
     // x: 纹理 UV set bit mask
     // y: 当前 Mesh 是否有有效 vertex tangent
-    // z/w: reserved
+    // z: 0 = OPAQUE, 1 = MASK
+    // w: reserved
     alignas(16) glm::uvec4 textureInfo{
         0u, 0u, 0u, 0u
     };
@@ -54,7 +58,6 @@ struct alignas(16) PostPushConstants
 static_assert(offsetof(PostPushConstants, params) == 0);
 static_assert(offsetof(PostPushConstants, modes) == 16);
 static_assert(sizeof(PostPushConstants) == 32);
-
 // offset
 // 0
 // │

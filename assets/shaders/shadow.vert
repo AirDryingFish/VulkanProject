@@ -10,6 +10,13 @@ struct PointLight
 };
 
 layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec2 inTexCoord;
+layout(location = 5) in vec2 inTexCoord1;
+
+layout(location = 0) out float fragAlpha;
+layout(location = 1) out vec2 fragTexCoord;
+layout(location = 2) out vec2 fragTexCoord1;
 
 layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 {
@@ -31,10 +38,13 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 
 } ubo;
 
-// 当前物体的 model 矩阵
-layout(push_constant) uniform ShadowDraw
+layout(push_constant) uniform DrawPushConstants
 {
     mat4 model;
+    vec4 baseColorFactor;
+    vec4 materialFactors;
+    vec4 emissiveFactor;
+    uvec4 textureInfo;
 } draw;
 
 // 记录光源看到的最近表面（渲染深度图）
@@ -43,4 +53,8 @@ void main(){
     // model * inPosition: 模型的世界坐标
     // lightViewProjection * model * inPosition: 光源裁剪空间坐标
     gl_Position = ubo.lightViewProjection * draw.model * vec4(inPosition, 1.0);
+
+    fragAlpha = inColor.a;
+    fragTexCoord = inTexCoord;
+    fragTexCoord1 = inTexCoord1;
 }

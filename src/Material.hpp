@@ -44,6 +44,12 @@ struct MaterialTextureSlot
     std::uint32_t texCoord = 0;
 };
 
+enum class MaterialAlphaMode
+{
+    Opaque,
+    Mask
+};
+
 struct Material
 {
     std::string name;
@@ -54,6 +60,8 @@ struct Material
     MaterialTextureSlot aoTexture;
     MaterialTextureSlot emissiveTexture;
 
+    MaterialAlphaMode alphaMode = MaterialAlphaMode::Opaque;
+    float alphaCutoff = 0.5f;
     bool doubleSided = false;
 
     glm::vec4 baseColorFactor{1.0f};
