@@ -36,7 +36,7 @@ void TriangleApplication::createDescriptorPool()
     poolSizes[1].descriptorCount =
         frameCount *
         static_cast<uint32_t>(frameImageDescriptorCount + skyboxImageDescriptorCount) +
-        maxMaterialCount * static_cast<uint32_t>(materialImageDescriptorCount);
+        materialPoolCapacity * static_cast<uint32_t>(materialImageDescriptorCount);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -44,7 +44,7 @@ void TriangleApplication::createDescriptorPool()
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = frameCount * descriptorSetGroupCount + maxMaterialCount;
+    poolInfo.maxSets = frameCount * descriptorSetGroupCount + materialPoolCapacity;
 
     VK_CHECK(vkCreateDescriptorPool(context.device(), &poolInfo, nullptr, &descriptorPool));
 
@@ -255,11 +255,12 @@ void TriangleApplication::writeMaterialDescriptorSet(Material &material)
 
 void TriangleApplication::ensureMaterialDescriptorCapacity(std::size_t additionalCount) const
 {
-    if (allocatedMaterialSetCount > maxMaterialCount || additionalCount > maxMaterialCount - allocatedMaterialSetCount)
+    const std::uint32_t capacity = preparingScenePreset ? materialPoolCapacity : maxMaterialCount;
+    if (allocatedMaterialSetCount > capacity || additionalCount > capacity - allocatedMaterialSetCount)
     {
         throw std::runtime_error("material descriptor capacity exceeded: allocated=" + std::to_string(allocatedMaterialSetCount) +
                                 ", requested=" + std::to_string(additionalCount) +
-                                ", capacity=" + std::to_string(maxMaterialCount));
+                                ", capacity=" + std::to_string(capacity));
     }
 }
 

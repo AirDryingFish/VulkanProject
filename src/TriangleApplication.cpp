@@ -17,8 +17,14 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-void TriangleApplication::run()
+void TriangleApplication::run(ScenePreset initialScene, std::uint32_t requestedFrameLimit)
 {
+    const std::string unavailable = scenePresetUnavailableReason(initialScene);
+    if (!unavailable.empty())
+        throw std::runtime_error(unavailable);
+    activeScenePreset = selectedScenePreset = initialScene;
+    frameLimit = requestedFrameLimit;
+    renderedFrameCount = 0;
     std::snprintf(importModelPath, sizeof(importModelPath), "%s", MODEL_PATH.c_str());
     InitWindow();
     InitVulkan();
@@ -69,6 +75,9 @@ void TriangleApplication::InitVulkan()
     // 创建材质时就要给slot赋sampler，默认sampler必须提前存在
     createTextureSampler();
     createMaterialResources();
+    builtinMaterialCount = materialLibrary.size();
+    for (const auto& material : materialLibrary)
+        builtinMaterialDefaults.push_back(*material);
     createSkyboxImage();
     createSkyboxSampler();
     createIrradianceResources();
@@ -82,27 +91,10 @@ void TriangleApplication::InitVulkan()
     createMaterialDescriptorSets();
     createSkyboxDescriptorSets();
 
-    testSceneInit();
+    loadScenePreset(activeScenePreset);
 
     rendererReady = true;
 }
-
-void TriangleApplication::testSceneInit()
-{
-    addMeshObject(MeshSource::Sphere);
-    sceneObjects.back().name = "Rusted Iron Sphere";
-    sceneObjects.back().transform.position.x = -1.2f;
-
-    addMeshObject(MeshSource::Sphere);
-    sceneObjects.back().name = "Variant Sphere";
-    sceneObjects.back().material = materialLibrary.at(1);
-    sceneObjects.back().transform.position.x = 1.2f;
-
-    const std::string gltfPath = assetPath("models/gltf/TwoPrimitives/TwoPrimitives.gltf");
-    addGltfMeshObjects(gltfPath);
-    // sceneObjects.back().transform.position = glm::vec3(-0.5f, -1.5f, 0.0f);
-}
-
 
 TriangleApplication::~TriangleApplication() noexcept
 {
@@ -148,6 +140,7 @@ void TriangleApplication::cleanup() noexcept
     materialLibrary.clear();
     defaultMaterial.reset();
     defaultGltfMaterial.reset();
+    builtinMaterialDefaults.clear();
 
     brdfLUTSampler.reset();
     prefilterSampler.reset();
@@ -252,6 +245,9 @@ void TriangleApplication::drawFrame()
         return;
     }
 
+    // UI queues changes; retire the old scene before acquiring an active frame.
+    processPendingScenePreset();
+
     const BeginFrameResult beginResult = renderer.beginFrame();
     if (beginResult.status == FrameStatus::Skip)
     {
@@ -324,6 +320,9 @@ void TriangleApplication::drawFrame()
 
     // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
     const FrameStatus endStatus = renderer.endFrame(frame);
+    ++renderedFrameCount;
+    if (frameLimit != 0 && renderedFrameCount >= frameLimit)
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
 
     if (endStatus == FrameStatus::RecreateSwapchain || framebufferResized)
     {

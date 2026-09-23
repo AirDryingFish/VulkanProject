@@ -12,6 +12,7 @@
 #include "Mesh.hpp"
 #include "SceneTypes.hpp"
 #include "GltfImportTypes.hpp"
+#include "ScenePresets.hpp"
 
 #include <array>
 #include <functional>
@@ -27,7 +28,8 @@
 class TriangleApplication
 {
 public:
-    void run();
+    void run(ScenePreset initialScene = ScenePreset::ShadowPlayground,
+             std::uint32_t frameLimit = 0);
     ~TriangleApplication() noexcept;
 
 private:
@@ -147,7 +149,17 @@ private:
 
     void destroyBufferDeferred(GpuBuffer &buffer);
 
-    void testSceneInit();
+    void loadScenePreset(ScenePreset preset);
+    void processPendingScenePreset();
+    std::string scenePresetUnavailableReason(ScenePreset preset) const;
+    MaterialHandle createPresetMaterial(const std::string& name,
+                                        const glm::vec4& color,
+                                        float metallic, float roughness);
+    void buildPresetObjects(ScenePreset preset);
+    void releaseSceneMaterialDescriptors(std::size_t first, std::size_t end);
+    void pruneSceneCaches();
+    void getSceneBounds(glm::vec3& minimum, glm::vec3& maximum) const;
+    void setSceneCamera(const glm::vec3& eye, const glm::vec3& target);
 
     bool glfwInitialized = false;
 
@@ -173,6 +185,15 @@ private:
     std::string gltfImportError;
 
     std::string sceneStatusMessage;
+    ScenePreset activeScenePreset = ScenePreset::ShadowPlayground;
+    ScenePreset selectedScenePreset = ScenePreset::ShadowPlayground;
+    std::optional<ScenePreset> pendingScenePreset;
+    std::string scenePresetError;
+    std::size_t builtinMaterialCount = 0;
+    std::vector<Material> builtinMaterialDefaults;
+    bool preparingScenePreset = false;
+    std::uint32_t frameLimit = 0;
+    std::uint32_t renderedFrameCount = 0;
     bool selectedModel = false;
     bool sceneClickConsumed = false;
     SceneSelection selectedObject = SceneSelection::None;
@@ -207,6 +228,9 @@ private:
 
     MaterialHandle defaultGltfMaterial;
     static constexpr std::uint32_t maxMaterialCount = 128;
+    // Ordinary imports cannot consume the space needed to replace a full scene.
+    static constexpr std::uint32_t sceneSwitchMaterialReserve = 16;
+    static constexpr std::uint32_t materialPoolCapacity = maxMaterialCount + sceneSwitchMaterialReserve;
     std::uint32_t allocatedMaterialSetCount = 0;
 
     // 缓存里只放 weak_ptr，这样缓存不会强行延长纹理生命周期。一个 gltf image 对应一个 gpu image
@@ -256,6 +280,8 @@ private:
     float shadowConstantBias = 1.25f;
     float shadowSlopeBias = 1.75f;
     float shadowReceiverBias = 0.0f;
+    glm::vec3 shadowCenter{0.0f};
+    float shadowHalfExtent = 5.0f;
 
     glm::vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
     float ambientLightIntensity = 0.0f;

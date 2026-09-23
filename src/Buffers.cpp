@@ -152,11 +152,10 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.directionalColorIntensity = glm::vec4(directionalLight.color, std::max(directionalLight.intensity, 0.0f));
 
     // -- 计算 shadow 相关
-    const glm::vec3 shadowCenter{0.0f, 0.0f, 0.0f};
-    constexpr float lighDistance = 20.0f;
-    constexpr float halfExtent = 5.0f;
+    const float halfExtent = shadowHalfExtent;
+    const float lighDistance = 2.0f * halfExtent + 1.0f;
     constexpr float shadowNear = 0.1f;
-    constexpr float shadowFar = 50.0f;
+    const float shadowFar = 4.0f * halfExtent + 2.0f;
     // 虚拟光源相机位置，为了从光的视角去渲染场景
     const glm::vec3 lightPosition = shadowCenter - direction * lighDistance;
     const glm::vec3 worldUp{0.0f, 0.0f, 1.0f};

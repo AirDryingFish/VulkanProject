@@ -274,6 +274,37 @@ void TriangleApplication::drawImGui()
             {
                 ImGui::BeginChild("SceneContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+                ImGui::SeparatorText("Scene Presets");
+                ImGui::Text("Active: %s", scenePresetInfo(activeScenePreset).label);
+                if (ImGui::BeginCombo("Preset", scenePresetInfo(selectedScenePreset).label))
+                {
+                    for (const auto& info : scenePresets)
+                    {
+                        const bool selected = selectedScenePreset == info.preset;
+                        if (ImGui::Selectable(info.label, selected))
+                        {
+                            selectedScenePreset = info.preset;
+                            sceneClickConsumed = true;
+                        }
+                        if (selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::TextWrapped("%s", scenePresetInfo(selectedScenePreset).description);
+                const std::string unavailable = scenePresetUnavailableReason(selectedScenePreset);
+                ImGui::BeginDisabled(!unavailable.empty() || pendingScenePreset.has_value());
+                if (ImGui::Button("Load / Reset Scene"))
+                {
+                    pendingScenePreset = selectedScenePreset;
+                    sceneClickConsumed = true;
+                }
+                ImGui::EndDisabled();
+                ImGui::TextWrapped("Replaces current objects and resets camera/lighting; edits are not saved.");
+                if (!unavailable.empty())
+                    ImGui::TextWrapped("Unavailable: %s", unavailable.c_str());
+                if (!scenePresetError.empty())
+                    ImGui::TextWrapped("Scene switch failed: %s", scenePresetError.c_str());
                 ImGui::SeparatorText("Scene");
                 auto addObject = [&](MeshSource source, const std::string &path = std::string()) {
                     try

@@ -7,6 +7,10 @@
 *.ktx filter=lfs diff=lfs merge=lfs -text
 *.ktx2 filter=lfs diff=lfs merge=lfs -text
 
+# Scene-sized geometry; keep the small accessor fixtures in ordinary Git.
+assets/models/gltf/Sponza/Sponza.bin filter=lfs diff=lfs merge=lfs -text
+assets/models/gltf/MetalRoughSpheres/MetalRoughSpheres0.bin filter=lfs diff=lfs merge=lfs -text
+
 # Keep source and configuration files consistent across Windows and macOS.
 *.cpp text eol=lf
 *.hpp text eol=lf

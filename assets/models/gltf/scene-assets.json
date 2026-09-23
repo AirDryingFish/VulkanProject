@@ -1,0 +1,554 @@
+{
+  "format": 1,
+  "upstream": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "revision": "9429648735279342b4c32b8745f7904196607379",
+  "description": "Pinned official scene assets; paths are relative to assets/models/gltf. Existing files are verified, never overwritten.",
+  "files": [
+    {
+      "path": "DamagedHelmet/LICENSE.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/DamagedHelmet/LICENSE.md",
+      "bytes": 953,
+      "git_blob_sha1": "9e5f98ef47a122e3ad056b63c24dcea66f031314"
+    },
+    {
+      "path": "DamagedHelmet/UPSTREAM.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/DamagedHelmet/README.md",
+      "bytes": 1481,
+      "git_blob_sha1": "1ed297e68c1a3239bfe937e9572fe3f753497955"
+    },
+    {
+      "path": "DamagedHelmet/DamagedHelmet.glb",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+      "bytes": 3773916,
+      "git_blob_sha1": "2cee76d76a752c92458a8a8294ff3658fdc9d6c7"
+    },
+    {
+      "path": "DamagedHelmet/metadata.json",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/DamagedHelmet/metadata.json",
+      "bytes": 1109,
+      "git_blob_sha1": "18631a6e23406c45f7586e55501682eaebe29a88"
+    },
+    {
+      "path": "MetalRoughSpheresNoTextures/LICENSE.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheresNoTextures/LICENSE.md",
+      "bytes": 939,
+      "git_blob_sha1": "53f768238dc7fbc6ed582a3ea8e207c866ef4df1"
+    },
+    {
+      "path": "MetalRoughSpheresNoTextures/UPSTREAM.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheresNoTextures/README.md",
+      "bytes": 1218,
+      "git_blob_sha1": "a5f6b034b7210031aa8554bf1678783781df32ab"
+    },
+    {
+      "path": "MetalRoughSpheresNoTextures/MetalRoughSpheresNoTextures.bin",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheresNoTextures/glTF/MetalRoughSpheresNoTextures.bin",
+      "bytes": 241588,
+      "git_blob_sha1": "00b1d262df9ec69c2693d5a4a7be4d5785590c92"
+    },
+    {
+      "path": "MetalRoughSpheresNoTextures/MetalRoughSpheresNoTextures.gltf",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheresNoTextures/glTF/MetalRoughSpheresNoTextures.gltf",
+      "bytes": 128886,
+      "git_blob_sha1": "835baaabc4f8cc4ea66d5e20df9e3a428443d57e"
+    },
+    {
+      "path": "MetalRoughSpheresNoTextures/metadata.json",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheresNoTextures/metadata.json",
+      "bytes": 1126,
+      "git_blob_sha1": "80b6088da6f90f558ca22d89722891ea21ef4071"
+    },
+    {
+      "path": "Sponza/LICENSE.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/LICENSE.md",
+      "bytes": 722,
+      "git_blob_sha1": "e8f6f62ec0115f3353bbac95b3a3364b648a7979"
+    },
+    {
+      "path": "Sponza/UPSTREAM.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/README.md",
+      "bytes": 3469,
+      "git_blob_sha1": "3fad2e68cd7bcd1de4c6a6a4e73264d7e510fd79"
+    },
+    {
+      "path": "Sponza/10381718147657362067.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/10381718147657362067.jpg",
+      "bytes": 881980,
+      "git_blob_sha1": "e49b8b12468323f8293f9c7e65b2f6f6c5debddd"
+    },
+    {
+      "path": "Sponza/10388182081421875623.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/10388182081421875623.jpg",
+      "bytes": 917202,
+      "git_blob_sha1": "254626b440670950cd9f1f949245490545ff4b67"
+    },
+    {
+      "path": "Sponza/11474523244911310074.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/11474523244911310074.jpg",
+      "bytes": 1079152,
+      "git_blob_sha1": "f2cf424e0c27d4c209ee5fabadc10a673763d141"
+    },
+    {
+      "path": "Sponza/11490520546946913238.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/11490520546946913238.jpg",
+      "bytes": 321375,
+      "git_blob_sha1": "4174770a63aea6e0a86ade5ea0aae6b7b8fcca10"
+    },
+    {
+      "path": "Sponza/11872827283454512094.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/11872827283454512094.jpg",
+      "bytes": 668962,
+      "git_blob_sha1": "fd4136f46878b129b0a2207d79a8b2a7de165cd0"
+    },
+    {
+      "path": "Sponza/11968150294050148237.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/11968150294050148237.jpg",
+      "bytes": 530384,
+      "git_blob_sha1": "db25cc6c67d36037210e96bb1998c3fa9fc0cc1c"
+    },
+    {
+      "path": "Sponza/1219024358953944284.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/1219024358953944284.jpg",
+      "bytes": 329124,
+      "git_blob_sha1": "4f3fe654ee3d576225ff7253c5b8704873d95ac4"
+    },
+    {
+      "path": "Sponza/12501374198249454378.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/12501374198249454378.jpg",
+      "bytes": 418235,
+      "git_blob_sha1": "79276b204b3e251353474952590b6155993011eb"
+    },
+    {
+      "path": "Sponza/13196865903111448057.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/13196865903111448057.jpg",
+      "bytes": 281980,
+      "git_blob_sha1": "cdf1eaee667bafe2408729367784020603be9b9d"
+    },
+    {
+      "path": "Sponza/13824894030729245199.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/13824894030729245199.jpg",
+      "bytes": 313460,
+      "git_blob_sha1": "8410fd7731f9573d653aebd9b07c637a0048f5a3"
+    },
+    {
+      "path": "Sponza/13982482287905699490.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/13982482287905699490.jpg",
+      "bytes": 347538,
+      "git_blob_sha1": "2c938a4ca239ab36f574190f98d6b1fab4aa5311"
+    },
+    {
+      "path": "Sponza/14118779221266351425.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/14118779221266351425.jpg",
+      "bytes": 1611314,
+      "git_blob_sha1": "f385e6b40ce7d88eac659b05a853252e77f6cc1c"
+    },
+    {
+      "path": "Sponza/14170708867020035030.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/14170708867020035030.jpg",
+      "bytes": 140738,
+      "git_blob_sha1": "51f9d064c23fbf7b25c4782262bf7e6bd6ecf542"
+    },
+    {
+      "path": "Sponza/14267839433702832875.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/14267839433702832875.jpg",
+      "bytes": 711217,
+      "git_blob_sha1": "5e7b1c37f820403e6cc13657bb2ecb9542a24ceb"
+    },
+    {
+      "path": "Sponza/14650633544276105767.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/14650633544276105767.jpg",
+      "bytes": 521947,
+      "git_blob_sha1": "64e58dc2c87a53417de0037b4a5814f9addbf2aa"
+    },
+    {
+      "path": "Sponza/15295713303328085182.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/15295713303328085182.jpg",
+      "bytes": 520162,
+      "git_blob_sha1": "80c8b28b48d4a0c2680eeb49942b9f0cc38bca1a"
+    },
+    {
+      "path": "Sponza/15722799267630235092.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/15722799267630235092.jpg",
+      "bytes": 560258,
+      "git_blob_sha1": "079c22c5620950ca00c742b2c7e3ddc6656406d8"
+    },
+    {
+      "path": "Sponza/16275776544635328252.png",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/16275776544635328252.png",
+      "bytes": 1077432,
+      "git_blob_sha1": "987e8d03ad1da1542575108d6bcd8b90307bba03"
+    },
+    {
+      "path": "Sponza/16299174074766089871.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/16299174074766089871.jpg",
+      "bytes": 322693,
+      "git_blob_sha1": "578484f29ca71f95394e204e06a40c907ae324a1"
+    },
+    {
+      "path": "Sponza/16885566240357350108.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/16885566240357350108.jpg",
+      "bytes": 12575,
+      "git_blob_sha1": "82bd131e1e23feff2424b7895c3f017a61a3b244"
+    },
+    {
+      "path": "Sponza/17556969131407844942.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/17556969131407844942.jpg",
+      "bytes": 370061,
+      "git_blob_sha1": "8b7b6ded422f2c73a70591d0cb50b92b603fdae6"
+    },
+    {
+      "path": "Sponza/17876391417123941155.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/17876391417123941155.jpg",
+      "bytes": 1151448,
+      "git_blob_sha1": "662ac2e84cde764c45c1d78aa7f244e8aa78a216"
+    },
+    {
+      "path": "Sponza/2051777328469649772.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2051777328469649772.jpg",
+      "bytes": 206618,
+      "git_blob_sha1": "16bdb11d115e26aa5042108f2285b38d2a1e3332"
+    },
+    {
+      "path": "Sponza/2185409758123873465.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2185409758123873465.jpg",
+      "bytes": 780166,
+      "git_blob_sha1": "6740aee73530d43e22696fcea094be3c4944356a"
+    },
+    {
+      "path": "Sponza/2299742237651021498.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2299742237651021498.jpg",
+      "bytes": 772672,
+      "git_blob_sha1": "93e4c860c93868c0d7bf21108ba180e910f55fc1"
+    },
+    {
+      "path": "Sponza/2374361008830720677.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2374361008830720677.jpg",
+      "bytes": 852079,
+      "git_blob_sha1": "393a02897d98ecaa8221e0a6b398c583c670b9eb"
+    },
+    {
+      "path": "Sponza/2411100444841994089.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2411100444841994089.jpg",
+      "bytes": 399963,
+      "git_blob_sha1": "e0fe74c0480e840a0ee7caf7e8031bf4dd31d770"
+    },
+    {
+      "path": "Sponza/2775690330959970771.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2775690330959970771.jpg",
+      "bytes": 785678,
+      "git_blob_sha1": "a715d92c478b7ddde38a26e56db7ead4de2b9dd7"
+    },
+    {
+      "path": "Sponza/2969916736137545357.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/2969916736137545357.jpg",
+      "bytes": 822373,
+      "git_blob_sha1": "d4c22138b90fd3f004718b3ad4f52f301442578f"
+    },
+    {
+      "path": "Sponza/332936164838540657.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/332936164838540657.jpg",
+      "bytes": 852079,
+      "git_blob_sha1": "393a02897d98ecaa8221e0a6b398c583c670b9eb"
+    },
+    {
+      "path": "Sponza/3371964815757888145.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/3371964815757888145.jpg",
+      "bytes": 682743,
+      "git_blob_sha1": "5d7e258890688e6205d37890bb3d5ca92bd44f14"
+    },
+    {
+      "path": "Sponza/3455394979645218238.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/3455394979645218238.jpg",
+      "bytes": 551432,
+      "git_blob_sha1": "c91c7956e866e452f27c121bd7ecc105e4f18da9"
+    },
+    {
+      "path": "Sponza/3628158980083700836.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/3628158980083700836.jpg",
+      "bytes": 527788,
+      "git_blob_sha1": "75884009982c8bbbc94df6076f703a43858147b1"
+    },
+    {
+      "path": "Sponza/3827035219084910048.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/3827035219084910048.jpg",
+      "bytes": 608394,
+      "git_blob_sha1": "0a7b892cf8b2c4ddeae3901c93938a52e4f60a9b"
+    },
+    {
+      "path": "Sponza/4477655471536070370.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/4477655471536070370.jpg",
+      "bytes": 211322,
+      "git_blob_sha1": "3b463b27cd9de857310dbe2e9fbf37659dcb1b14"
+    },
+    {
+      "path": "Sponza/4601176305987539675.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/4601176305987539675.jpg",
+      "bytes": 1043152,
+      "git_blob_sha1": "3fca97a404598ea5aa6abc9b9f59433a103fc01d"
+    },
+    {
+      "path": "Sponza/466164707995436622.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/466164707995436622.jpg",
+      "bytes": 486634,
+      "git_blob_sha1": "d65b8f3c45068614b30985af6202192c44db8cb4"
+    },
+    {
+      "path": "Sponza/4675343432951571524.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/4675343432951571524.jpg",
+      "bytes": 764529,
+      "git_blob_sha1": "14dd8f9e551dd92a13ffe19e80b202cd385220f4"
+    },
+    {
+      "path": "Sponza/4871783166746854860.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/4871783166746854860.jpg",
+      "bytes": 570081,
+      "git_blob_sha1": "dd777519519b41d00df6bda5b056819522cfd944"
+    },
+    {
+      "path": "Sponza/4910669866631290573.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/4910669866631290573.jpg",
+      "bytes": 1043152,
+      "git_blob_sha1": "3fca97a404598ea5aa6abc9b9f59433a103fc01d"
+    },
+    {
+      "path": "Sponza/4975155472559461469.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/4975155472559461469.jpg",
+      "bytes": 399027,
+      "git_blob_sha1": "43aee7b9b93f214e83b3957caba2b11792348336"
+    },
+    {
+      "path": "Sponza/5061699253647017043.png",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/5061699253647017043.png",
+      "bytes": 2427921,
+      "git_blob_sha1": "8b690c363fa467a6acc232439606c43978150936"
+    },
+    {
+      "path": "Sponza/5792855332885324923.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/5792855332885324923.jpg",
+      "bytes": 564801,
+      "git_blob_sha1": "c965353acdf76db7d9b51f0a2da0bd5d164884c4"
+    },
+    {
+      "path": "Sponza/5823059166183034438.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/5823059166183034438.jpg",
+      "bytes": 573157,
+      "git_blob_sha1": "1873401fbee770d55436e796a82ac30131cd90d5"
+    },
+    {
+      "path": "Sponza/6047387724914829168.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/6047387724914829168.jpg",
+      "bytes": 518310,
+      "git_blob_sha1": "d9b3ccaa5de3c1947d45a5f4465467a7aa9f4d96"
+    },
+    {
+      "path": "Sponza/6151467286084645207.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/6151467286084645207.jpg",
+      "bytes": 643517,
+      "git_blob_sha1": "1714a852546944fab0d4399efa15c69c78c0c857"
+    },
+    {
+      "path": "Sponza/6593109234861095314.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/6593109234861095314.jpg",
+      "bytes": 1043152,
+      "git_blob_sha1": "3fca97a404598ea5aa6abc9b9f59433a103fc01d"
+    },
+    {
+      "path": "Sponza/6667038893015345571.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/6667038893015345571.jpg",
+      "bytes": 703420,
+      "git_blob_sha1": "2a79121d938c1d7a079551667a5973f2134eaaeb"
+    },
+    {
+      "path": "Sponza/6772804448157695701.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/6772804448157695701.jpg",
+      "bytes": 599959,
+      "git_blob_sha1": "d3619afe0feac0983f8bf6fe717d2a9039cf0325"
+    },
+    {
+      "path": "Sponza/7056944414013900257.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/7056944414013900257.jpg",
+      "bytes": 852079,
+      "git_blob_sha1": "393a02897d98ecaa8221e0a6b398c583c670b9eb"
+    },
+    {
+      "path": "Sponza/715093869573992647.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/715093869573992647.jpg",
+      "bytes": 280745,
+      "git_blob_sha1": "e56a2822547144c2f68ab42fa9ccad166a46ee49"
+    },
+    {
+      "path": "Sponza/7268504077753552595.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/7268504077753552595.jpg",
+      "bytes": 572245,
+      "git_blob_sha1": "15a6d7dfc6b7254a8951bccf25446fbf5e7897fc"
+    },
+    {
+      "path": "Sponza/7441062115984513793.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/7441062115984513793.jpg",
+      "bytes": 665796,
+      "git_blob_sha1": "e571d401ced3e00ad9fdd77e21492581c695c44e"
+    },
+    {
+      "path": "Sponza/755318871556304029.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/755318871556304029.jpg",
+      "bytes": 302363,
+      "git_blob_sha1": "f2afed3cd3fd3803a08d32bb0f6ee1421bda708a"
+    },
+    {
+      "path": "Sponza/759203620573749278.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/759203620573749278.jpg",
+      "bytes": 509411,
+      "git_blob_sha1": "8a2170c960a8e61a28d7575393bdee835b5b96df"
+    },
+    {
+      "path": "Sponza/7645212358685992005.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/7645212358685992005.jpg",
+      "bytes": 656995,
+      "git_blob_sha1": "ee067215721f41b078608d953aa84fc47f766aa9"
+    },
+    {
+      "path": "Sponza/7815564343179553343.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/7815564343179553343.jpg",
+      "bytes": 623144,
+      "git_blob_sha1": "11948eee5834d516f13e8fa981cd871c098d0c96"
+    },
+    {
+      "path": "Sponza/8006627369776289000.png",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8006627369776289000.png",
+      "bytes": 1225157,
+      "git_blob_sha1": "ba5f65519c18c288c8b58d0572415f3ad1cbf99d"
+    },
+    {
+      "path": "Sponza/8051790464816141987.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8051790464816141987.jpg",
+      "bytes": 260119,
+      "git_blob_sha1": "6e0501522007d07d05b28fbaeaf54ff65b6ce308"
+    },
+    {
+      "path": "Sponza/8114461559286000061.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8114461559286000061.jpg",
+      "bytes": 193077,
+      "git_blob_sha1": "58be9bcee57134c796897a04496c5b8f44e9b970"
+    },
+    {
+      "path": "Sponza/8481240838833932244.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8481240838833932244.jpg",
+      "bytes": 531156,
+      "git_blob_sha1": "207a7a6cc33e11acd39633c97c87bb05bf5c4714"
+    },
+    {
+      "path": "Sponza/8503262930880235456.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8503262930880235456.jpg",
+      "bytes": 104626,
+      "git_blob_sha1": "f3423ebee2ace0489f7b7d8a037dcec4336cbc9e"
+    },
+    {
+      "path": "Sponza/8747919177698443163.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8747919177698443163.jpg",
+      "bytes": 872255,
+      "git_blob_sha1": "3c3d983ff42de98687f436984e1de7244a8ada38"
+    },
+    {
+      "path": "Sponza/8750083169368950601.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8750083169368950601.jpg",
+      "bytes": 362437,
+      "git_blob_sha1": "48a46dfcb5727a2911304d62ce670801c0ffdb71"
+    },
+    {
+      "path": "Sponza/8773302468495022225.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8773302468495022225.jpg",
+      "bytes": 413837,
+      "git_blob_sha1": "4647a44e6059fdca58de9fbedccc56b9751ea75e"
+    },
+    {
+      "path": "Sponza/8783994986360286082.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/8783994986360286082.jpg",
+      "bytes": 388462,
+      "git_blob_sha1": "6839be4a8bb6659eb9d15d24fbae7f5a4ca03ec2"
+    },
+    {
+      "path": "Sponza/9288698199695299068.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/9288698199695299068.jpg",
+      "bytes": 1044330,
+      "git_blob_sha1": "dba904f11b17f78104c51f2dd8222ef1cf655446"
+    },
+    {
+      "path": "Sponza/9916269861720640319.jpg",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/9916269861720640319.jpg",
+      "bytes": 608687,
+      "git_blob_sha1": "bfe9d287d7cf7fabd1011372870c6598236960f0"
+    },
+    {
+      "path": "Sponza/Sponza.bin",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/Sponza.bin",
+      "bytes": 9528220,
+      "git_blob_sha1": "caa2a36d0309aa985adadd879991a4b3399c4ef4"
+    },
+    {
+      "path": "Sponza/Sponza.gltf",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/Sponza.gltf",
+      "bytes": 167176,
+      "git_blob_sha1": "02252eba518f40cce4b36d45000c7f21139e5494"
+    },
+    {
+      "path": "Sponza/white.png",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/glTF/white.png",
+      "bytes": 951,
+      "git_blob_sha1": "0851a35f7e27a14f7dd415dae9b5b814c6366be2"
+    },
+    {
+      "path": "Sponza/metadata.json",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/Sponza/metadata.json",
+      "bytes": 553,
+      "git_blob_sha1": "7a74d0a59255bcd7546f5c9844f127034966a555"
+    },
+    {
+      "path": "LICENSES/LicenseRef-CRYENGINE-Agreement.txt",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/LICENSES/LicenseRef-CRYENGINE-Agreement.txt",
+      "bytes": 110,
+      "git_blob_sha1": "7daa668599b1e4a76f3cafe22fd61e0f7c508e2b"
+    },
+    {
+      "path": "MetalRoughSpheres/LICENSE.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/LICENSE.md",
+      "bytes": 789,
+      "git_blob_sha1": "98a45065e9157a1a0dddc80786908385cb13c507"
+    },
+    {
+      "path": "MetalRoughSpheres/UPSTREAM.md",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/README.md",
+      "bytes": 1047,
+      "git_blob_sha1": "9035308a0e26a238633aa938742de7f4353cb85b"
+    },
+    {
+      "path": "MetalRoughSpheres/MetalRoughSpheres.gltf",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/glTF/MetalRoughSpheres.gltf",
+      "bytes": 11899,
+      "git_blob_sha1": "77284872536c21552bf728b4bc3c6f1bb37d7e1e"
+    },
+    {
+      "path": "MetalRoughSpheres/MetalRoughSpheres0.bin",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/glTF/MetalRoughSpheres0.bin",
+      "bytes": 11199904,
+      "git_blob_sha1": "2823ba4ac569ab8f6de2335676d4372fe0eb6640"
+    },
+    {
+      "path": "MetalRoughSpheres/Spheres_BaseColor.png",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/glTF/Spheres_BaseColor.png",
+      "bytes": 8500,
+      "git_blob_sha1": "7ae003ee3765ba55df3a9b929277320813ee00b0"
+    },
+    {
+      "path": "MetalRoughSpheres/Spheres_MetalRough.png",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/glTF/Spheres_MetalRough.png",
+      "bytes": 8220,
+      "git_blob_sha1": "3987ddf95c71969d68277cff31502d441ee74b20"
+    },
+    {
+      "path": "MetalRoughSpheres/metadata.json",
+      "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/9429648735279342b4c32b8745f7904196607379/Models/MetalRoughSpheres/metadata.json",
+      "bytes": 691,
+      "git_blob_sha1": "dd35bee2faf44d824975871d8268cb24ab164294"
+    }
+  ]
+}

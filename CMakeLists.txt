@@ -122,6 +122,8 @@ add_executable(vulkan
     src/UploadCommands.cpp
     src/Mesh.hpp
     src/ShadowMapping.cpp
+    src/ScenePresets.cpp
+    src/ScenePresets.hpp
 )
 
 target_include_directories(vulkan PRIVATE
@@ -174,6 +176,13 @@ if(BUILD_TESTING)
         NAME gltf_loader_tests
         COMMAND gltf_loader_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/assets/models/gltf"
+    )
+
+    add_executable(scene_preset_tests tests/ScenePresetTests.cpp)
+    target_link_libraries(scene_preset_tests PRIVATE gltf_import)
+    add_test(
+        NAME scene_preset_tests
+        COMMAND scene_preset_tests "${CMAKE_CURRENT_SOURCE_DIR}/assets"
     )
 endif()
 

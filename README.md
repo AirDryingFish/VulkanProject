@@ -12,6 +12,7 @@ macOS；macOS 通过 MoltenVK 将 Vulkan 指令映射到 Metal。
 - OBJ 模型导入，以及内置 Cube/Sphere 几何体
 - 相机漫游、场景拾取、变换 gizmo 和点光源编辑
 - ImGui 调试与场景控制界面
+- 可切换的材质/阴影实验场景与 glTF 展示预设（[使用说明](docs/scene-presets.md)）
 - Vulkan Memory Allocator（VMA）资源管理
 - Vulkan Validation Layers 调试验证
 
@@ -130,6 +131,10 @@ cmake --build --preset linux-debug --parallel
 
 首次配置会根据 `vcpkg.json` 为 `x64-linux` 编译依赖，耗时通常比后续增量构建长。
 Debug 默认开启 Vulkan Validation Layers。
+
+默认启动 Shadow Playground。在 Scene 标签的 Scene Presets 中可切换或重置场景，
+也可使用 `./build/linux-debug/vulkan --scene metal-rough-spheres`。
+`--list-scenes` 列出全部预设；已下载但尚不支持材质语义的 Sponza 会明确标为不可用。
 
 ### 5. Release 构建
 

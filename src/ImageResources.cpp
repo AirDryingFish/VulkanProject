@@ -356,11 +356,11 @@ void TriangleApplication::createMaterialResources()
     defaultGltfMaterial->baseColorTexture = {
         defaultBaseColorTexture, defaultTextureSampler, 0u};
     defaultGltfMaterial->normalTexture = {
-        rustedNormalTexture, defaultTextureSampler, 0u};
+        defaultNormalTexture, defaultTextureSampler, 0u};
     defaultGltfMaterial->metallicRoughnessTexture = {
-        rustedMetallicRoughnessTexture, defaultTextureSampler, 0u};
+        defaultMetallicRoughnessTexture, defaultTextureSampler, 0u};
     defaultGltfMaterial->aoTexture = {
-        rustedAoTexture, defaultTextureSampler, 0u};
+        defaultAoTexture, defaultTextureSampler, 0u};
     defaultGltfMaterial->emissiveTexture = {
         defaultEmissiveTexture, defaultTextureSampler, 0u};
 
