@@ -46,6 +46,9 @@ private:
 
         VkSemaphore imageAvailable = VK_NULL_HANDLE;
         VkFence renderFence = VK_NULL_HANDLE;
+        // 一帧在 GPU 上执行时，属于这帧自己的全部运行时资源
+        VkQueryPool timestampQueryPool = VK_NULL_HANDLE;
+        bool timestampQueriesPending = false; // 是否有已经成功提交但未读回的时间戳结果
 
         std::vector<GpuBuffer> retiredBuffers;
     };
@@ -85,8 +88,18 @@ private:
     VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
     VkPipeline graphicsDoubleSidedPipeline_ = VK_NULL_HANDLE;
     VkPipeline skyboxPipeline_ = VK_NULL_HANDLE;
+    // ----
 
+    // -- Renderer 全局成员 --
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
+    // Renderer共用的设备能力信息
+    // 计时资源是否可用
+    bool gpuTimingSupported_ = false;
+    // 时间戳有效位数，以后处理计数器回绕时使用
+    std::uint32_t timestampValidBits_ = 0;
+    // 一个时间戳 tick 对应多少纳秒 ns，以后换算成 ms 时使用
+    double timestampPeriodNs_ = 0.0;
+
     // ----
 
     // -- HDR render pass --
@@ -134,6 +147,8 @@ private:
     bool hasRecordedFrame_ = false;
     bool initialized_ = false;
 
+
+    void createTimestampQueyPools();
     void createUploadContext();
 
     void createDescriptorSetLayouts();

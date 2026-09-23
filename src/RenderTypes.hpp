@@ -12,6 +12,19 @@ inline constexpr std::size_t frameImageDescriptorCount = 5;
 inline constexpr std::size_t materialImageDescriptorCount = 5;
 inline constexpr std::uint32_t directionalShadowResolution = 2048;
 
+// -- GPU计时：定义要测量的三个区间 --
+enum class GpuPass : std::uint32_t
+{
+    Shadow = 0,
+    Scene,
+    PostAndUi,
+    Count
+};
+inline constexpr std::uint32_t gpuPassCount = static_cast<std::uint32_t>(GpuPass::Count);
+// 每个区间需要记录开始、结束两个时间戳，因此一个 pool 需要六个位置
+inline constexpr std::uint32_t gpuTimestampQueryCount = gpuPassCount * 2;
+// ----
+
 struct ImDrawData;
 
 // 服务于模型绘制，包含模型矩阵和材质参数

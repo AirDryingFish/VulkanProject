@@ -9,6 +9,7 @@
 #include <utility>
 #include <imgui_impl_vulkan.h>
 #include <cstring>
+#include <iostream>
 
 Renderer::~Renderer() noexcept
 {
@@ -83,6 +84,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
             // });
         }
 
+        createTimestampQueyPools();
         createUploadContext();
         // -- 初始化阴影渲染管线 --
         createShadowTargets();
@@ -111,6 +113,63 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         shutdown();
         throw;
     }
+}
+
+// 能力查询和资源创建
+void Renderer::createTimestampQueyPools()
+{
+    if (context_ == nullptr)
+    {
+        throw std::logic_error("Renderer requires a VulkanContex");
+    }
+
+    const VkPhysicalDevice physicalDevice = context_->physicalDevice();
+
+    // -- 1. 查询这个 gpu 一共有多少个 queue family --
+    std::uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+    // ----
+
+    // -- 2. 真正把每个 queue family 的信息填入进去 --
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+    // ----
+
+    // graphics queue 属于哪个 queue family
+    const std::uint32_t graphicsFamily = context_->queueFamilies().graphicsFamily.value();
+    timestampValidBits_ = queueFamilies.at(graphicsFamily).timestampValidBits;
+
+    // 获取整个物理 GPU 的通用属性
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+
+    // gpu timestamp 每增加 1 tick，相当于多少纳秒
+    timestampPeriodNs_ = static_cast<double>(properties.limits.timestampPeriod);
+    if (timestampValidBits_ == 0)
+    {
+        std::cout << "GPU timing unavailable: graphics queue does not support timestamps.\n";
+    }
+
+    VkQueryPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    poolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    poolInfo.queryCount = gpuTimestampQueryCount;
+    for (FrameContext& frame : frames_)
+    {
+        VkQueryPool queryPool = VK_NULL_HANDLE;
+        VK_CHECK(vkCreateQueryPool(context_->device(), &poolInfo, nullptr, &queryPool));
+        frame.timestampQueryPool = queryPool;
+        frame.timestampQueriesPending = false;
+    }
+
+    gpuTimingSupported_ = true;
+
+    std::cout << "GPU timing prepared: graphics family=" << graphicsFamily
+              << ", valid bits=" << timestampValidBits_
+              << ", period=" << timestampPeriodNs_ << " ns/tick"
+              << ", pools=" << frames_.size()
+              << ", queries per pool=" << gpuTimestampQueryCount
+              << "\n";
 }
 
 void Renderer::createUploadContext()
@@ -184,6 +243,13 @@ void Renderer::shutdown() noexcept
             for (FrameContext &frame : frames_)
             {
                 frame.retiredBuffers.clear(); // 析构时自动触发资源释放
+
+                if(frame.timestampQueryPool != VK_NULL_HANDLE)
+                {
+                    vkDestroyQueryPool(device, frame.timestampQueryPool, nullptr);
+                    frame.timestampQueryPool = VK_NULL_HANDLE;
+                }
+                frame.timestampQueriesPending = false;
 
                 if (frame.renderFence != VK_NULL_HANDLE)
                 {
@@ -274,6 +340,10 @@ void Renderer::shutdown() noexcept
     sceneSamples_ = VK_SAMPLE_COUNT_1_BIT;
 
     currentFrame_ = 0;
+    gpuTimingSupported_ = false;
+    timestampValidBits_ = 0;
+    timestampPeriodNs_ = 0.0;
+
     hasActiveFrame_ = false;
     hasRecordedFrame_ = false;
     initialized_ = false;
