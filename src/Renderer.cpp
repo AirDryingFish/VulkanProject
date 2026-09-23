@@ -224,6 +224,11 @@ void Renderer::shutdown() noexcept
                 vkDestroyPipeline(device, graphicsPipeline_, nullptr);
             }
 
+            if (graphicsDoubleSidedPipeline_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, graphicsDoubleSidedPipeline_, nullptr);
+            }
+
             if (skyboxPipelineLayout_ != VK_NULL_HANDLE)
             {
                 vkDestroyPipelineLayout(device, skyboxPipelineLayout_, nullptr);
@@ -257,6 +262,7 @@ void Renderer::shutdown() noexcept
 
     skyboxPipeline_ = VK_NULL_HANDLE;
     graphicsPipeline_ = VK_NULL_HANDLE;
+    graphicsDoubleSidedPipeline_ = VK_NULL_HANDLE;
     scenePipelineLayout_ = VK_NULL_HANDLE;
     skyboxPipelineLayout_ = VK_NULL_HANDLE;
     materialDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -625,8 +631,6 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     }
     // ----
 
-    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
-
     vkCmdBindDescriptorSets(
         token.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -646,6 +650,10 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
             {
                 continue;
             }
+
+            const VkPipeline pipeline = object.doubleSided ? graphicsDoubleSidedPipeline_ : graphicsPipeline_;
+            vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
             vkCmdBindDescriptorSets(
                 token.commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,

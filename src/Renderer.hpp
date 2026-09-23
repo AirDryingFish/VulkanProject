@@ -76,15 +76,18 @@ private:
     VulkanContext *context_ = nullptr;
     Swapchain *swapchain_ = nullptr;
 
+    // -- 主绘制 pipeline --
     VkDescriptorSetLayout frameDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout materialDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout skyboxDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout scenePipelineLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout skyboxPipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
+    VkPipeline graphicsDoubleSidedPipeline_ = VK_NULL_HANDLE;
     VkPipeline skyboxPipeline_ = VK_NULL_HANDLE;
 
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
+    // ----
 
     // -- HDR render pass --
     // Scene pass: 场景 -> HDR 图片
@@ -95,7 +98,6 @@ private:
     VkRenderPass sceneRenderPass_ = VK_NULL_HANDLE;
     // Present pass: 采样 HDR 图片 -> tone mapping -> 交换链图片
     VkRenderPass presentRenderPass_ = VK_NULL_HANDLE;
-
     // ----
 
     // -- 后处理 Descriptor set --
@@ -108,12 +110,14 @@ private:
     VkPipeline tonemapPipeline_ = VK_NULL_HANDLE;
     // ----
 
+    // -- shadow map 绘制 --
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
     VkFormat shadowDepthFormat_ = VK_FORMAT_UNDEFINED;
     VkRenderPass shadowRenderPass_ = VK_NULL_HANDLE;
 
     VkPipelineLayout shadowPipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline shadowPipeline_ = VK_NULL_HANDLE;
+    VkPipeline shadowDoubleSidedPipeline_ = VK_NULL_HANDLE;
 
     GpuSampler shadowCompareSampler_; // 比较参考深度，输出可见度
     GpuSampler shadowPreviewSampler_; // 读取原始深度，用于调试预览
@@ -121,6 +125,7 @@ private:
     VkPipeline shadowPreviewPipeline_ = VK_NULL_HANDLE;
     void createShadowPreviewPipeline();
     void recordShadowPreview(const FrameToken& token, const RenderFrameData& data);
+    // ----
 
     UploadContext uploadContext_{};
 

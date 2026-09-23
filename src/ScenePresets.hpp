@@ -25,6 +25,8 @@ struct ScenePresetInfo
     const char* description;
     const char* assetRelativePath;
     const char* unsupportedReason;
+
+    float presentationScale = 1.0f;
 };
 
 inline constexpr std::array<ScenePresetInfo, 8> scenePresets{{
@@ -48,11 +50,13 @@ inline constexpr std::array<ScenePresetInfo, 8> scenePresets{{
      "Reference architecture asset retained unchanged for future integration.",
      "models/gltf/Sponza/Sponza.gltf",
      "Requires alpha MASK and double-sided materials in both scene and shadow rendering."},
-    {ScenePreset::MetalRoughSpheresNoTextures, "metal-rough-spheres-no-textures",
-     "glTF Metal Rough Spheres, no textures (not supported yet)",
-     "Original upstream asset; its double-sided material flags are preserved.",
+    {ScenePreset::MetalRoughSpheresNoTextures,
+     "metal-rough-spheres-no-textures",
+     "glTF Metal Rough Spheres, no textures",
+     "Official untextured metallic/roughness material grid.",
      "models/gltf/MetalRoughSpheresNoTextures/MetalRoughSpheresNoTextures.gltf",
-     "Requires double-sided materials."},
+     "",
+     1000.0f},
 }};
 
 inline const ScenePresetInfo& scenePresetInfo(ScenePreset preset)

@@ -125,12 +125,14 @@ void Renderer::createGraphicsPipeline()
     config.samples = sceneSamples_;
 
     config.useVertexInput = true;
-    config.cullMode = VK_CULL_MODE_NONE;
     config.depthTest = true;
     config.depthWrite = true;
     config.depthCompareOp = VK_COMPARE_OP_LESS;
-
+    config.cullMode = VK_CULL_MODE_BACK_BIT;
     graphicsPipeline_ = createGraphicsPipelineFromConfig(config);
+
+    config.cullMode = VK_CULL_MODE_NONE;
+    graphicsDoubleSidedPipeline_ = createGraphicsPipelineFromConfig(config);
 }
 
 void Renderer::createSkyboxPipeline()

@@ -260,7 +260,7 @@ void Renderer::createShadowPipeline()
     VkPipelineRasterizationStateCreateInfo rasterizer{};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.lineWidth = 1.0f;
     rasterizer.depthBiasEnable = VK_TRUE;
@@ -312,6 +312,14 @@ void Renderer::createShadowPipeline()
         &shadowPipeline_
     ));
 
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    VK_CHECK(vkCreateGraphicsPipelines(
+        context_->device(),
+        VK_NULL_HANDLE,
+        1,
+        &pipelineInfo,
+        nullptr,
+        &shadowDoubleSidedPipeline_));
 }
 
 void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &data)
@@ -337,12 +345,6 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
         token.commandBuffer,
         &beginInfo,
         VK_SUBPASS_CONTENTS_INLINE
-    );
-    // -- 在 shadow pass 内绘制模型 --
-    vkCmdBindPipeline(
-        token.commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        shadowPipeline_
     );
 
     VkViewport viewport{};
@@ -380,6 +382,13 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
             {
                 continue;
             }
+
+            const VkPipeline pipeline = object.doubleSided ? shadowDoubleSidedPipeline_ : shadowPipeline_;
+            // -- 在 shadow pass 内绘制模型 --
+            vkCmdBindPipeline(
+                token.commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                pipeline);
 
             vkCmdPushConstants(
                 token.commandBuffer,
@@ -515,6 +524,12 @@ void Renderer::destroyShadowTargets() noexcept
     {
         vkDestroyPipeline(device, shadowPipeline_, nullptr);
         shadowPipeline_ = VK_NULL_HANDLE;
+    }
+
+    if (shadowDoubleSidedPipeline_ != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device, shadowDoubleSidedPipeline_, nullptr);
+        shadowDoubleSidedPipeline_ = VK_NULL_HANDLE;
     }
 
     if (shadowPipelineLayout_ != VK_NULL_HANDLE)

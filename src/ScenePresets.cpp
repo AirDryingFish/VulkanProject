@@ -1,5 +1,7 @@
 #include "TriangleApplication.hpp"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -109,7 +111,19 @@ void TriangleApplication::buildPresetObjects(ScenePreset preset)
         add(MeshSource::Sphere, "Rusted Iron Sphere", {-1.2f, 0.0f, 0.0f}, glm::vec3(1.0f), defaultMaterial);
         add(MeshSource::Sphere, "Variant Sphere", {1.2f, 0.0f, 0.0f}, glm::vec3(1.0f), materialLibrary.at(1));
     }
-    addGltfMeshObjects(assetPath(scenePresetInfo(preset).assetRelativePath));
+
+    const ScenePresetInfo& info = scenePresetInfo(preset);
+    // 记录导入前 sceneObjects 里已经有多少个对象
+    const std::size_t firstImportedObject = sceneObjects.size();
+
+    addGltfMeshObjects(assetPath(info.assetRelativePath));
+
+    const glm::mat4 presentationTransform = glm::scale(glm::mat4(1.0f), glm::vec3(info.presentationScale));
+    for (std::size_t i = firstImportedObject; i < sceneObjects.size(); ++i)
+    {
+        SceneObject& object = sceneObjects[i];
+        object.assetTransform = presentationTransform * object.assetTransform;
+    }
 }
 
 void TriangleApplication::getSceneBounds(glm::vec3& minimum, glm::vec3& maximum) const
@@ -284,7 +298,7 @@ void TriangleApplication::loadScenePreset(ScenePreset preset)
     showShadowProjection = showShadowDepth = false;
     shadowConstantBias = 1.25f;
     shadowSlopeBias = 1.75f;
-    shadowReceiverBias = 0.0f;
+    shadowReceiverBias = 0.0005f;
     shadowCenter = center;
     shadowHalfExtent = std::max(radius * 1.05f, 1.0f);
 

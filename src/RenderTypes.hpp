@@ -89,6 +89,8 @@ struct RenderObjectView
 
     VkDescriptorSet materialDescriptorSet = VK_NULL_HANDLE;
     DrawPushConstants pushConstants{};
+
+    bool doubleSided = false;
 };
 
 struct RenderFrameData

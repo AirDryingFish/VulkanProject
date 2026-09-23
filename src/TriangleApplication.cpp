@@ -294,6 +294,7 @@ void TriangleApplication::drawFrame()
         view.vertexBuffer = mesh.vertexBuffer.get();
         view.indexBuffer = mesh.indexBuffer.get();
         view.indexCount = mesh.indexCount;
+        view.doubleSided = material.doubleSided;
         view.pushConstants.model = getObjectMatrix(object);
         view.pushConstants.baseColorFactor = material.baseColorFactor;
         view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.occlusionStrength, material.normalScale);

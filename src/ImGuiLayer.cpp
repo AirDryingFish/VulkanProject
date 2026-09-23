@@ -683,7 +683,7 @@ void TriangleApplication::drawImGui()
                 {
                     shadowConstantBias = 1.25f;
                     shadowSlopeBias = 1.75f;
-                    shadowReceiverBias = 0.0f;
+                    shadowReceiverBias = 0.0005f;
                 }
                 ImGui::SeparatorText("Debug views");
                 ImGui::Checkbox("Show shadow depth", &showShadowDepth);

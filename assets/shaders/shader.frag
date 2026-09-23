@@ -361,6 +361,11 @@ void main()
 
     vec3 albedo = fragColor * texture(albedoMap, materialUv(0u)).rgb * draw.baseColorFactor.rgb;
     vec3 normal = getNormalFromNormalMap();
+    if (!gl_FrontFacing)
+    {
+        normal = -normal;
+    }
+
     vec3 viewDir = normalize(frame.cameraPosition.xyz - fragWorldPos);
     float iblIntensity = max(frame.renderParams.x, 0.0);
     vec3 F0 = vec3(0.04);

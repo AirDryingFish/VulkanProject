@@ -229,12 +229,6 @@ void validatePrimitiveMaterial(
             context + ": only OPAQUE materials are supported");
     }
 
-    if (material.doubleSided)
-    {
-        throw std::runtime_error(
-            context + ": double-sided materials are not supported");
-    }
-
     auto checkSlot = [&](const std::optional<GltfMaterialTextureSlot> &slot, const char *slotName)
     {
         if (!slot)

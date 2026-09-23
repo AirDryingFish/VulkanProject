@@ -134,7 +134,10 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
             meshData.vertices.push_back({positions[b], glm::vec3(1.0f), glm::vec2(1.0f, 0.0f), normal});
             meshData.vertices.push_back({positions[c], glm::vec3(1.0f), glm::vec2(1.0f, 1.0f), normal});
             meshData.vertices.push_back({positions[d], glm::vec3(1.0f), glm::vec2(0.0f, 1.0f), normal});
-            meshData.indices.insert(meshData.indices.end(), {start, start + 1, start + 2, start + 2, start + 3, start});
+            //
+            meshData.indices.insert(meshData.indices.end(),
+                {start, start + 2, start + 1,
+                start, start + 3, start + 2});
         };
 
         addFace(1, 5, 6, 2, {1.0f, 0.0f, 0.0f});

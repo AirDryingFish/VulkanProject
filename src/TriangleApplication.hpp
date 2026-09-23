@@ -229,7 +229,7 @@ private:
     MaterialHandle defaultGltfMaterial;
     static constexpr std::uint32_t maxMaterialCount = 128;
     // Ordinary imports cannot consume the space needed to replace a full scene.
-    static constexpr std::uint32_t sceneSwitchMaterialReserve = 16;
+    static constexpr std::uint32_t sceneSwitchMaterialReserve = maxMaterialCount;
     static constexpr std::uint32_t materialPoolCapacity = maxMaterialCount + sceneSwitchMaterialReserve;
     std::uint32_t allocatedMaterialSetCount = 0;
 
@@ -279,7 +279,7 @@ private:
     // Receiver bias: 主画面采样比较时，从当前表面的参考深度中减去偏移
     float shadowConstantBias = 1.25f;
     float shadowSlopeBias = 1.75f;
-    float shadowReceiverBias = 0.0f;
+    float shadowReceiverBias = 0.0005f;
     glm::vec3 shadowCenter{0.0f};
     float shadowHalfExtent = 5.0f;
 

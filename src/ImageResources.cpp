@@ -494,10 +494,6 @@ MaterialHandle TriangleApplication::createGltfMaterial(
     {
         throw std::runtime_error(debugName + ": only OPAQUE materials are supported");
     }
-    if (source.doubleSided)
-    {
-        throw std::runtime_error(debugName + ": double-sided materials are not supported");
-    }
 
     // 把 gltf 里的一个材质纹理引用，转换为 Engine 自己的 MaterialTextureSlot
     // 使用 [&] 捕获，所以它可以直接访问 upload 参数
@@ -557,6 +553,7 @@ MaterialHandle TriangleApplication::createGltfMaterial(
     material->emissiveFactor = source.emissiveFactor;
     material->normalScale = source.normalScale;
     material->occlusionStrength = source.occlusionStrength;
+    material->doubleSided = source.doubleSided;
 
     material->baseColorTexture = makeSlot(
         source.baseColorTexture,
