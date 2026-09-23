@@ -1,5 +1,8 @@
 # VulkanProject 开发路线图
 
+> 后续算法路线见 [Phase 2：从高级光栅渲染到 ReSTIR](../todo-phase-2/overview.md)。
+> Phase 2 明确了本阶段的收尾边界、延期项和迁移任务；进入新阶段不代表本文全部项目已完成。
+
 > 分阶段学习与实施指南：
 >
 > - [阶段 1：资源生命周期与异常安全](stage-1-resource-lifetime.md)
@@ -475,7 +478,10 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 
 ## 阶段 9：现代 Vulkan 与长期架构
 
-这些任务依赖前面模块边界已经稳定，不应过早开始。
+这些任务依赖前面模块边界已经稳定。后续安排已细化到 [Phase 2 大纲](../todo-phase-2/overview.md)：
+版本与能力管理、Synchronization2、Dynamic Rendering 提前至阶段 0.5，在测量基线后、CSM 前推进；
+Timeline Semaphore、Extended Dynamic State、Bindless 和 Render Graph 继续按需求引入。
+下列优先级与复选框保留为原始规划记录，迁移任务不表示已经完成。
 
 ### Vulkan API 现代化
 
@@ -507,9 +513,11 @@ BRDF LUT 截图和 ImGui 预览属于通用 Debug Views，不阻塞本阶段，�
 
 ---
 
-## 推荐执行顺序
+## Phase 1 原始执行顺序
 
-严格建议按照以下顺序推进：
+以下保留 Phase 1 原始学习顺序；当前后续安排以 [Phase 2 大纲](../todo-phase-2/overview.md) 为准。
+其中基础测量对应阶段 0，Vulkan 能力管理与现代化对应阶段 0.5，剔除/实例化/间接绘制对应 A-3；
+旧图末尾的 Dynamic Rendering、Bindless 与 Render Graph 不再作为同一组任务推进。
 
 ```text
 当前 IBL 文档与验证（已完成）
@@ -533,10 +541,11 @@ HDR 后处理
 Dynamic Rendering / Bindless / Render Graph
 ```
 
-## 当前最近任务
+## Stage 5 历史任务顺序
 
-Stage 1～4 的核心生产代码已经落地，当前进入 Stage 5。Stage 5 先建立可检查的 CPU 资产管线，
-再接入现有 GPU 资源与 Renderer 边界。近期按以下顺序推进：
+以下保留进入 Stage 5 时的实施顺序，当前推进见 [Phase 2 大纲](../todo-phase-2/overview.md)。
+当时 Stage 1～4 的核心生产代码已经落地；Stage 5 先建立可检查的 CPU 资产管线，
+再接入现有 GPU 资源与 Renderer 边界，安排如下：
 
 1. **P0** 集成 fastgltf，并建立 parse-only `gltf_inspect` 工具；
 2. **P0** 正确解码 accessor、index 和 primitive CPU 数据；

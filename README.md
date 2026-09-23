@@ -16,6 +16,12 @@ macOS；macOS 通过 MoltenVK 将 Vulkan 指令映射到 Metal。
 - Vulkan Memory Allocator（VMA）资源管理
 - Vulkan Validation Layers 调试验证
 
+## 开发路线
+
+- [Phase 1：基础渲染器与资产管线](docs/todo-phase-1/overview.md)
+- [Phase 2：现代 Vulkan、高级光栅与 ReSTIR](docs/todo-phase-2/overview.md)
+- [Phase 2 · Stage 0 手敲指南：渲染基线与 GPU 计时](docs/todo-phase-2/stage-0-rendering-baseline.md)
+
 ## 技术栈
 
 | 层级 | 组件 |
