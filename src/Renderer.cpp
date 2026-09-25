@@ -148,6 +148,7 @@ void Renderer::createTimestampQueyPools()
     if (timestampValidBits_ == 0)
     {
         std::cout << "GPU timing unavailable: graphics queue does not support timestamps.\n";
+        return;
     }
 
     VkQueryPoolCreateInfo poolInfo{};
@@ -250,6 +251,7 @@ void Renderer::shutdown() noexcept
                     frame.timestampQueryPool = VK_NULL_HANDLE;
                 }
                 frame.timestampQueriesPending = false;
+                frame.recordedGpuPassMask = 0;
 
                 if (frame.renderFence != VK_NULL_HANDLE)
                 {
@@ -643,7 +645,51 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     VK_CHECK(vkBeginCommandBuffer(token.commandBuffer, &beginInfo));
 
+    frame.recordedGpuPassMask = 0;
+    if (gpuTimingSupported_)
+    {
+        vkCmdResetQueryPool(token.commandBuffer, frame.timestampQueryPool, 0, gpuTimestampQueryCount);
+    }
+
+    const auto beginGpuPass = [&](GpuPass pass)
+    {
+        if (!gpuTimingSupported_)
+        {
+            return;
+        }
+
+        const std::uint32_t passIndex = static_cast<std::uint32_t>(pass);
+        vkCmdWriteTimestamp(
+            token.commandBuffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            frame.timestampQueryPool,
+            passIndex * 2 // 相当于移位 passIndex 位
+        );
+    };
+
+    const auto endGpuPass = [&](GpuPass pass)
+    {
+        if (!gpuTimingSupported_)
+        {
+            return;
+        }
+
+        const std::uint32_t passIndex = static_cast<uint32_t>(pass);
+        vkCmdWriteTimestamp(
+            token.commandBuffer,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            frame.timestampQueryPool,
+            passIndex * 2 + 1
+        );
+
+        frame.recordedGpuPassMask |= (1u << passIndex);
+    };
+
+    // -- 开启 shadow pass --
+    beginGpuPass(GpuPass::Shadow);
     recordShadowPass(token, data);
+    endGpuPass(GpuPass::Shadow);
+    // ----
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{
@@ -662,6 +708,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     renderPassInfo.renderArea.extent = swapchain_->extent();
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
+
+    // -- 开启 scene 并打点 --
     vkCmdBeginRenderPass(token.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport{};
@@ -763,10 +811,12 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
                 0);
         }
     }
+    // ----
 
     // -- 结束 HDR scene pass --
     // hdrColor 的最终布局及输出依赖由 sceneRenderPass_ 处理
     vkCmdEndRenderPass(token.commandBuffer);
+    endGpuPass(GpuPass::Scene);
 
     VkClearValue presentClear{};
     presentClear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -780,6 +830,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     presentInfo.clearValueCount = 1;
     presentInfo.pClearValues = &presentClear;
 
+    // -- 开启 present 并打点 --
+    beginGpuPass(GpuPass::PostAndUi);
     vkCmdBeginRenderPass(token.commandBuffer, &presentInfo, VK_SUBPASS_CONTENTS_INLINE);
     // 使用前面已设置好的全窗口 viewport/scissor
     vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
@@ -813,8 +865,9 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     {
         ImGui_ImplVulkan_RenderDrawData(data.imguiDrawData, token.commandBuffer);
     }
-
     vkCmdEndRenderPass(token.commandBuffer);
+    endGpuPass(GpuPass::PostAndUi);
+    // ----
 
     VK_CHECK(vkEndCommandBuffer(token.commandBuffer));
 

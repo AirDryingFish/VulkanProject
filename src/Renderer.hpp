@@ -49,6 +49,9 @@ private:
         // 一帧在 GPU 上执行时，属于这帧自己的全部运行时资源
         VkQueryPool timestampQueryPool = VK_NULL_HANDLE;
         bool timestampQueriesPending = false; // 是否有已经成功提交但未读回的时间戳结果
+        // 本次录制中，哪些 pass 已经写入开始和结束时间戳
+        // 第 0 位：shadow。第 1 位：scene。第 2 位：postAndUi
+        std::uint32_t recordedGpuPassMask = 0;
 
         std::vector<GpuBuffer> retiredBuffers;
     };
