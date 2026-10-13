@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <vector>
 #include <cstddef>
+#include <array>
+#include <string>
 
 inline constexpr std::size_t frameImageDescriptorCount = 5;
 inline constexpr std::size_t materialImageDescriptorCount = 5;
@@ -24,6 +26,45 @@ inline constexpr std::uint32_t gpuPassCount = static_cast<std::uint32_t>(GpuPass
 // 每个区间需要记录开始、结束两个时间戳，因此一个 pool 需要六个位置
 inline constexpr std::uint32_t gpuTimestampQueryCount = gpuPassCount * 2;
 // ----
+
+enum class GpuTimingState
+{
+    Unavailable, // 设备不支持
+    Pending,     // 尚未完成结果
+    NotExecuted, // 本次提交没有执行这个 pass
+    NotReady,    // 执行记录存在，但读取结果不可用
+    Ready
+};
+
+struct GpuPassTiming
+{
+    GpuTimingState state = GpuTimingState::Pending;
+    double milliseconds = 0.0;
+};
+
+struct GpuTimingConfig
+{
+    std::string sceneId;
+    VkExtent2D extent{};
+    VkSampleCountFlagBits sceneSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    bool shadowEnabled = false;
+    bool shadowPreview = false;
+    bool uiDrawn = false;
+    bool bypassToneMapping = false;
+};
+
+struct GpuTimingSnapshot
+{
+    bool supported = false;
+    bool hasSample = false;
+
+    std::uint64_t submissionId = 0;
+    std::uint32_t frameSlot = 0;
+
+    GpuTimingConfig config{};
+    std::array<GpuPassTiming, gpuPassCount> passes{};
+};
 
 struct ImDrawData;
 
@@ -124,6 +165,8 @@ struct RenderFrameData
     float shadowConstantBias = 0.0f;
     float shadowSlopeBias = 0.0f;
     bool showShadowDepth = false;
+
+    std::string sceneId;
 
     bool bypassToneMapping = false;
 };

@@ -49,9 +49,19 @@ private:
         // 一帧在 GPU 上执行时，属于这帧自己的全部运行时资源
         VkQueryPool timestampQueryPool = VK_NULL_HANDLE;
         bool timestampQueriesPending = false; // 是否有已经成功提交但未读回的时间戳结果
+        // ----
         // 本次录制中，哪些 pass 已经写入开始和结束时间戳
         // 第 0 位：shadow。第 1 位：scene。第 2 位：postAndUi
+        // ----
         std::uint32_t recordedGpuPassMask = 0;
+        // 录制命令时使用的的计时配置
+        GpuTimingConfig recordedTimingConfig{};
+        // 成功提交的命令里，哪些 pass 实际录入了有效时间戳
+        std::uint32_t submittedGpuPassMask = 0;
+        // 这个 frame slot 当前保存的成功提交序号
+        std::uint64_t submittedGpuSubmissionId = 0;
+        // 成功提交的命令对应副本
+        GpuTimingConfig submittedTimingConfig{};
 
         std::vector<GpuBuffer> retiredBuffers;
     };
@@ -102,7 +112,6 @@ private:
     std::uint32_t timestampValidBits_ = 0;
     // 一个时间戳 tick 对应多少纳秒 ns，以后换算成 ms 时使用
     double timestampPeriodNs_ = 0.0;
-
     // ----
 
     // -- HDR render pass --
@@ -141,6 +150,13 @@ private:
     VkPipeline shadowPreviewPipeline_ = VK_NULL_HANDLE;
     void createShadowPreviewPipeline();
     void recordShadowPreview(const FrameToken& token, const RenderFrameData& data);
+    // ----
+
+    // ----
+    std::uint64_t gpuSubmissionCounter_ = 0;
+    GpuTimingSnapshot latestGpuTiming_{};
+
+    void collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot);
     // ----
 
     UploadContext uploadContext_{};
@@ -230,4 +246,6 @@ public:
 
     VkDescriptorImageInfo shadowDescriptorInfo(std::size_t frameIndex) const;
     VkDescriptorImageInfo shadowPreviewDescriptorInfo(std::size_t frameIndex) const;
+
+    const GpuTimingSnapshot& gpuTimingSnapshot() const noexcept;
 };

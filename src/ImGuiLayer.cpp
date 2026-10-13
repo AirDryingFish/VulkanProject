@@ -722,10 +722,59 @@ void TriangleApplication::drawImGui()
 
             if (ImGui::BeginTabItem("Diagnostics"))
             {
+                const GpuTimingSnapshot& gpu = renderer.gpuTimingSnapshot();
+                ImGui::SeparatorText("GPU Timing");
+                if(!gpu.supported)
+                {
+                    ImGui::TextUnformatted("unavailable: graphics queue has no timestamp support");
+                }
+                else if (!gpu.hasSample)
+                {
+                    ImGui::TextUnformatted("pending: waiting for a completed submission");
+                }
+                else
+                {
+                    ImGui::Text("Completed submission: %llu | Frame slot: %u", static_cast<unsigned long long>(gpu.submissionId), gpu.frameSlot);
+                    ImGui::Text("Scene: %s", gpu.config.sceneId.c_str());
+                    ImGui::Text("Captured extent: %u x %u | MSAA: %u", gpu.config.extent.width, gpu.config.extent.height, static_cast<unsigned int>(gpu.config.sceneSamples));
+                    ImGui::Text("Shadow: %s | Preview: %s | UI: %s",
+                        gpu.config.shadowEnabled ? "draw enabled" : "clear-only",
+                        gpu.config.shadowPreview ? "on" : "off",
+                        gpu.config.uiDrawn ? "on" : "off"
+                    );
+                    ImGui::Text("Tone mapping bypass: %s", gpu.config.bypassToneMapping ? "on" : "off");
+                    const char* names[] = {"Shadow", "Scene", "Post + UI"};
+
+                    // 实际的计时 display
+                    for (std::uint32_t i = 0; i < gpuPassCount; ++i)
+                    {
+                        const GpuPassTiming& timing = gpu.passes[i];
+
+                        switch (timing.state)
+                        {
+                        case GpuTimingState::Ready:
+                            ImGui::Text("%s GPU: %.3f ms", names[i], timing.milliseconds);
+                            break;
+
+                        case GpuTimingState::NotExecuted:
+                            ImGui::Text("%s GPU: not executed", names[i]);
+                            break;
+                        case GpuTimingState::NotReady:
+                            ImGui::Text("%s GPU: N/A (query not ready)", names[i]);
+                            break;
+                        case GpuTimingState::Unavailable:
+                            ImGui::Text("%s GPU: unavailable", names[i]);
+                        case GpuTimingState::Pending:
+                            ImGui::Text("%s GPU: pending", names[i]);
+                            break;
+                        }
+                    }
+                }
+
                 ImGui::BeginChild("DiagnosticsContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::Text("FPS: %.1f", io.Framerate);
-                ImGui::Text("Frame Time: %.3f ms", io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f);
+                ImGui::Text("Frame interval (FPS estimate): %.3f ms", io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f);
                 ImGui::Text("Swapchain Images: %zu", swapchain.imageCount());
                 ImGui::Text("Extent: %u x %u", swapchain.extent().width, swapchain.extent().height);
                 ImGui::Text("MSAA Samples: %d", renderer.sceneSamples());

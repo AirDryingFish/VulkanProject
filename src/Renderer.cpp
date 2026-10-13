@@ -84,7 +84,15 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
             // });
         }
 
+        // -- gpu 计时 --
         createTimestampQueyPools();
+        latestGpuTiming_ = {};
+        latestGpuTiming_.supported = gpuTimingSupported_;
+        for (GpuPassTiming& timing : latestGpuTiming_.passes)
+        {
+            timing.state = gpuTimingSupported_ ? GpuTimingState::Pending : GpuTimingState::Unavailable;
+        }
+
         createUploadContext();
         // -- 初始化阴影渲染管线 --
         createShadowTargets();
@@ -252,6 +260,10 @@ void Renderer::shutdown() noexcept
                 }
                 frame.timestampQueriesPending = false;
                 frame.recordedGpuPassMask = 0;
+                frame.recordedTimingConfig = {};
+                frame.submittedGpuPassMask = 0;
+                frame.submittedGpuSubmissionId = 0;
+                frame.submittedTimingConfig = {};
 
                 if (frame.renderFence != VK_NULL_HANDLE)
                 {
@@ -323,6 +335,9 @@ void Renderer::shutdown() noexcept
             }
         }
     }
+
+    gpuSubmissionCounter_ = 0;
+    latestGpuTiming_ = {};
 
     uploadContext_.fence = VK_NULL_HANDLE;
     uploadContext_.commandBuffer = VK_NULL_HANDLE;
@@ -425,6 +440,11 @@ VkSampleCountFlagBits Renderer::sceneSamples() const noexcept
 {
     return sceneSamples_;
 }
+
+const GpuTimingSnapshot& Renderer::gpuTimingSnapshot() const noexcept
+{
+    return latestGpuTiming_;
+};
 
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
 void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
@@ -573,7 +593,7 @@ BeginFrameResult Renderer::beginFrame()
     FrameContext &frame = frames_[currentFrame_];
     // 1. 等待当前帧fence
     VK_CHECK(vkWaitForFences(context_->device(), 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
-
+    collectGpuTimings(frame, currentFrame_); // 读取这个 frameSlot 上一次提交的结果，wait fence 确保 gpu 已经执行完那次任务
     // 2. clear掉帧的buffer，fence已经完成，GPU不再使用这些旧的buffer
     frame.retiredBuffers.clear();
 
@@ -645,7 +665,16 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     VK_CHECK(vkBeginCommandBuffer(token.commandBuffer, &beginInfo));
 
+    // 把录制时的值复制下来，方便之后解释计时结果
     frame.recordedGpuPassMask = 0;
+    frame.recordedTimingConfig.sceneId = data.sceneId;
+    frame.recordedTimingConfig.extent = swapchain_->extent();
+    frame.recordedTimingConfig.sceneSamples = sceneSamples_;
+    frame.recordedTimingConfig.shadowEnabled = data.directionalShadowsEnabled;
+    frame.recordedTimingConfig.shadowPreview = data.showShadowDepth;
+    frame.recordedTimingConfig.uiDrawn = data.imguiDrawData != nullptr;
+    frame.recordedTimingConfig.bypassToneMapping = data.bypassToneMapping;
+
     if (gpuTimingSupported_)
     {
         vkCmdResetQueryPool(token.commandBuffer, frame.timestampQueryPool, 0, gpuTimestampQueryCount);
@@ -708,6 +737,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     renderPassInfo.renderArea.extent = swapchain_->extent();
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
+
+    beginGpuPass(GpuPass::Scene);
 
     // -- 开启 scene 并打点 --
     vkCmdBeginRenderPass(token.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -930,6 +961,16 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     VK_CHECK(vkResetFences(context_->device(), 1, &frame.renderFence));
     // 2. vkQueueSubmit()。
     VK_CHECK(vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, frame.renderFence));
+    // 从这里开始命令已经提交
+    const std::uint64_t submissionId = ++gpuSubmissionCounter_;
+    if (gpuTimingSupported_)
+    {
+        frame.submittedGpuPassMask = frame.recordedGpuPassMask;
+        frame.submittedGpuSubmissionId = submissionId;
+        frame.submittedTimingConfig = frame.recordedTimingConfig;
+        frame.timestampQueriesPending = true;
+    }
+
     // 3. vkQueuePresentKHR()。
     VkSwapchainKHR swapchianHandle = swapchain_->get();
     VkPresentInfoKHR presentInfo{};
@@ -959,4 +1000,71 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     }
 
     return FrameStatus::Ready;
+}
+
+void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)
+{
+    if (!gpuTimingSupported_ || !frame.timestampQueriesPending)
+    {
+        return;
+    }
+
+    GpuTimingSnapshot snapshot{};
+    snapshot.supported = true;
+    snapshot.hasSample = true;
+    snapshot.submissionId = frame.submittedGpuSubmissionId;
+    snapshot.frameSlot = frameSlot;
+    snapshot.config = frame.submittedTimingConfig;
+
+    for (std::uint32_t i = 0; i < gpuPassCount; ++i)
+    {
+        GpuPassTiming& timing = snapshot.passes[i];
+        const std::uint32_t passBit = 1u << i;
+        if ((frame.submittedGpuPassMask & passBit) == 0)
+        {
+            timing.state = GpuTimingState::NotExecuted;
+            continue;
+        }
+
+        // 开始和结束
+        std::uint64_t ticks[2]{};
+        const VkResult result = vkGetQueryPoolResults(
+            context_->device(),
+            frame.timestampQueryPool,
+            i * 2,
+            2,
+            sizeof(ticks),
+            ticks,
+            sizeof(std::uint64_t),
+            VK_QUERY_RESULT_64_BIT
+        );
+        if (result == VK_NOT_READY)
+        {
+            timing.state = GpuTimingState::NotReady;
+            std::cerr << "GPU timestamp not ready: submission="
+            << snapshot.submissionId
+            << ", frame slot="
+            << frameSlot
+            << ", pass="
+            << i << "\n";
+
+            continue;
+        }
+
+        VK_CHECK_RESULT(result, "vkGetQueryPoolResults");
+
+        std::uint64_t deltaTicks = ticks[1] - ticks[0];
+        // GPU 时间戳可能只有 timestampValidBits_(N) 个有效位，计数值达到 2^N - 1 后会重新从 0 开始
+        if (timestampValidBits_ < 64)
+        {
+            // GPU 计时的最大值
+            const std::uint64_t mask = (std::uint64_t{1} << timestampValidBits_) - 1;
+            deltaTicks &= mask;
+        }
+        timing.milliseconds = static_cast<double>(deltaTicks) * timestampPeriodNs_ / 1'000'000.0;
+        timing.state = GpuTimingState::Ready;
+    }
+
+    latestGpuTiming_ = std::move(snapshot);
+    frame.timestampQueriesPending = false;
 }

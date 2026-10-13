@@ -317,6 +317,7 @@ void TriangleApplication::drawFrame()
     renderData.shadowSlopeBias = shadowSlopeBias;
     renderData.showShadowDepth = showShadowDepth;
     renderData.bypassToneMapping = showShadowProjection;
+    renderData.sceneId = scenePresetInfo(activeScenePreset).id;
     renderer.recordFrame(frame, renderData);
 
     // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
