@@ -68,6 +68,16 @@ struct GpuTimingSnapshot
 };
 // ----
 
+// 统计实际 scene/shadow 绘制量
+struct DrawStatistics
+{
+    std::uint64_t sceneDraws = 0;
+    std::uint64_t sceneTriangles = 0;
+
+    std::uint64_t shadowDraws = 0;
+    std::uint64_t shadowTriangles = 0;
+};
+
 // -- CPU 计时--
 struct RendererCpuTimingSnapshot
 {
@@ -81,6 +91,8 @@ struct RendererCpuTimingSnapshot
     double acquireMs = 0.0;
     double submitMs = 0.0;
     double presentMs = 0.0;
+
+    DrawStatistics draws{};
 };
 
 struct CpuFrameTimingSnapshot

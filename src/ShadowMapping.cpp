@@ -343,6 +343,8 @@ void Renderer::createShadowPipeline()
 
 void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &data)
 {
+    FrameContext& frame = frames_.at(token.frameIndex);
+
     const ShadowTarget& target = shadowTargets_.at(token.frameIndex);
 
     VkClearValue clearValue{};
@@ -456,6 +458,9 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
                 0,
                 0
             );
+
+            ++frame.recordedDraws.shadowDraws;
+            frame.recordedDraws.shadowTriangles += static_cast<std::uint64_t>(object.indexCount / 3);
         }
     }
     // ----

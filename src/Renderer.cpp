@@ -701,6 +701,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.shadowPreview = data.showShadowDepth;
     frame.recordedTimingConfig.uiDrawn = data.imguiDrawData != nullptr;
     frame.recordedTimingConfig.bypassToneMapping = data.bypassToneMapping;
+    frame.recordedDraws = {};
 
     if (gpuTimingSupported_)
     {
@@ -867,6 +868,9 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
                 0,
                 0,
                 0);
+
+            ++frame.recordedDraws.sceneDraws;
+            frame.recordedDraws.sceneTriangles += static_cast<std::uint64_t>(object.indexCount / 3);
         }
     }
     // ----
@@ -992,6 +996,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     // 2. vkQueueSubmit()。
     VkResult submitResult = vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, frame.renderFence);
     currentCpuTiming_.submitMs = cpuElapsedMs(submitBegin, CpuClock::now());
+    currentCpuTiming_.draws = frame.recordedDraws;
     VK_CHECK_RESULT(submitResult, "vkQueueSubmit");
 
     // 从这里开始命令已经提交

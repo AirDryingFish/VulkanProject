@@ -749,8 +749,16 @@ void TriangleApplication::drawImGui()
                     ImGui::Text("Record: %.3f ms", cpu.recordMs);
                     ImGui::Text("Submit: %.3f ms", cpu.renderer.submitMs);
                     ImGui::Text("Presnet: %.3f ms", cpu.renderer.presentMs);
-                }
 
+                    const DrawStatistics& draws = cpu.renderer.draws;
+                    ImGui::Text("Scene mesh: %llu draws | %llu submitted triangles",
+                        static_cast<unsigned long long>(draws.sceneDraws),
+                        static_cast<unsigned long long>(draws.sceneTriangles)
+                    );
+                    ImGui::Text("Shadow mesh: %llu draws | %llu submitted triangles",
+                        static_cast<unsigned long long>(draws.shadowDraws),
+                        static_cast<unsigned long long>(draws.shadowTriangles));
+                }
                 // ----
 
                 // -- gpu 计时 --

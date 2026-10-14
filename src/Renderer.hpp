@@ -63,6 +63,8 @@ private:
         // 成功提交的命令对应副本
         GpuTimingConfig submittedTimingConfig{};
 
+        DrawStatistics recordedDraws{};
+
         std::vector<GpuBuffer> retiredBuffers;
     };
 
