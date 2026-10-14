@@ -3,6 +3,7 @@
 #include "Swapchain.hpp"
 #include "VulkanCheck.hpp"
 #include "UploadCommands.hpp"
+#include "CpuTiming.hpp"
 
 #include <cassert>
 #include <stdexcept>
@@ -92,6 +93,10 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         {
             timing.state = gpuTimingSupported_ ? GpuTimingState::Pending : GpuTimingState::Unavailable;
         }
+
+        // -- cpu timing --
+        currentCpuTiming_ = {};
+        latestCpuTiming_ = {};
 
         createUploadContext();
         // -- 初始化阴影渲染管线 --
@@ -446,6 +451,11 @@ const GpuTimingSnapshot& Renderer::gpuTimingSnapshot() const noexcept
     return latestGpuTiming_;
 };
 
+const RendererCpuTimingSnapshot& Renderer::cpuTimingSnapshot() const noexcept
+{
+    return latestCpuTiming_;
+};
+
 // 执行一次性的GPU操作，比如复制Buffer、复制纹理、生成MIPMAP、IBL预计算
 void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
 {
@@ -591,14 +601,28 @@ BeginFrameResult Renderer::beginFrame()
     }
 
     FrameContext &frame = frames_[currentFrame_];
+
+    currentCpuTiming_ = {};
+    currentCpuTiming_.frameSlot = currentFrame_;
+    // wait 表示主机等待这个 frame slot 可以复用
+    const auto waitBegin = CpuClock::now();
+
     // 1. 等待当前帧fence
-    VK_CHECK(vkWaitForFences(context_->device(), 1, &frame.renderFence, VK_TRUE, UINT64_MAX));
+    const VkResult waitResult = vkWaitForFences(context_->device(), 1, &frame.renderFence, VK_TRUE, UINT64_MAX);
+    currentCpuTiming_.fenceWaitMs = cpuElapsedMs(waitBegin, CpuClock::now());
+    VK_CHECK_RESULT(waitResult, "vkWaitForFences");
+
     collectGpuTimings(frame, currentFrame_); // 读取这个 frameSlot 上一次提交的结果，wait fence 确保 gpu 已经执行完那次任务
+
     // 2. clear掉帧的buffer，fence已经完成，GPU不再使用这些旧的buffer
     frame.retiredBuffers.clear();
 
     // 3. vcAcquireNextImageKHR()
     uint32_t imageIndex = 0;
+
+    // acquire 表示主机取得交换链图像的调用时间
+    const auto acquireBegin = CpuClock::now();
+
     const VkResult acquireResult = vkAcquireNextImageKHR(
         context_->device(),
         swapchain_->get(),
@@ -606,6 +630,9 @@ BeginFrameResult Renderer::beginFrame()
         frame.imageAvailable,
         VK_NULL_HANDLE,
         &imageIndex);
+
+    currentCpuTiming_.acquireMs = cpuElapsedMs(acquireBegin, CpuClock::now());
+
     if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         return {FrameStatus::RecreateSwapchain, {}};
@@ -959,10 +986,20 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
 
     // 1. 重置 fence。
     VK_CHECK(vkResetFences(context_->device(), 1, &frame.renderFence));
+
+    const auto submitBegin = CpuClock::now();
+
     // 2. vkQueueSubmit()。
-    VK_CHECK(vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, frame.renderFence));
+    VkResult submitResult = vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, frame.renderFence);
+    currentCpuTiming_.submitMs = cpuElapsedMs(submitBegin, CpuClock::now());
+    VK_CHECK_RESULT(submitResult, "vkQueueSubmit");
+
     // 从这里开始命令已经提交
     const std::uint64_t submissionId = ++gpuSubmissionCounter_;
+
+    currentCpuTiming_.submissionId = submissionId;
+    currentCpuTiming_.config = frame.recordedTimingConfig;
+
     if (gpuTimingSupported_)
     {
         frame.submittedGpuPassMask = frame.recordedGpuPassMask;
@@ -980,7 +1017,10 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapchianHandle;
     presentInfo.pImageIndices = &token.imageIndex;
+
+    const auto presentBegin = CpuClock::now();
     const VkResult presentResult = vkQueuePresentKHR(context_->presentQueue(), &presentInfo);
+    currentCpuTiming_.presentMs = cpuElapsedMs(presentBegin, CpuClock::now());
 
     // 4. 更新 currentFrame_。
     currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -989,17 +1029,16 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     hasActiveFrame_ = false;
     hasRecordedFrame_ = false;
 
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
-    {
-        return FrameStatus::RecreateSwapchain;
-    }
+    const bool needsRecreate = presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR;
 
-    if (presentResult != VK_SUCCESS)
+    if (presentResult != VK_SUCCESS && !needsRecreate)
     {
         VK_CHECK_RESULT(presentResult, "vkQueuePresentKHR");
     }
+    currentCpuTiming_.valid = true;
+    latestCpuTiming_ = std::move(currentCpuTiming_);
 
-    return FrameStatus::Ready;
+    return needsRecreate ? FrameStatus::RecreateSwapchain : FrameStatus::Ready;
 }
 
 void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)

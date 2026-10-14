@@ -27,6 +27,7 @@ inline constexpr std::uint32_t gpuPassCount = static_cast<std::uint32_t>(GpuPass
 inline constexpr std::uint32_t gpuTimestampQueryCount = gpuPassCount * 2;
 // ----
 
+// -- GPU 计时 --
 enum class GpuTimingState
 {
     Unavailable, // 设备不支持
@@ -65,6 +66,30 @@ struct GpuTimingSnapshot
     GpuTimingConfig config{};
     std::array<GpuPassTiming, gpuPassCount> passes{};
 };
+// ----
+
+// -- CPU 计时--
+struct RendererCpuTimingSnapshot
+{
+    bool valid = false;
+
+    std::uint64_t submissionId = 0;
+    std::uint32_t frameSlot = 0;
+    GpuTimingConfig config;
+
+    double fenceWaitMs = 0.0;
+    double acquireMs = 0.0;
+    double submitMs = 0.0;
+    double presentMs = 0.0;
+};
+
+struct CpuFrameTimingSnapshot
+{
+    RendererCpuTimingSnapshot renderer{};
+    double updateMs = 0.0;
+    double recordMs = 0.0;
+};
+
 
 struct ImDrawData;
 

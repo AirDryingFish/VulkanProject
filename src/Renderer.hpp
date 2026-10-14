@@ -123,7 +123,7 @@ private:
     VkRenderPass sceneRenderPass_ = VK_NULL_HANDLE;
     // Present pass: 采样 HDR 图片 -> tone mapping -> 交换链图片
     VkRenderPass presentRenderPass_ = VK_NULL_HANDLE;
-    // ----
+    // -- end --
 
     // -- 后处理 Descriptor set --
     GpuSampler postSampler_{};
@@ -133,7 +133,7 @@ private:
 
     VkPipelineLayout postPipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline tonemapPipeline_ = VK_NULL_HANDLE;
-    // ----
+    // -- end --
 
     // -- shadow map 绘制 --
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
@@ -150,14 +150,19 @@ private:
     VkPipeline shadowPreviewPipeline_ = VK_NULL_HANDLE;
     void createShadowPreviewPipeline();
     void recordShadowPreview(const FrameToken& token, const RenderFrameData& data);
-    // ----
+    // -- end --
 
-    // ----
+    // -- gpu timing--
     std::uint64_t gpuSubmissionCounter_ = 0;
     GpuTimingSnapshot latestGpuTiming_{};
 
     void collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot);
-    // ----
+    // -- end --
+
+    // -- cpu timing--
+    RendererCpuTimingSnapshot currentCpuTiming_{}; // 当前正在构建的半成品
+    RendererCpuTimingSnapshot latestCpuTiming_{};  // 最近一次成功提交的完整 Renderer 结果
+    // -- end --
 
     UploadContext uploadContext_{};
 
@@ -248,4 +253,5 @@ public:
     VkDescriptorImageInfo shadowPreviewDescriptorInfo(std::size_t frameIndex) const;
 
     const GpuTimingSnapshot& gpuTimingSnapshot() const noexcept;
+    const RendererCpuTimingSnapshot& cpuTimingSnapshot() const noexcept;
 };

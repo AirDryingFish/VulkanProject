@@ -1,5 +1,6 @@
 #include "TriangleApplication.hpp"
 #include "DebugUtils.hpp"
+#include "CpuTiming.hpp"
 
 #include <algorithm>
 #include <array>
@@ -25,6 +26,7 @@ void TriangleApplication::run(ScenePreset initialScene, std::uint32_t requestedF
     activeScenePreset = selectedScenePreset = initialScene;
     frameLimit = requestedFrameLimit;
     renderedFrameCount = 0;
+    latestCpuTiming = {};
     std::snprintf(importModelPath, sizeof(importModelPath), "%s", MODEL_PATH.c_str());
     InitWindow();
     InitVulkan();
@@ -267,6 +269,8 @@ void TriangleApplication::drawFrame()
     lastFrameTime = now;
     deltaTime = std::min(deltaTime, 0.05f);
 
+    const auto updateBegin = CpuClock::now();
+
     // 应用层更新
     processCameraInput(deltaTime);
 
@@ -318,10 +322,18 @@ void TriangleApplication::drawFrame()
     renderData.showShadowDepth = showShadowDepth;
     renderData.bypassToneMapping = showShadowProjection;
     renderData.sceneId = scenePresetInfo(activeScenePreset).id;
+
+    const auto updateEnd = CpuClock::now();
+
+    const auto recordBegin  = CpuClock::now();
     renderer.recordFrame(frame, renderData);
+    const auto recordEnd = CpuClock::now();
 
     // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
     const FrameStatus endStatus = renderer.endFrame(frame);
+
+    latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd), cpuElapsedMs(recordBegin, recordEnd)};
+
     ++renderedFrameCount;
     if (frameLimit != 0 && renderedFrameCount >= frameLimit)
         glfwSetWindowShouldClose(window, GLFW_TRUE);

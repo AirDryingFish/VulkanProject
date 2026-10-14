@@ -722,6 +722,38 @@ void TriangleApplication::drawImGui()
 
             if (ImGui::BeginTabItem("Diagnostics"))
             {
+
+                // -- cpu 计时 --
+                ImGui::SeparatorText("CPU timing");
+                const CpuFrameTimingSnapshot& cpu = latestCpuTiming;
+                if (!cpu.renderer.valid)
+                {
+                    ImGui::TextUnformatted("pending: no submitted CPU sample");
+                }
+                else
+                {
+                    ImGui::Text("CPU submission: %llu | Frame slot: %u",
+                        static_cast<unsigned long long>(cpu.renderer.submissionId),
+                        cpu.renderer.frameSlot
+                    );
+
+                    ImGui::Text("Scene %s | Captured extent: %u x %u",
+                        cpu.renderer.config.sceneId.c_str(),
+                        cpu.renderer.config.extent.width,
+                        cpu.renderer.config.extent.height
+                    );
+
+                    ImGui::Text("Wait: %3.f ms", cpu.renderer.fenceWaitMs);
+                    ImGui::Text("Acquire: %3.f ms", cpu.renderer.acquireMs);
+                    ImGui::Text("Update: %.3f ms", cpu.updateMs);
+                    ImGui::Text("Record: %.3f ms", cpu.recordMs);
+                    ImGui::Text("Submit: %.3f ms", cpu.renderer.submitMs);
+                    ImGui::Text("Presnet: %.3f ms", cpu.renderer.presentMs);
+                }
+
+                // ----
+
+                // -- gpu 计时 --
                 const GpuTimingSnapshot& gpu = renderer.gpuTimingSnapshot();
                 ImGui::SeparatorText("GPU Timing");
                 if(!gpu.supported)
@@ -764,12 +796,14 @@ void TriangleApplication::drawImGui()
                             break;
                         case GpuTimingState::Unavailable:
                             ImGui::Text("%s GPU: unavailable", names[i]);
+                            break;
                         case GpuTimingState::Pending:
                             ImGui::Text("%s GPU: pending", names[i]);
                             break;
                         }
                     }
                 }
+                // ----
 
                 ImGui::BeginChild("DiagnosticsContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);

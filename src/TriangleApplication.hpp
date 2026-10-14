@@ -333,4 +333,7 @@ private:
     VkPipeline brdfLUTPipeline = VK_NULL_HANDLE;
     VkPipelineLayout brdfLUTPipelineLayout = VK_NULL_HANDLE;
     VkFramebuffer brdfLUTFramebuffer = VK_NULL_HANDLE;
+
+    // cpu timing
+    CpuFrameTimingSnapshot latestCpuTiming{};
 };
