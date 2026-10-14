@@ -336,4 +336,9 @@ private:
 
     // cpu timing
     CpuFrameTimingSnapshot latestCpuTiming{};
+
+    // vmas allocation statistics
+    VmaTotalStatistics cachedVmaStatistics{};
+    bool hasVmaStatistics = false;
+    std::string vmaStatisticsSceneId;
 };

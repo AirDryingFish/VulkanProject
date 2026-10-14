@@ -833,6 +833,36 @@ void TriangleApplication::drawImGui()
                 ImGui::Text("Shadow resolution: %u x %u",
                 directionalShadowResolution, directionalShadowResolution);
 
+                if (ImGui::Button("Refresh VMA statistics"))
+                {
+                    if (context.allocator() != nullptr)
+                    {
+                        vmaCalculateStatistics(context.allocator(), &cachedVmaStatistics);
+
+                        vmaStatisticsSceneId = scenePresetInfo(activeScenePreset).id;
+
+                        hasVmaStatistics = true;
+                    }
+                }
+
+                if (hasVmaStatistics)
+                {
+                    const VmaStatistics& stats = cachedVmaStatistics.total.statistics;
+
+                    constexpr double bytesPerMiB = 1024.0 * 1024.0;
+
+                    ImGui::Text("VMA snapshot scene: %s", vmaStatisticsSceneId.c_str());
+                    // VMA 分配区域占用的总字节数
+                    ImGui::Text("VMA allocation bytes: %.2f MiB", static_cast<double>(stats.allocationBytes / bytesPerMiB));
+                    // VMA 向 vulkan 申请的内存块总大小，包含尚未用于分配的空间
+                    ImGui::Text("VMA block bytes: %.2f MiB", static_cast<double>(stats.blockBytes / bytesPerMiB));
+                    ImGui::Text("VMA allocations: %u | Blocks: %u", stats.allocationCount, stats.blockCount);
+                }
+                else
+                {
+                    ImGui::TextUnformatted("VMA statistics: not collected");
+                }
+
                 ImGui::PopItemWidth();
                 ImGui::EndChild();
                 ImGui::EndTabItem();
