@@ -102,6 +102,20 @@ struct CpuFrameTimingSnapshot
     double recordMs = 0.0;
 };
 
+// -- 渲染目标开销估算 --
+struct RenderTargetPayloadEstimate
+{
+    bool available = false;
+    bool complete = false;
+
+    std::uint64_t hdrColorBytes = 0;
+    std::uint64_t msaaColorBytes = 0;
+    std::uint64_t sceneDepthBytes = 0;
+    std::uint64_t shadowDepthBytes = 0;
+    std::uint64_t totalBytes = 0;
+};
+// ----
+
 
 struct ImDrawData;
 

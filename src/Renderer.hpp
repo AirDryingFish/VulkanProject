@@ -256,4 +256,6 @@ public:
 
     const GpuTimingSnapshot& gpuTimingSnapshot() const noexcept;
     const RendererCpuTimingSnapshot& cpuTimingSnapshot() const noexcept;
+
+    RenderTargetPayloadEstimate renderTargetPayloadEstimate() const noexcept;
 };

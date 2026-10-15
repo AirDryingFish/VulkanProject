@@ -833,6 +833,35 @@ void TriangleApplication::drawImGui()
                 ImGui::Text("Shadow resolution: %u x %u",
                 directionalShadowResolution, directionalShadowResolution);
 
+                // -- render target estimation --
+                ImGui::SeparatorText("Current render target payload");
+                const auto targets = renderer.renderTargetPayloadEstimate();
+                if (!targets.available)
+                {
+                    ImGui::TextUnformatted("unavailable");
+                }
+                else if (!targets.complete)
+                {
+                    ImGui::TextUnformatted("N/A: unsupported image format or shape");
+                }
+                else
+                {
+                    const auto showBytes = [](const char* label, std::uint64_t bytes)
+                    {
+                        ImGui::Text("%s: %.2f MiB", label, static_cast<double>(bytes) / (1024.0 * 1024.0));
+                    };
+
+                    showBytes("HDR color", targets.hdrColorBytes);
+                    showBytes("MSAA color", targets.msaaColorBytes);
+                    showBytes("Scene depth", targets.sceneDepthBytes);
+                    showBytes("Shadow depth", targets.shadowDepthBytes);
+
+                    ImGui::TextUnformatted("Nominal pixel data; all live frame slots.");
+                }
+
+                // ----
+
+                // -- vma allocation --
                 if (ImGui::Button("Refresh VMA statistics"))
                 {
                     if (context.allocator() != nullptr)
@@ -862,6 +891,8 @@ void TriangleApplication::drawImGui()
                 {
                     ImGui::TextUnformatted("VMA statistics: not collected");
                 }
+
+                // ----
 
                 ImGui::PopItemWidth();
                 ImGui::EndChild();

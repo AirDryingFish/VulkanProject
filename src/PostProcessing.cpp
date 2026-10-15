@@ -7,6 +7,64 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <optional>
+
+namespace
+{
+    // 图像格式 -> 每个样本的理论字节数
+    std::optional<std::uint64_t> nominalBytesPerSample(VkFormat format) noexcept
+    {
+        switch (format)
+        {
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            return 8;
+
+        case VK_FORMAT_D32_SFLOAT:
+            return 4;
+
+        case VK_FORMAT_D16_UNORM:
+            return 2;
+
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+            return 4;
+
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return 5;
+
+        default:
+            return std::nullopt;
+        }
+    }
+
+    std::optional<std::uint64_t> estimateImagePayload(const GpuImage& image) noexcept
+    {
+        if (!image)
+        {
+            return std::uint64_t{0};
+        }
+
+        const VkExtent3D extent = image.extent();
+
+        // 限定当前渲染目标使用的形态
+        if (image.mipLevels() != 1 || image.arrayLayers() != 1 || extent.depth != 1)
+        {
+            return std::nullopt;
+        }
+
+        const auto bytesPerSample = nominalBytesPerSample(image.format());
+
+        if (!bytesPerSample)
+        {
+            return std::nullopt;
+        }
+
+        return static_cast<std::uint64_t>(extent.width) * extent.height *
+                static_cast<std::uint64_t>(image.samples()) *
+                *bytesPerSample;
+    }
+
+}
+
 
 void Renderer::selectHdrConfiguration()    // 选择支持的格式和采样数
 {
@@ -637,4 +695,48 @@ void Renderer::recreateHdrTargets()
     createHdrFramebuffers();
     // 原来的 post set 指向旧 imageView。图像重建后需要让每帧的 set 指向新 view，而且更新时不能还有 GPU 提交在使用他们
     writePostDescriptors();
+}
+
+RenderTargetPayloadEstimate Renderer::renderTargetPayloadEstimate() const noexcept
+{
+    RenderTargetPayloadEstimate result{};
+
+    if (!initialized_)
+    {
+        return result;
+    }
+    result.available = true;
+
+    const auto addImage = [&](const GpuImage& image, std::uint64_t& destination) -> bool
+    {
+        const auto bytes = estimateImagePayload(image);
+        if (!bytes)
+        {
+            return false;
+        }
+        destination += *bytes;
+        return true;
+    };
+
+    for (const HdrFrameTarget& target : hdrTargets_)
+    {
+        if (!addImage(target.hdrColor, result.hdrColorBytes) ||
+            !addImage(target.msaaColor, result.msaaColorBytes) ||
+            !addImage(target.depth, result.sceneDepthBytes))
+        {
+            return result;
+        }
+    }
+
+    for (const ShadowTarget& target : shadowTargets_)
+    {
+        if (!addImage(target.depth, result.shadowDepthBytes))
+        {
+            return result;
+        }
+    }
+
+    result.totalBytes = result.hdrColorBytes + result.msaaColorBytes + result.sceneDepthBytes + result.shadowDepthBytes;
+    result.complete = true;
+    return result;
 }
