@@ -269,6 +269,7 @@ void Renderer::shutdown() noexcept
                 frame.submittedGpuPassMask = 0;
                 frame.submittedGpuSubmissionId = 0;
                 frame.submittedTimingConfig = {};
+                frame.recordedDraws = {};
 
                 if (frame.renderFence != VK_NULL_HANDLE)
                 {
@@ -343,6 +344,8 @@ void Renderer::shutdown() noexcept
 
     gpuSubmissionCounter_ = 0;
     latestGpuTiming_ = {};
+    currentCpuTiming_ = {};
+    latestCpuTiming_ = {};
 
     uploadContext_.fence = VK_NULL_HANDLE;
     uploadContext_.commandBuffer = VK_NULL_HANDLE;
