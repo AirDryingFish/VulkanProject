@@ -688,7 +688,7 @@ void TriangleApplication::drawImGui()
                 ImGui::SeparatorText("Debug views");
                 ImGui::Checkbox("Show shadow depth", &showShadowDepth);
                 // 调试显示
-                ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
+                // ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
 
 
                 ImGui::TextWrapped("Bias corrects depth comparisons; PCF filters shadow edges. The depth preview shows raw depth, not visibility.");
@@ -817,6 +817,12 @@ void TriangleApplication::drawImGui()
                 }
                 // ----
 
+                ImGui::Text(
+                    "Captured debug view: %d | Depth range: %.3f .. %.3f",
+                    static_cast<int>(gpu.config.debugView),
+                    gpu.config.debugDepthNear,
+                    gpu.config.debugDepthFar);
+
                 ImGui::BeginChild("DiagnosticsContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::Text("FPS: %.1f", io.Framerate);
@@ -905,7 +911,37 @@ void TriangleApplication::drawImGui()
 
             if (ImGui::BeginTabItem("Display"))
             {
-                ImGui::BeginDisabled(showShadowProjection);
+                const char *viewNames[] = {
+                    "Lit",
+                    "Albedo",
+                    "World normal",
+                    "Metallic",
+                    "Roughness",
+                    "Linear depth",
+                    "HDR luminance",
+                    "Shadow projection"};
+                int selectedView = static_cast<int>(debugView);
+                if (ImGui::Combo("Debug View", &selectedView, viewNames, 8))
+                {
+                    debugView = static_cast<DebugView>(selectedView);
+                }
+
+                if (debugView == DebugView::LinearDepth)
+                {
+                    // debugDepthFar: 表示多元的位置映射成白色
+                    ImGui::DragFloat("Depth display far", &debugDepthFar, 0.5f, cameraNear + 0.001f, cameraFar, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                    ImGui::Text("Forward distance: %.3f .. %.3f", cameraNear, std::max(debugDepthFar, cameraNear + 0.001f));
+                }
+                if (debugView == DebugView::Roughness)
+                {
+                    ImGui::TextUnformatted("Shading roughness: clamped to [0.04, 1].");
+                }
+                if (debugView == DebugView::HdrLuminance)
+                {
+                    ImGui::TextUnformatted("log2(Y): [-8, +8], scene-linear, before EV.");
+                }
+
+                ImGui::BeginDisabled(debugView != DebugView::Lit);
 
                 ImGui::SliderFloat("Exposure EV", &exposureEv, -8.0f, 8.0f, "%.2f");
                 const char* mapperNames[] = {"Reinhard", "ACES fitted (Narkowicz)"};
@@ -923,7 +959,7 @@ void TriangleApplication::drawImGui()
                 }
                 ImGui::EndDisabled();
 
-                if (showShadowProjection)
+                if (debugView != DebugView::Lit)
                 {
                     ImGui::TextUnformatted("Data view: exposure and tone mapping bypassed");
                 }

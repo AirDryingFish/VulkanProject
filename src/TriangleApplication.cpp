@@ -315,12 +315,28 @@ void TriangleApplication::drawFrame()
     renderData.frameDescriptorSet = frameDescriptorSets.at(frame.frameIndex);
     renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);
     renderData.imguiDrawData = ImGui::GetDrawData();
+
     renderData.clearColor = clearColor;
+    // 材质、法线、光空间视图：黑色背景
+    // LinearDepth：白色背景，表示没有表面。
+    // HDR luminance：保留正常场景背景和天空。
+    if (isSurfaceDebugView(debugView) || debugView == DebugView::ShadowProjection)
+    {
+        renderData.clearColor = debugView == DebugView::LinearDepth ? glm::vec4(1.0f) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
+
     renderData.directionalShadowsEnabled = directionalShadowsEnabled && directionalLight.enabled;
     renderData.shadowConstantBias = shadowConstantBias;
     renderData.shadowSlopeBias = shadowSlopeBias;
     renderData.showShadowDepth = showShadowDepth;
-    renderData.bypassToneMapping = showShadowProjection;
+
+    renderData.debugView = debugView;
+    renderData.debugDepthNear = cameraNear;
+    renderData.debugDepthFar = std::max(debugDepthFar, cameraNear + 0.001f);
+
+
+    renderData.bypassToneMapping = debugView != DebugView::Lit;
     renderData.sceneId = scenePresetInfo(activeScenePreset).id;
     renderData.exposureEv = exposureEv;
     renderData.toneMapper = toneMapper;

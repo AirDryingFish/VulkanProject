@@ -175,8 +175,11 @@ struct alignas(16) UniformBufferObject
     alignas(16) glm::vec4 ambientLight;
     alignas(16) glm::ivec4 lightCounts;
 
-    // x = IBL intensity
-    // yzw = reserved
+    // renderParams:
+    // x: IBL intensity
+    // y: debug depth near
+    // z: debug depth far
+    // w: reserved
     alignas(16) glm::vec4 renderParams;
 
     GpuPointLight pointLights[MAX_POINT_LIGHTS];
@@ -186,13 +189,17 @@ struct alignas(16) UniformBufferObject
 
     // 光空间矩阵，用颜色显示它的覆盖范围
     alignas(16) glm::mat4 lightViewProjection{1.0f};
+
     // xy: shadow map 单个像素的 UV 尺寸
     // z: 后续使用的深度比较 bias
     // w: 预留
     alignas(16) glm::vec4 shadowParams{};
-    // x: 阴影是否启用，目前为 0
-    // y: 是否显示光空间坐标调试颜色
-    // zw: 预留
+
+    // shadowFlags:
+    // x: shadows enabled
+    // y: shadow projection view
+    // z: PCF enabled
+    // w: DebugView
     alignas(16) glm::ivec4 shadowFlags{};
 };
 

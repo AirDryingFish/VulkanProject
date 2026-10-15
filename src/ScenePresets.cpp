@@ -295,7 +295,9 @@ void TriangleApplication::loadScenePreset(ScenePreset preset)
     iblIntensity = preset == ScenePreset::ShadowPlayground ? 0.0f : 1.0f;
     directionalShadowsEnabled = true;
     shadowPcfEnabled = true;
-    showShadowProjection = showShadowDepth = false;
+    // showShadowProjection = showShadowDepth = false;
+    debugView = DebugView::Lit;
+    showShadowDepth = false;
     shadowConstantBias = 1.25f;
     shadowSlopeBias = 1.75f;
     shadowReceiverBias = 0.0005f;

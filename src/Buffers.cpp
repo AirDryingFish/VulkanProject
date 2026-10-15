@@ -136,7 +136,8 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.cameraPosition = glm::vec4(cameraPos, 1.0f);
     ubo.ambientLight = glm::vec4(ambientLightColor, ambientLightIntensity);
     ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
-    ubo.renderParams = glm::vec4(iblIntensity, 0.0f, 0.0f, 0.0f);
+    ubo.renderParams = glm::vec4(iblIntensity, cameraNear, std::max(debugDepthFar, cameraNear + 0.001f), 0.0f);
+
     // -- 计算方向光方向 --
     glm::vec3 direction = directionalLight.direction;
     float lengthSquared = glm::dot(direction, direction);
@@ -188,14 +189,17 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
         1.0f / static_cast<float>(directionalShadowResolution),
         shadowReceiverBias,
         0.0f);
-    // x: 阴影是否启用，目前为 0
-    // y: 是否显示光空间坐标调试颜色
-    // zw: reserve
+
+    // shadowFlags:
+    // x: shadows enabled
+    // y: shadow projection view
+    // z: PCF enabled
+    // w: DebugView
     ubo.shadowFlags = glm::ivec4(
         (directionalShadowsEnabled && directionalLight.enabled) ? 1 : 0,
-        showShadowProjection ? 1 : 0,
+        debugView == DebugView::ShadowProjection ? 1 : 0,
         shadowPcfEnabled ? 1 : 0,
-        0);
+        static_cast<std::uint32_t>(debugView));
     // ----
 
     for (size_t i = 0; i < std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS); i++)

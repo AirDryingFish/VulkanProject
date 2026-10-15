@@ -269,7 +269,11 @@ private:
     glm::vec4 clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
     std::vector<PointLight> pointLights;
     DirectionalLight directionalLight;
-    bool showShadowProjection = false;
+    // bool showShadowProjection = false;
+
+    DebugView debugView = DebugView::Lit;
+    float debugDepthFar = 50.0f;
+
     bool directionalShadowsEnabled = true;
     bool shadowPcfEnabled = false;
 

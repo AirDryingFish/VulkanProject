@@ -27,7 +27,23 @@ void main()
     vec3 hdr = max(textureLod(hdrScene, fragUv, 0.0).rgb, vec3(0.0));
 
     vec3 displayLinear;
-    if (post.modes.y != 0)
+    // 在 hdrluminance 模式下，把 hdr颜色转换为对数亮度会赌徒
+    if (post.modes.z == 6)
+    {
+        float luminance = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
+        float logMin = post.params.y;
+        float logMax = post.params.z;
+        float logLuminance = log2(max(luminance, 1e-6));
+
+        float gray = clamp(
+            (logLuminance - logMin) / max(logMax - logMin, 1e-4),
+            0.0,
+            1.0
+        );
+
+        displayLinear = vec3(gray);
+    }
+    else if (post.modes.y != 0)
     {
         displayLinear = hdr;
     }

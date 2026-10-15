@@ -34,6 +34,24 @@ enum class ToneMapper : std::uint32_t
     AcesFittedNarkowicz = 1
 };
 
+// -- 主画面的显示内容 --
+enum class DebugView : std::int32_t
+{
+    Lit = 0,
+    Albedo = 1,
+    WorldNormal = 2,
+    Metallic = 3,
+    Roughness = 4,
+    LinearDepth = 5,
+    HdrLuminance = 6,
+    ShadowProjection = 7
+};
+
+inline bool isSurfaceDebugView(DebugView view) noexcept
+{
+    return view >= DebugView::Albedo && view <= DebugView::LinearDepth;
+};
+
 // -- GPU 计时 --
 enum class GpuTimingState
 {
@@ -62,6 +80,10 @@ struct GpuTimingConfig
     bool bypassToneMapping = false;
     float exposureEv = 0.0f;
     ToneMapper toneMapper = ToneMapper::Reinhard;
+
+    DebugView debugView = DebugView::Lit;
+    float debugDepthNear = 0.1f;
+    float debugDepthFar = 50.0f;
 };
 
 struct GpuTimingSnapshot
@@ -232,6 +254,10 @@ struct RenderFrameData
 
     float exposureEv = 0.0f;
     ToneMapper toneMapper = ToneMapper::Reinhard;
+
+    DebugView debugView = DebugView::Lit;
+    float debugDepthNear = 0.1f;
+    float debugDepthFar = 50.0f;
 };
 
 // 本帧应该怎么处理

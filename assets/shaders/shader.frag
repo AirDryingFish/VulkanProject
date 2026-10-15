@@ -376,6 +376,54 @@ void main()
         normal = -normal;
     }
 
+    // Lit = 0,
+    // Albedo = 1,
+    // WorldNormal = 2,
+    // Metallic = 3,
+    // Roughness = 4,
+    // LinearDepth = 5,
+    // HdrLuminance = 6,
+    // ShadowProjection = 7
+    int debugMode = frame.shadowFlags.w;
+    if (debugMode >= 1 && debugMode <= 5)
+    {
+        if (alphaRejected)
+        {
+            discard;
+        }
+
+        vec3 debugColor;
+        if (debugMode == 1)
+        {
+            debugColor = albedo;
+        }
+        else if (debugMode == 2)
+        {
+            debugColor = normal * 0.5 + 0.5;
+        }
+        else if (debugMode == 3)
+        {
+            debugColor = vec3(metallic);
+        }
+        else if (debugMode == 4)
+        {
+            debugColor = vec3(roughness);
+        }
+        else
+        {
+            // 这里相机的坐标系中，相机正方向上深度为负数，取负号得到正深度值
+            float viewDepth = -(frame.view * vec4(fragWorldPos, 1.0)).z;
+            float nearDepth = frame.renderParams.y;
+            float farDepth = frame.renderParams.z;
+
+            float depth01 = clamp((viewDepth - nearDepth) / max(farDepth - nearDepth, 1e-4), 0.0, 1.0);
+
+            debugColor = vec3(depth01);
+        }
+        outColor = vec4(debugColor, 1.0);
+        return;
+    }
+
     vec3 viewDir = normalize(frame.cameraPosition.xyz - fragWorldPos);
     float iblIntensity = max(frame.renderParams.x, 0.0);
     vec3 F0 = vec3(0.04);

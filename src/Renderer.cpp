@@ -707,6 +707,9 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedDraws = {};
     frame.recordedTimingConfig.exposureEv = data.exposureEv;
     frame.recordedTimingConfig.toneMapper = data.toneMapper;
+    frame.recordedTimingConfig.debugView = data.debugView;
+    frame.recordedTimingConfig.debugDepthNear = data.debugDepthNear;
+    frame.recordedTimingConfig.debugDepthFar = data.debugDepthFar;
 
     if (gpuTimingSupported_)
     {
@@ -790,8 +793,9 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     scissor.extent = swapchain_->extent();
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
 
-    // -- 绘制 skybox --
-    if (!data.bypassToneMapping)
+    // -- 绘制 skybox (表面数据视图不绘制) --
+    const bool drawSkybox = data.debugView == DebugView::Lit || data.debugView == DebugView::HdrLuminance;
+    if (drawSkybox)
     {
         vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
 
@@ -918,12 +922,16 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     );
 
     // params.x: exposure EV
+    // params.y/z: 固定亮度显示范围：log2(Y) ∈ [-8, +8]
     // modes.x: ToneMapper
     // modes.y: bypass exposure and tone mapping
     PostPushConstants post{};
     post.params.x = data.exposureEv;
+    post.params.y = -8.0f;
+    post.params.z = 8.0f;
     post.modes.x = static_cast<std::uint32_t>(data.toneMapper);
     post.modes.y = data.bypassToneMapping ? 1 : 0;
+    post.modes.z = static_cast<std::int32_t>(data.debugView);
     vkCmdPushConstants(token.commandBuffer, postPipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(sizeof(PostPushConstants)), &post);
     vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);
     // ----
