@@ -27,6 +27,13 @@ inline constexpr std::uint32_t gpuPassCount = static_cast<std::uint32_t>(GpuPass
 inline constexpr std::uint32_t gpuTimestampQueryCount = gpuPassCount * 2;
 // ----
 
+// -- 定义曝光和 tone mapper --
+enum class ToneMapper : std::uint32_t
+{
+    Reinhard = 0,
+    AcesFittedNarkowicz = 1
+};
+
 // -- GPU 计时 --
 enum class GpuTimingState
 {
@@ -53,6 +60,8 @@ struct GpuTimingConfig
     bool shadowPreview = false;
     bool uiDrawn = false;
     bool bypassToneMapping = false;
+    float exposureEv = 0.0f;
+    ToneMapper toneMapper = ToneMapper::Reinhard;
 };
 
 struct GpuTimingSnapshot
@@ -220,6 +229,9 @@ struct RenderFrameData
     std::string sceneId;
 
     bool bypassToneMapping = false;
+
+    float exposureEv = 0.0f;
+    ToneMapper toneMapper = ToneMapper::Reinhard;
 };
 
 // 本帧应该怎么处理

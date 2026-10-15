@@ -341,4 +341,7 @@ private:
     VmaTotalStatistics cachedVmaStatistics{};
     bool hasVmaStatistics = false;
     std::string vmaStatisticsSceneId;
+
+    float exposureEv = 0.0f;
+    ToneMapper toneMapper = ToneMapper::Reinhard;
 };

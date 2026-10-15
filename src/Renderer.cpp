@@ -705,6 +705,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.uiDrawn = data.imguiDrawData != nullptr;
     frame.recordedTimingConfig.bypassToneMapping = data.bypassToneMapping;
     frame.recordedDraws = {};
+    frame.recordedTimingConfig.exposureEv = data.exposureEv;
+    frame.recordedTimingConfig.toneMapper = data.toneMapper;
 
     if (gpuTimingSupported_)
     {
@@ -915,7 +917,12 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         nullptr
     );
 
+    // params.x: exposure EV
+    // modes.x: ToneMapper
+    // modes.y: bypass exposure and tone mapping
     PostPushConstants post{};
+    post.params.x = data.exposureEv;
+    post.modes.x = static_cast<std::uint32_t>(data.toneMapper);
     post.modes.y = data.bypassToneMapping ? 1 : 0;
     vkCmdPushConstants(token.commandBuffer, postPipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(sizeof(PostPushConstants)), &post);
     vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);

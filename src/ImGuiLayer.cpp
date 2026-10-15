@@ -810,6 +810,10 @@ void TriangleApplication::drawImGui()
                             break;
                         }
                     }
+                    ImGui::Text("Captured EV: %.2f | Tone mapper: %s",
+                        gpu.config.exposureEv,
+                        gpu.config.toneMapper == ToneMapper::Reinhard ? "Reinhard" : "ACES fitted (Narkowicz)"
+                    );
                 }
                 // ----
 
@@ -896,6 +900,34 @@ void TriangleApplication::drawImGui()
 
                 ImGui::PopItemWidth();
                 ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Display"))
+            {
+                ImGui::BeginDisabled(showShadowProjection);
+
+                ImGui::SliderFloat("Exposure EV", &exposureEv, -8.0f, 8.0f, "%.2f");
+                const char* mapperNames[] = {"Reinhard", "ACES fitted (Narkowicz)"};
+                int selectedMapper = static_cast<int>(toneMapper);
+
+                // 下拉框
+                if (ImGui::Combo("Tone mapper", &selectedMapper, mapperNames, 2))
+                {
+                    toneMapper = static_cast<ToneMapper>(selectedMapper);
+                }
+                if (ImGui::Button("Reset display"))
+                {
+                    exposureEv = 0.0f;
+                    toneMapper = ToneMapper::Reinhard;
+                }
+                ImGui::EndDisabled();
+
+                if (showShadowProjection)
+                {
+                    ImGui::TextUnformatted("Data view: exposure and tone mapping bypassed");
+                }
+
                 ImGui::EndTabItem();
             }
 

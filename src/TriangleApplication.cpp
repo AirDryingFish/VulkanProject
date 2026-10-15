@@ -322,6 +322,8 @@ void TriangleApplication::drawFrame()
     renderData.showShadowDepth = showShadowDepth;
     renderData.bypassToneMapping = showShadowProjection;
     renderData.sceneId = scenePresetInfo(activeScenePreset).id;
+    renderData.exposureEv = exposureEv;
+    renderData.toneMapper = toneMapper;
 
     const auto updateEnd = CpuClock::now();
 
