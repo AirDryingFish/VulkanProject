@@ -1,5 +1,8 @@
 # 阶段 2：拆分 TriangleApplication 实施指南
 
+> 历史路径说明：本文保留对应阶段的手敲过程，平铺的 `src/` 路径属于整理前结构。
+> 当前目录见 [README · 源码目录](../../README.md#源码目录)；阅读当前主线时请按新目录定位，不要重复新增已存在的类型或文件。
+
 本文对应[开发路线图](overview.md)中的“阶段 2：拆分 TriangleApplication”。本文基于
 2026-08-07、提交 `4979e0b` 之后的项目结构编写，默认阶段 1 的 Buffer、Image、临时
 ShaderModule RAII、可靠 Cleanup 和 Frame 延迟销毁已经存在。

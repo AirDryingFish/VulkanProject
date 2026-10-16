@@ -1,4 +1,4 @@
-#include "TriangleApplication.hpp"
+#include "app/TriangleApplication.hpp"
 
 #include <cstdlib>
 #include <charconv>

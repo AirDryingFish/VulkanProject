@@ -153,9 +153,9 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 
 | 位置 | 要处理的内容 |
 |---|---|
-| [TriangleApplication.cpp](../../src/TriangleApplication.cpp)、[AppConfig.hpp](../../src/AppConfig.hpp) | 版本请求与必选/可选扩展策略，替换分散的硬编码 |
-| [VulkanContext.hpp](../../src/VulkanContext.hpp)、[VulkanContext.cpp](../../src/VulkanContext.cpp) | Loader/设备协商、Features2、核心/扩展入口、能力记录与 VMA 配置 |
-| [ImGuiLayer.cpp](../../src/ImGuiLayer.cpp) | 统一 API 版本；第三组迁移时再配置 Dynamic Rendering 模式与附件格式 |
+| [TriangleApplication.cpp](../../src/app/TriangleApplication.cpp)、[AppConfig.hpp](../../src/core/AppConfig.hpp) | 版本请求与必选/可选扩展策略，替换分散的硬编码 |
+| [VulkanContext.hpp](../../src/vulkan/VulkanContext.hpp)、[VulkanContext.cpp](../../src/vulkan/VulkanContext.cpp) | Loader/设备协商、Features2、核心/扩展入口、能力记录与 VMA 配置 |
+| [ImGuiLayer.cpp](../../src/ui/ImGuiLayer.cpp) | 统一 API 版本；第三组迁移时再配置 Dynamic Rendering 模式与附件格式 |
 | [compile-shaders.bat](../../scripts/compile-shaders.bat)、[compile-shaders.sh](../../scripts/compile-shaders.sh) | 明确编译目标；新增 shader 能力不能超出选定设备路径的支持范围 |
 
 完成标准：
@@ -186,7 +186,7 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 - [ ] 上传、Shadow/HDR/Post、resize、场景切换与退出经过运行检查；开启可用的同步验证检查。
 - [ ] GPU 时间统计仍有效；先比较迁移前后的正确性，不预设更换 API 本身会带来加速。
 
-主要修改入口是 [UploadCommands.cpp](../../src/UploadCommands.cpp)、[Renderer.cpp](../../src/Renderer.cpp)
+主要修改入口是 [UploadCommands.cpp](../../src/vulkan/UploadCommands.cpp)、[Renderer.cpp](../../src/render/Renderer.cpp)
 及具体 Pass。Synchronization2 不自动推导同步，也不要求同时实现 Timeline Semaphore 或异步队列。
 迁移规则参考 [Khronos Synchronization2](https://docs.vulkan.org/guide/latest/extensions/VK_KHR_synchronization2.html)。
 
@@ -210,7 +210,7 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 - [ ] Resize、最小化恢复与资源释放有效；新增 CSM/Deferred 默认沿用本组附件与同步约定。
 - [ ] 记录暂留的旧式 Pass 或兼容路径，迁移中没有提前销毁仍被使用的对象。
 
-主要修改入口为 [GraphicsPipeline.cpp](../../src/GraphicsPipeline.cpp)、[PostProcessing.cpp](../../src/PostProcessing.cpp)
+主要修改入口为 [GraphicsPipeline.cpp](../../src/render/GraphicsPipeline.cpp)、[PostProcessing.cpp](../../src/render/PostProcessing.cpp)
 以及 Renderer/ImGuiLayer。Dynamic Rendering 仍需要显式同步和 layout 管理；参考
 [Khronos 示例](https://docs.vulkan.org/samples/latest/samples/extensions/dynamic_rendering/README.html)。
 

@@ -1,5 +1,8 @@
 # 阶段 6：方向光与阴影实施指南
 
+> 历史路径说明：本文保留对应阶段的手敲过程，平铺的 `src/` 路径属于整理前结构。
+> 当前目录见 [README · 源码目录](../../README.md#源码目录)；阅读当前主线时请按新目录定位，不要重复新增已存在的类型或文件。
+
 本文对应 [开发路线图](overview.md) 的 Stage 6。目标是在现有点光源、IBL 和 glTF 静态 PBR 场景上增加一盏方向光，以及一套可调试、无跨帧资源冲突的 shadow map。
 
 评估日期：2026-09-14。Stage 5 功能基线：`39416b0`（`Complete gltf upload and display`）；Linux loader 修复基线：`5ccc85c`（`Fix link error`）。本文是后续手敲指南，文中的 Stage 6 新接口、字段和 shader 尚未实现。

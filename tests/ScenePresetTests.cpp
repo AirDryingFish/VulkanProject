@@ -1,5 +1,5 @@
-#include "GltfLoader.hpp"
-#include "ScenePresets.hpp"
+#include "assets/GltfLoader.hpp"
+#include "scene/ScenePresets.hpp"
 
 #include <cstdint>
 #include <exception>

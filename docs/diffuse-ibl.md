@@ -57,12 +57,12 @@ createBRDFLUTResources();
 ```
 
 `createIrradianceResources()`、`createPrefilterResources()` 和
-`createBRDFLUTResources()` 都位于 `src/IBL.cpp`。三项预计算只在 Vulkan
+`createBRDFLUTResources()` 都位于 `src/app/IBL.cpp`。三项预计算只在 Vulkan
 初始化阶段执行一次，不在每帧 command buffer 中执行。
 
 ## Irradiance 资源
 
-`src/IBL.cpp` 中创建了一张 32x32 的 cubemap：
+`src/app/IBL.cpp` 中创建了一张 32x32 的 cubemap：
 
 ```cpp
 constexpr uint32_t irradianceDimension = 32;

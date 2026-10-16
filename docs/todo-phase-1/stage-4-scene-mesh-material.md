@@ -1,5 +1,8 @@
 # 阶段 4：Scene、Mesh 与 Material 解耦实施指南
 
+> 历史路径说明：本文保留对应阶段的手敲过程，平铺的 `src/` 路径属于整理前结构。
+> 当前目录见 [README · 源码目录](../../README.md#源码目录)；阅读当前主线时请按新目录定位，不要重复新增已存在的类型或文件。
+
 本文对应[开发路线图中的阶段 4](overview.md#阶段-4scenemesh-与-material-解耦)。评估基线为
 2026-08-21 的 `ba561eb Clarify dynamic viewport state`。
 

@@ -69,11 +69,11 @@ find_package(fastgltf CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 
 add_library(gltf_import STATIC
-    src/GltfLoader.cpp
-    src/GltfImportTypes.hpp
-    src/GltfLoader.hpp
-    src/ImageDecode.hpp
-    src/ImageDecode.cpp
+    src/assets/GltfLoader.cpp
+    src/assets/GltfImportTypes.hpp
+    src/assets/GltfLoader.hpp
+    src/assets/ImageDecode.hpp
+    src/assets/ImageDecode.cpp
 )
 
 target_include_directories(gltf_import PUBLIC
@@ -99,31 +99,65 @@ target_link_libraries(gltf_inspect PRIVATE
 
 add_executable(vulkan
     main.cpp
-    src/Buffers.cpp
-    src/Camera.cpp
-    src/DebugUtils.cpp
-    src/Descriptors.cpp
-    src/GraphicsPipeline.cpp
-    src/IBL.cpp
-    src/ImageResources.cpp
-    src/Model.cpp
-    src/Picking.cpp
-    src/TriangleApplication.cpp
-    src/ThirdPartyImplementations.cpp
-    src/ImGuiLayer.cpp
-    src/FileDialog.cpp
-    src/Skybox.cpp
-    src/VulkanResources.cpp
-    src/VulkanContext.cpp
-    src/Swapchain.cpp
-    src/Renderer.cpp
-    src/PostProcessing.cpp
-    src/FileUtils.cpp
-    src/UploadCommands.cpp
-    src/Mesh.hpp
-    src/ShadowMapping.cpp
-    src/ScenePresets.cpp
-    src/ScenePresets.hpp
+
+    # Application orchestration and resource initialization
+    src/app/TriangleApplication.hpp
+    src/app/TriangleApplication.cpp
+    src/app/Camera.cpp
+    src/app/Picking.cpp
+    src/app/Buffers.cpp
+    src/app/Descriptors.cpp
+    src/app/ImageResources.cpp
+    src/app/IBL.cpp
+    src/app/Skybox.cpp
+    src/app/Model.cpp
+    src/app/ScenePresets.cpp
+
+    # Scene data and preset registry
+    src/scene/Mesh.hpp
+    src/scene/Material.hpp
+    src/scene/SceneTypes.hpp
+    src/scene/ScenePresets.hpp
+
+    # Frame recording and render passes
+    src/render/Renderer.hpp
+    src/render/Renderer.cpp
+    src/render/RenderTypes.hpp
+    src/render/GraphicsPipeline.cpp
+    src/render/ShadowMapping.cpp
+    src/render/PostProcessing.cpp
+
+    # Vulkan backend and resource lifetime
+    src/vulkan/VulkanContext.hpp
+    src/vulkan/VulkanContext.cpp
+    src/vulkan/VulkanHeaders.hpp
+    src/vulkan/VulkanTypes.hpp
+    src/vulkan/VulkanResources.hpp
+    src/vulkan/VulkanResources.cpp
+    src/vulkan/VulkanCheck.hpp
+    src/vulkan/Swapchain.hpp
+    src/vulkan/Swapchain.cpp
+    src/vulkan/UploadCommands.hpp
+    src/vulkan/UploadCommands.cpp
+    src/vulkan/DebugUtils.hpp
+    src/vulkan/DebugUtils.cpp
+    src/vulkan/ThirdPartyImplementations.cpp
+
+    # Editor and diagnostics UI
+    src/ui/ImGuiLayer.cpp
+    src/ui/Diagnostics.cpp
+    src/ui/FileDialog.hpp
+    src/ui/FileDialog.cpp
+
+    # Timing and baseline capture
+    src/diagnostics/GpuBaselineCapture.hpp
+    src/diagnostics/CpuTiming.hpp
+
+    # Configuration and shared utilities
+    src/core/AppConfig.hpp
+    src/core/DeletionQueue.hpp
+    src/core/FileUtils.hpp
+    src/core/FileUtils.cpp
 )
 
 target_include_directories(vulkan PRIVATE

@@ -60,6 +60,14 @@ VulkanProject/
 │   ├── compile-shaders.sh
 │   └── run-macos.sh
 ├── src/
+│   ├── app/             # 应用流程与 TriangleApplication 的实现
+│   ├── scene/           # 场景、网格、材质与预设数据类型
+│   ├── render/          # Renderer、管线与渲染 pass
+│   ├── vulkan/          # Vulkan 上下文、交换链与 GPU 资源封装
+│   ├── assets/          # glTF 解析和图片解码源码
+│   ├── ui/              # ImGui、Diagnostics 展示与文件对话框
+│   ├── diagnostics/     # CPU 计时和基线采样工具
+│   └── core/            # 应用配置、文件工具与延迟清理
 ├── CMakeLists.txt
 ├── CMakePresets.json
 └── vcpkg.json
@@ -67,6 +75,44 @@ VulkanProject/
 
 构建目录统一位于 `build/<preset>/`，不会提交到 Git。CMake 每次链接后会把
 `assets/` 复制到当前构建目录，程序因此不依赖终端的当前工作目录。
+
+## 源码目录
+
+源码按职责分为八组，主要入口如下：
+
+| 目录 | 职责与入口 |
+| --- | --- |
+| `src/app/` | `TriangleApplication` 的主循环、相机、拾取、场景构建与资源准备；`ScenePresets.cpp` 在这里实现应用成员函数。 |
+| `src/scene/` | `Mesh`、`Material`、`SceneObject` 等场景数据，以及 `ScenePresets.hpp` 中的预设声明。 |
+| `src/render/` | `Renderer`、`RenderTypes`、图形管线、方向光阴影和 HDR 后处理。 |
+| `src/vulkan/` | `VulkanContext`、`Swapchain`、GPU 资源 RAII、上传命令、检查与调试工具，以及 `ThirdPartyImplementations.cpp`。 |
+| `src/assets/` | `GltfLoader`、`GltfImportTypes` 和 `ImageDecode`，负责资产解析与图片解码。 |
+| `src/ui/` | `ImGuiLayer.cpp`、`Diagnostics.cpp` 和 `FileDialog`，负责界面展示与交互。 |
+| `src/diagnostics/` | `CpuTiming.hpp` 与 `GpuBaselineCapture.hpp`，负责计时辅助和基线样本处理。 |
+| `src/core/` | `AppConfig.hpp`、`FileUtils` 与 `DeletionQueue` 等公共配置和工具。 |
+
+目录划分沿用当前类的所有权。`TriangleApplication` 仍持有窗口、相机、场景与资产库、
+应用 descriptor/UBO 和 IBL 资源；`app/` 中的 `Buffers.cpp`、`Descriptors.cpp`、
+`ImageResources.cpp`、`IBL.cpp`、`Skybox.cpp`、`Model.cpp` 与 `ScenePresets.cpp`
+仍实现它的成员函数。`ui/` 中的界面成员函数也由应用持有状态。
+`VulkanContext` 管理 instance、device、queues 和 VMA allocator；`Swapchain`
+管理交换链及关联资源；`Renderer` 借用这两个对象，管理飞行帧、渲染目标、管线、
+GPU query 和命令录制。移动文件不改变这些生命周期边界。
+
+项目源码头文件的 include 搜索根为 `src/`，不逐个添加子目录。include 使用模块前缀：
+
+```cpp
+#include "app/TriangleApplication.hpp"
+#include "render/Renderer.hpp"
+#include "assets/GltfLoader.hpp"
+```
+
+CMake 生成的 `BuildConfig.hpp` 位于 `build/<preset>/generated/`，该生成目录单独
+作为 include 路径，继续写 `#include "BuildConfig.hpp"`。
+
+`src/assets/` 存放资产处理的 C++ 源码；项目根的 `assets/` 存放模型、纹理、
+GLSL 和 SPIR-V 等运行数据，并由构建步骤复制到 `build/<preset>/assets/`。
+历史手敲教程保留当时的平铺路径；在当前主线定位文件时，以本节的目录分组为准。
 
 ## 从零开始：Linux（Ubuntu/Debian x86_64）
 
@@ -300,7 +346,7 @@ Windows：
 - 纹理、HDR、DDS、KTX 放在 `assets/textures/`，由 `.gitattributes` 自动交给
   Git LFS；新增资源后用 `git lfs ls-files` 确认。
 - GLSL 和 SPIR-V 放在 `assets/shaders/`，编译脚本不放入资源目录。
-- 源码只通过 `AppConfig.hpp` 中的命名路径访问内置资源，不新增 `../assets`、
+- 源码只通过 `src/core/AppConfig.hpp` 中的命名路径访问内置资源，不新增 `../assets`、
   `../textures` 等相对路径。
 - 外部 OBJ 导入仍允许用户在 ImGui 中输入任意路径。
 - 当前材质没有 AO 图片时会使用白色 fallback，不会阻止程序启动。
@@ -310,8 +356,8 @@ Windows：
 - 平台、验证层、版本号和构建资源根由 CMake 生成到 `BuildConfig.hpp`。
 - Debug preset 默认开启 Validation Layers，Release 默认关闭。
 - GLM 宏是 target 级 compile definitions。
-- VMA/stb 的 implementation 宏只允许出现在
-  `src/ThirdPartyImplementations.cpp`。
+- `VMA_IMPLEMENTATION` 集中在 `src/vulkan/ThirdPartyImplementations.cpp`；
+  `STB_IMAGE_IMPLEMENTATION` 集中在 `src/assets/ImageDecode.cpp`，各自只定义一次。
 - 不在业务源码里直接新增 `_WIN32`、`__APPLE__` 或 `NDEBUG` 判断。
 
 完整规则参见 `docs/configuration.md`。

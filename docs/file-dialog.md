@@ -4,7 +4,7 @@ The glTF import panel offers `Browse and Import...` as well as manual path entry
 Choosing a file imports it immediately. Cancel leaves the scene unchanged; dialog
 and import errors appear in the existing glTF error display.
 
-`src/FileDialog.hpp` is the application-facing boundary. `openGltf()` returns a
+`src/ui/FileDialog.hpp` is the application-facing boundary. `openGltf()` returns a
 UTF-8 path, `std::nullopt` for cancellation, or throws for a dialog error. It must
 be called on the UI/main thread after GLFW initialization. The implementation
 owns native dialog initialization and allocated path memory through RAII.

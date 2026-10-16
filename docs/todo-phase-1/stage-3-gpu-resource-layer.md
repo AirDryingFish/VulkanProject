@@ -1,5 +1,8 @@
 # 阶段 3：通用 GPU 资源层实施指南
 
+> 历史路径说明：本文保留对应阶段的手敲过程，平铺的 `src/` 路径属于整理前结构。
+> 当前目录见 [README · 源码目录](../../README.md#源码目录)；阅读当前主线时请按新目录定位，不要重复新增已存在的类型或文件。
+
 本文对应[总览中的阶段 3](overview.md#阶段-3通用-gpu-资源层)。评估基线为 2026-08-17 的当前工作树，最近提交为 `1754cd0 Encapsulate swapchain core rebuild`。
 
 阶段 1 已建立 move-only RAII 资源和幂等清理，阶段 2 已把 `VulkanContext`、`Swapchain` 与 `Renderer` 的主要职责从 `TriangleApplication` 中拆出。阶段 3 不继续扩大模块拆分，而是在现有边界上统一“资源是什么、如何创建、如何上传、由谁释放”。

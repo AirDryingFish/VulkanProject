@@ -29,11 +29,12 @@ GLM integration macros are target-wide compile definitions in `CMakeLists.txt`.
 This guarantees every translation unit sees the same angle, depth-range, and
 experimental-feature settings.
 
-Header-only libraries that require one implementation translation unit are
-centralized in `src/ThirdPartyImplementations.cpp`:
+Header-only libraries that require one implementation translation unit each
+have a single definition in their owning module:
 
-- `VMA_IMPLEMENTATION`
-- `STB_IMAGE_IMPLEMENTATION`
+- `VMA_IMPLEMENTATION`: `src/vulkan/ThirdPartyImplementations.cpp`.
+- `STB_IMAGE_IMPLEMENTATION`: `src/assets/ImageDecode.cpp`, shared through the
+  `gltf_import` target.
 
 TinyObjLoader is linked through its vcpkg CMake target, so the project must not
 define `TINYOBJLOADER_IMPLEMENTATION` itself.
@@ -43,5 +44,6 @@ define `TINYOBJLOADER_IMPLEMENTATION` itself.
 1. Prefer a typed `constexpr` value for application behavior.
 2. Use a CMake option plus generated config value for build-time features.
 3. Use target compile definitions for dependency integration requirements.
-4. Keep third-party implementation macros in `ThirdPartyImplementations.cpp`.
+4. Define each third-party implementation macro in one translation unit in its
+   owning module, and share that implementation through its CMake target.
 5. Do not add direct `_WIN32`, `__APPLE__`, or `NDEBUG` checks to feature code.

@@ -1,4 +1,4 @@
-#include "GltfLoader.hpp"
+#include "assets/GltfLoader.hpp"
 
 #include <glm/geometric.hpp>
 
