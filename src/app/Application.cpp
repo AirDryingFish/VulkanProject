@@ -1,4 +1,5 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
+#include <GLFW/glfw3.h>
 #include "vulkan/DebugUtils.hpp"
 #include "diagnostics/CpuTiming.hpp"
 
@@ -18,27 +19,28 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-void TriangleApplication::run(ScenePreset initialScene, std::uint32_t requestedFrameLimit)
+void Application::run(ScenePreset initialScene, std::uint32_t requestedFrameLimit)
 {
+    if (cleanedUp || window != nullptr)
+        throw std::logic_error("Application can only run once");
     const std::string unavailable = scenePresetUnavailableReason(initialScene);
     if (!unavailable.empty())
         throw std::runtime_error(unavailable);
-    activeScenePreset = selectedScenePreset = initialScene;
+    activeScenePreset = editor.selectedScenePreset = initialScene;
     frameLimit = requestedFrameLimit;
     renderedFrameCount = 0;
-    latestCpuTiming = {};
-    gpuBaseline = {};
-    baselineStartRequested = false;
-    std::snprintf(importModelPath, sizeof(importModelPath), "%s", MODEL_PATH.c_str());
-    InitWindow();
-    InitVulkan();
-    MainLoop();
+    diagnostics.latestCpuTiming = {};
+    diagnostics.baseline = {};
+    diagnostics.startRequested = false;
+    std::snprintf(editor.importModelPath, sizeof(editor.importModelPath), "%s", MODEL_PATH.c_str());
+    initializeWindow();
+    initializeRendering();
+    mainLoop();
     cleanup();
 }
 
-void TriangleApplication::InitWindow()
+void Application::initializeWindow()
 {
-    // glfwInit();
     if (glfwInit() != GLFW_TRUE)
     {
         throw std::runtime_error("failed to initialize GLFW");
@@ -60,7 +62,7 @@ void TriangleApplication::InitWindow()
     glfwSetScrollCallback(window, scrollCallback);
 }
 
-void TriangleApplication::InitVulkan()
+void Application::initializeRendering()
 {
     VulkanContextConfig contextConfig{};
     contextConfig.applicationName = "VulkanProject";
@@ -82,11 +84,7 @@ void TriangleApplication::InitVulkan()
     builtinMaterialCount = materialLibrary.size();
     for (const auto& material : materialLibrary)
         builtinMaterialDefaults.push_back(*material);
-    createSkyboxImage();
-    createSkyboxSampler();
-    createIrradianceResources();
-    createPrefilterResources();
-    createBRDFLUTResources();
+    environment.initialize(context, renderer);
 
     createUniformBuffer();
 
@@ -100,12 +98,12 @@ void TriangleApplication::InitVulkan()
     rendererReady = true;
 }
 
-TriangleApplication::~TriangleApplication() noexcept
+Application::~Application() noexcept
 {
     cleanup();
 }
 
-void TriangleApplication::MainLoop()
+void Application::mainLoop()
 {
     while (!glfwWindowShouldClose(window))
     {
@@ -114,7 +112,7 @@ void TriangleApplication::MainLoop()
     }
 }
 
-void TriangleApplication::cleanup() noexcept
+void Application::cleanup() noexcept
 {
     if (cleanedUp)
     {
@@ -139,17 +137,13 @@ void TriangleApplication::cleanup() noexcept
 
     uniformBufferMapped.clear();
     uniformBuffers.clear();
-    sceneObjects.clear();
+    scene.objects.clear();
     meshCache.clear();
     materialLibrary.clear();
     defaultMaterial.reset();
     defaultGltfMaterial.reset();
     builtinMaterialDefaults.clear();
 
-    brdfLUTSampler.reset();
-    prefilterSampler.reset();
-    irradianceSampler.reset();
-    skyboxSampler.reset();
     defaultTextureSampler.reset();
     samplerLibrary.clear();
 
@@ -162,10 +156,7 @@ void TriangleApplication::cleanup() noexcept
     textureLibrary.clear();
     gltfImageCache.clear();
 
-    skyboxImage.reset();
-    irradianceImage.reset();
-    prefilterImage.reset();
-    brdfLUTImage.reset();
+    environment.shutdown();
 
     swapchain.destroyFramebuffers();
 
@@ -187,7 +178,7 @@ void TriangleApplication::cleanup() noexcept
     }
 }
 
-void TriangleApplication::recreateSwapChain()
+void Application::recreateSwapchain()
 {
     framebufferResized = true;
 
@@ -219,14 +210,14 @@ void TriangleApplication::recreateSwapChain()
     framebufferResized = false;
 }
 
-void TriangleApplication::framebufferResizeCallback(GLFWwindow *window, int width, int height)
+void Application::framebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
-    auto app = reinterpret_cast<TriangleApplication *>(glfwGetWindowUserPointer(window));
+    auto app = reinterpret_cast<Application *>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
 }
 
 
-void TriangleApplication::drawFrame()
+void Application::drawFrame()
 {
     if (!rendererReady || renderer.hasActiveFrame())
     {
@@ -240,24 +231,24 @@ void TriangleApplication::drawFrame()
 
     if (width == 0 || height == 0)
     {
-        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
-        baselineStartRequested = false;
+        diagnostics.baseline.cancel("Capture cancelled: window or scene changed.");
+        diagnostics.startRequested = false;
         return;
     }
 
     if (framebufferResized)
     {
-        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
-        baselineStartRequested = false;
-        recreateSwapChain();
+        diagnostics.baseline.cancel("Capture cancelled: window or scene changed.");
+        diagnostics.startRequested = false;
+        recreateSwapchain();
         return;
     }
 
     // 请求切换场景时立即结束采集，包括重新加载同一场景的请求
     if (pendingScenePreset.has_value())
     {
-        gpuBaseline.cancel("Capture cancelled: scene changed.");
-        baselineStartRequested = false;
+        diagnostics.baseline.cancel("Capture cancelled: scene changed.");
+        diagnostics.startRequested = false;
     }
 
     // UI queues changes; retire the old scene before acquiring an active frame.
@@ -266,7 +257,7 @@ void TriangleApplication::drawFrame()
     const BeginFrameResult beginResult = renderer.beginFrame();
 
     // 每次 beginFrame后消费一次 GPU 快照
-    gpuBaseline.consume(renderer.gpuTimingSnapshot());
+    diagnostics.baseline.consume(renderer.gpuTimingSnapshot());
 
     if (beginResult.status == FrameStatus::Skip)
     {
@@ -275,9 +266,9 @@ void TriangleApplication::drawFrame()
 
     if (beginResult.status == FrameStatus::RecreateSwapchain)
     {
-        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
-        baselineStartRequested = false;
-        recreateSwapChain();
+        diagnostics.baseline.cancel("Capture cancelled: window or scene changed.");
+        diagnostics.startRequested = false;
+        recreateSwapchain();
         return;
     }
 
@@ -291,7 +282,7 @@ void TriangleApplication::drawFrame()
     const auto updateBegin = CpuClock::now();
 
     // 应用层更新
-    processCameraInput(deltaTime);
+    cameraController.update(camera, window, deltaTime);
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -302,9 +293,9 @@ void TriangleApplication::drawFrame()
     ImGui::Render();
 
     std::vector<RenderObjectView> renderObjects;
-    renderObjects.reserve(sceneObjects.size());
+    renderObjects.reserve(scene.objects.size());
 
-    for (const SceneObject& object : sceneObjects)
+    for (const SceneObject& object : scene.objects)
     {
         if (!object.mesh || !object.mesh->valid() || !object.material || object.material->descriptorSet == VK_NULL_HANDLE)
         {
@@ -318,7 +309,7 @@ void TriangleApplication::drawFrame()
         view.indexBuffer = mesh.indexBuffer.get();
         view.indexCount = mesh.indexCount;
         view.doubleSided = material.doubleSided;
-        view.pushConstants.model = getObjectMatrix(object);
+        view.pushConstants.model = object.modelMatrix();
         view.pushConstants.baseColorFactor = material.baseColorFactor;
         view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.occlusionStrength, material.normalScale);
         view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, material.alphaCutoff);
@@ -335,30 +326,30 @@ void TriangleApplication::drawFrame()
     renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);
     renderData.imguiDrawData = ImGui::GetDrawData();
 
-    renderData.clearColor = clearColor;
+    renderData.clearColor = display.clearColor;
     // 材质、法线、光空间视图：黑色背景
     // LinearDepth：白色背景，表示没有表面。
     // HDR luminance：保留正常场景背景和天空。
-    if (isSurfaceDebugView(debugView) || debugView == DebugView::ShadowProjection)
+    if (isSurfaceDebugView(display.debugView) || display.debugView == DebugView::ShadowProjection)
     {
-        renderData.clearColor = debugView == DebugView::LinearDepth ? glm::vec4(1.0f) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        renderData.clearColor = display.debugView == DebugView::LinearDepth ? glm::vec4(1.0f) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
 
-    renderData.directionalShadowsEnabled = directionalShadowsEnabled && directionalLight.enabled;
-    renderData.shadowConstantBias = shadowConstantBias;
-    renderData.shadowSlopeBias = shadowSlopeBias;
-    renderData.showShadowDepth = showShadowDepth;
+    renderData.directionalShadowsEnabled = shadows.enabled && scene.directionalLight.enabled;
+    renderData.shadowConstantBias = shadows.constantBias;
+    renderData.shadowSlopeBias = shadows.slopeBias;
+    renderData.showShadowDepth = shadows.showDepth;
 
-    renderData.debugView = debugView;
-    renderData.debugDepthNear = cameraNear;
-    renderData.debugDepthFar = std::max(debugDepthFar, cameraNear + 0.001f);
+    renderData.debugView = display.debugView;
+    renderData.debugDepthNear = camera.nearPlane;
+    renderData.debugDepthFar = std::max(display.debugDepthFar, camera.nearPlane + 0.001f);
 
 
-    renderData.bypassToneMapping = debugView != DebugView::Lit;
+    renderData.bypassToneMapping = display.debugView != DebugView::Lit;
     renderData.sceneId = scenePresetInfo(activeScenePreset).id;
-    renderData.exposureEv = exposureEv;
-    renderData.toneMapper = toneMapper;
+    renderData.exposureEv = display.exposureEv;
+    renderData.toneMapper = display.toneMapper;
 
     const auto updateEnd = CpuClock::now();
 
@@ -369,22 +360,22 @@ void TriangleApplication::drawFrame()
     // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
     const FrameStatus endStatus = renderer.endFrame(frame);
 
-    latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd), cpuElapsedMs(recordBegin, recordEnd)};
+    diagnostics.latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd), cpuElapsedMs(recordBegin, recordEnd)};
 
-    if (baselineStartRequested)
+    if (diagnostics.startRequested)
     {
-        baselineStartRequested = false;
+        diagnostics.startRequested = false;
 
         if (endStatus == FrameStatus::Ready && !framebufferResized)
         {
-            gpuBaseline.start(
-                latestCpuTiming.renderer.submissionId,
-                latestCpuTiming.renderer.config
+            diagnostics.baseline.start(
+                diagnostics.latestCpuTiming.renderer.submissionId,
+                diagnostics.latestCpuTiming.renderer.config
             );
         }
     }
 
-    gpuBaseline.rememberCpu(latestCpuTiming);
+    diagnostics.baseline.rememberCpu(diagnostics.latestCpuTiming);
 
     ++renderedFrameCount;
     if (frameLimit != 0 && renderedFrameCount >= frameLimit)
@@ -392,8 +383,15 @@ void TriangleApplication::drawFrame()
 
     if (endStatus == FrameStatus::RecreateSwapchain || framebufferResized)
     {
-        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
-        baselineStartRequested = false;
-        recreateSwapChain();
+        diagnostics.baseline.cancel("Capture cancelled: window or scene changed.");
+        diagnostics.startRequested = false;
+        recreateSwapchain();
     }
+}
+
+void Application::scrollCallback(GLFWwindow* window, double, double yoffset)
+{
+    auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    if (app != nullptr)
+        app->cameraController.addScroll(yoffset);
 }

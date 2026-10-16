@@ -1,4 +1,4 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
 #include "vulkan/VulkanResources.hpp"
 #include "vulkan/UploadCommands.hpp"
 #include <stb_image.h>
@@ -35,7 +35,7 @@ VkSamplerAddressMode toSamplerAddressMode(
 }
 }
 
-DecodedImageData TriangleApplication::decodeTextureImageFromFileOrFallback(const std::string &path, const std::array<unsigned char, 4> &fallbackPixel)
+DecodedImageData Application::decodeTextureImageFromFileOrFallback(const std::string &path, const std::array<unsigned char, 4> &fallbackPixel)
 {
     DecodedImageData result{};
     result.name = path.empty() ? "fallback texture" : path;
@@ -66,7 +66,7 @@ DecodedImageData TriangleApplication::decodeTextureImageFromFileOrFallback(const
     return result;
 }
 
-ImageHandle TriangleApplication::getOrCreateGltfImage(
+ImageHandle Application::getOrCreateGltfImage(
     const GltfImportData &imported,
     std::size_t imageIndex,
     VkFormat format,
@@ -103,7 +103,7 @@ ImageHandle TriangleApplication::getOrCreateGltfImage(
     return gpuImage;
 }
 
-GpuImage TriangleApplication::uploadTexture2D(const DecodedImageData &decoded, VkFormat format, const std::string &debugName)
+GpuImage Application::uploadTexture2D(const DecodedImageData &decoded, VkFormat format, const std::string &debugName)
 {
     if (decoded.width <= 0 || decoded.height <= 0)
     {
@@ -202,7 +202,7 @@ GpuImage TriangleApplication::uploadTexture2D(const DecodedImageData &decoded, V
     return image;
 }
 
-ImageHandle TriangleApplication::createImageResource(
+ImageHandle Application::createImageResource(
     const std::string& name,
     const std::string& path,
     VkFormat format,
@@ -220,7 +220,7 @@ ImageHandle TriangleApplication::createImageResource(
     return texture;
 }
 
-void TriangleApplication::createMaterialResources()
+void Application::createMaterialResources()
 {
     const ImageHandle rustedBaseColorTexture = createImageResource(
         "Rusted Iron Base Color",
@@ -366,10 +366,9 @@ void TriangleApplication::createMaterialResources()
 
     materialLibrary.push_back(defaultGltfMaterial);
 
-    mipLevels = defaultMaterial->baseColorTexture.image->image.mipLevels();
 }
 
-SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData &source, const std::string &debugName, std::vector<SamplerHandle> &library)
+SamplerHandle Application::getOrCreateGltfSampler(const GltfSamplerData &source, const std::string &debugName, std::vector<SamplerHandle> &library)
 {
     const GltfFilter magFilter = source.magFilter.value_or(GltfFilter::Linear);
     const GltfFilter minFilter = source.minFilter.value_or(GltfFilter::LinearMipmapLinear);
@@ -453,37 +452,15 @@ SamplerHandle TriangleApplication::getOrCreateGltfSampler(const GltfSamplerData 
     return resource;
 }
 
-void TriangleApplication::createTextureSampler()
+void Application::createTextureSampler()
 {
     defaultTextureSampler = getOrCreateGltfSampler(GltfSamplerData{}, "Default texture sampler", samplerLibrary);
-}
-
-void TriangleApplication::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
-{
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
-    {
-        upload::recordImageTransition(
-            commandBuffer,
-            image,
-            format,
-            oldLayout,
-            newLayout,
-            mipLevels,
-            layerCount
-        );
-    });
-}
-
-
-bool TriangleApplication::hasStencilComponent(VkFormat format)
-{
-    return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
 // 把解析出来的 gltf 材质描述，转换成 engine 绘制时使用的材质对象
 // imported: cpu中的图像
 // source: cpu侧的材质对象
-MaterialHandle TriangleApplication::createGltfMaterial(
+MaterialHandle Application::createGltfMaterial(
     const GltfImportData &imported,
     const GltfMaterialData &source,
     const std::string &debugName,

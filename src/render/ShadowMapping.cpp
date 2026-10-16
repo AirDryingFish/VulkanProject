@@ -1,3 +1,5 @@
+#include "scene/Vertex.hpp"
+#include "core/AppConfig.hpp"
 #include "render/Renderer.hpp"
 #include "vulkan/VulkanContext.hpp"
 #include "vulkan/VulkanCheck.hpp"

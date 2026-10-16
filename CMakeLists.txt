@@ -101,15 +101,14 @@ add_executable(vulkan
     main.cpp
 
     # Application orchestration and resource initialization
-    src/app/TriangleApplication.hpp
-    src/app/TriangleApplication.cpp
-    src/app/Camera.cpp
+    src/app/Application.hpp
+    src/app/Application.cpp
+    src/app/CameraController.hpp
+    src/app/CameraController.cpp
     src/app/Picking.cpp
     src/app/Buffers.cpp
     src/app/Descriptors.cpp
     src/app/ImageResources.cpp
-    src/app/IBL.cpp
-    src/app/Skybox.cpp
     src/app/Model.cpp
     src/app/ScenePresets.cpp
 
@@ -117,12 +116,24 @@ add_executable(vulkan
     src/scene/Mesh.hpp
     src/scene/Material.hpp
     src/scene/SceneTypes.hpp
+    src/scene/Scene.hpp
+    src/scene/Scene.cpp
+    src/scene/Camera.hpp
+    src/scene/Camera.cpp
+    src/scene/Lighting.hpp
+    src/scene/Vertex.hpp
     src/scene/ScenePresets.hpp
 
     # Frame recording and render passes
     src/render/Renderer.hpp
     src/render/Renderer.cpp
     src/render/RenderTypes.hpp
+    src/render/RenderSettings.hpp
+    src/render/ShaderTypes.hpp
+    src/render/Environment.hpp
+    src/render/Environment.cpp
+    src/render/EnvironmentIBL.cpp
+    src/render/EnvironmentSkybox.cpp
     src/render/GraphicsPipeline.cpp
     src/render/ShadowMapping.cpp
     src/render/PostProcessing.cpp
@@ -141,20 +152,24 @@ add_executable(vulkan
     src/vulkan/UploadCommands.cpp
     src/vulkan/DebugUtils.hpp
     src/vulkan/DebugUtils.cpp
-    src/vulkan/ThirdPartyImplementations.cpp
+    src/vulkan/VmaImplementation.cpp
 
     # Editor and diagnostics UI
-    src/ui/ImGuiLayer.cpp
+    src/ui/EditorUI.cpp
     src/ui/Diagnostics.cpp
+    src/ui/EditorState.hpp
     src/ui/FileDialog.hpp
     src/ui/FileDialog.cpp
 
     # Timing and baseline capture
-    src/diagnostics/GpuBaselineCapture.hpp
+    src/diagnostics/BaselineCapture.hpp
+    src/diagnostics/FrameTiming.hpp
+    src/diagnostics/DiagnosticsState.hpp
     src/diagnostics/CpuTiming.hpp
 
     # Configuration and shared utilities
     src/core/AppConfig.hpp
+    src/core/FrameConfig.hpp
     src/core/DeletionQueue.hpp
     src/core/FileUtils.hpp
     src/core/FileUtils.cpp
@@ -198,6 +213,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING)
+    add_executable(camera_tests tests/CameraTests.cpp src/scene/Camera.cpp)
+    target_include_directories(camera_tests PRIVATE src)
+    target_link_libraries(camera_tests PRIVATE glm::glm)
+    add_test(NAME camera_tests COMMAND camera_tests)
+
+    add_executable(scene_tests tests/SceneTests.cpp src/scene/Scene.cpp)
+    target_include_directories(scene_tests PRIVATE src)
+    target_compile_definitions(scene_tests PRIVATE GLM_ENABLE_EXPERIMENTAL)
+    target_link_libraries(scene_tests PRIVATE glm::glm Vulkan::Vulkan GPUOpen::VulkanMemoryAllocator)
+    add_test(NAME scene_tests COMMAND scene_tests)
+
+    add_executable(baseline_capture_tests tests/BaselineCaptureTests.cpp)
+    target_include_directories(baseline_capture_tests PRIVATE src)
+    target_link_libraries(baseline_capture_tests PRIVATE glm::glm Vulkan::Vulkan)
+    add_test(NAME baseline_capture_tests COMMAND baseline_capture_tests)
+
     add_executable(gltf_loader_tests
         tests/GltfLoaderTests.cpp
     )

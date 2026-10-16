@@ -1,3 +1,4 @@
+#include "core/AppConfig.hpp"
 #include "render/Renderer.hpp"
 #include "vulkan/VulkanContext.hpp"
 #include "vulkan/Swapchain.hpp"

@@ -1,4 +1,5 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
+#include <GLFW/glfw3.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -11,7 +12,7 @@
 #include <stdexcept>
 #include <utility>
 
-std::string TriangleApplication::scenePresetUnavailableReason(ScenePreset preset) const
+std::string Application::scenePresetUnavailableReason(ScenePreset preset) const
 {
     const auto& info = scenePresetInfo(preset);
     if (info.unsupportedReason[0] != '\0')
@@ -25,7 +26,7 @@ std::string TriangleApplication::scenePresetUnavailableReason(ScenePreset preset
     return {};
 }
 
-MaterialHandle TriangleApplication::createPresetMaterial(
+MaterialHandle Application::createPresetMaterial(
     const std::string& name, const glm::vec4& color, float metallic, float roughness)
 {
     auto material = std::make_shared<Material>();
@@ -47,12 +48,12 @@ MaterialHandle TriangleApplication::createPresetMaterial(
     return material;
 }
 
-void TriangleApplication::buildPresetObjects(ScenePreset preset)
+void Application::buildPresetObjects(ScenePreset preset)
 {
     auto add = [&](MeshSource source, const char* name, const glm::vec3& position,
                    const glm::vec3& scale, const MaterialHandle& material) -> SceneObject& {
         addMeshObject(source);
-        auto& object = sceneObjects.back();
+        auto& object = scene.objects.back();
         object.name = name;
         object.transform.position = position;
         object.transform.scale = scale;
@@ -113,63 +114,20 @@ void TriangleApplication::buildPresetObjects(ScenePreset preset)
     }
 
     const ScenePresetInfo& info = scenePresetInfo(preset);
-    // 记录导入前 sceneObjects 里已经有多少个对象
-    const std::size_t firstImportedObject = sceneObjects.size();
+    // 记录导入前 scene.objects 里已经有多少个对象
+    const std::size_t firstImportedObject = scene.objects.size();
 
     addGltfMeshObjects(assetPath(info.assetRelativePath));
 
     const glm::mat4 presentationTransform = glm::scale(glm::mat4(1.0f), glm::vec3(info.presentationScale));
-    for (std::size_t i = firstImportedObject; i < sceneObjects.size(); ++i)
+    for (std::size_t i = firstImportedObject; i < scene.objects.size(); ++i)
     {
-        SceneObject& object = sceneObjects[i];
+        SceneObject& object = scene.objects[i];
         object.assetTransform = presentationTransform * object.assetTransform;
     }
 }
 
-void TriangleApplication::getSceneBounds(glm::vec3& minimum, glm::vec3& maximum) const
-{
-    minimum = glm::vec3(std::numeric_limits<float>::max());
-    maximum = glm::vec3(std::numeric_limits<float>::lowest());
-    bool found = false;
-    for (const auto& object : sceneObjects)
-    {
-        if (!object.mesh || !object.mesh->boundsValid)
-            continue;
-        const glm::mat4 model = getObjectMatrix(object);
-        for (int corner = 0; corner < 8; ++corner)
-        {
-            const auto& mesh = *object.mesh;
-            const glm::vec3 local{
-                (corner & 1) ? mesh.boundsMax.x : mesh.boundsMin.x,
-                (corner & 2) ? mesh.boundsMax.y : mesh.boundsMin.y,
-                (corner & 4) ? mesh.boundsMax.z : mesh.boundsMin.z};
-            const glm::vec3 world = glm::vec3(model * glm::vec4(local, 1.0f));
-            if (!std::isfinite(world.x) || !std::isfinite(world.y) || !std::isfinite(world.z))
-                throw std::runtime_error("Scene contains non-finite world bounds");
-            minimum = glm::min(minimum, world);
-            maximum = glm::max(maximum, world);
-            found = true;
-        }
-    }
-    if (!found)
-        throw std::runtime_error("Scene contains no bounded geometry");
-}
-
-void TriangleApplication::setSceneCamera(const glm::vec3& eye, const glm::vec3& target)
-{
-    cameraPos = eye;
-    cameraTarget = target;
-    cameraUp = {0.0f, 0.0f, 1.0f};
-    cameraFront = glm::normalize(target - eye);
-    cameraYaw = glm::degrees(std::atan2(cameraFront.y, cameraFront.x));
-    cameraPitch = glm::degrees(std::asin(std::clamp(cameraFront.z, -1.0f, 1.0f)));
-    cameraScrollOffset = 0.0f;
-    cameraControlMode = 0;
-    firstMouse = true;
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-}
-
-void TriangleApplication::releaseSceneMaterialDescriptors(std::size_t first, std::size_t end)
+void Application::releaseSceneMaterialDescriptors(std::size_t first, std::size_t end)
 {
     std::vector<VkDescriptorSet> sets;
     sets.reserve(end - first);
@@ -185,7 +143,7 @@ void TriangleApplication::releaseSceneMaterialDescriptors(std::size_t first, std
         materialLibrary[i]->descriptorSet = VK_NULL_HANDLE;
 }
 
-void TriangleApplication::pruneSceneCaches()
+void Application::pruneSceneCaches()
 {
     for (auto it = meshCache.begin(); it != meshCache.end();)
         it = it->second.expired() ? meshCache.erase(it) : std::next(it);
@@ -197,7 +155,7 @@ void TriangleApplication::pruneSceneCaches()
         }), samplerLibrary.end());
 }
 
-void TriangleApplication::loadScenePreset(ScenePreset preset)
+void Application::loadScenePreset(ScenePreset preset)
 {
     if (renderer.hasActiveFrame())
         throw std::logic_error("Scene replacement requires an idle frame boundary");
@@ -208,22 +166,52 @@ void TriangleApplication::loadScenePreset(ScenePreset preset)
     renderer.waitForAllFrames();
     const std::size_t previousMaterialCount = materialLibrary.size();
     const std::size_t previousSamplerCount = samplerLibrary.size();
-    const int previousSelection = selectedSceneObjectIndex;
-    const int previousLightSelection = selectedPointLightIndex;
-    const auto previousSelectionType = selectedObject;
-    const bool previousSelectedModel = selectedModel;
+    const int previousSelection = editor.objectIndex;
+    const int previousLightSelection = editor.pointLightIndex;
+    const auto previousSelectionType = editor.selection;
     std::vector<SceneObject> previousObjects;
-    previousObjects.swap(sceneObjects);
+    previousObjects.swap(scene.objects);
     glm::vec3 minimum{}, maximum{};
+    glm::vec3 center{};
+    float radius = 0.0f;
+    Camera preparedCamera = camera;
     preparingScenePreset = true;
     try
     {
         buildPresetObjects(preset);
-        getSceneBounds(minimum, maximum);
+        scene.bounds(minimum, maximum);
         if (!std::isfinite(glm::length(maximum - minimum)))
             throw std::runtime_error("Scene bounds exceed the supported numeric range");
         if (materialLibrary.size() - previousMaterialCount > sceneSwitchMaterialReserve)
             throw std::runtime_error("Scene preset exceeds its reserved material budget");
+
+        // Fit and validate without touching the live camera. A failed fit must
+        // roll back while the old scene and its descriptors are still alive.
+        center = minimum + (maximum - minimum) * 0.5f;
+        radius = std::max(glm::length(maximum - minimum) * 0.5f, 0.1f);
+        const float aspect = swapchain.extent().width / static_cast<float>(swapchain.extent().height);
+        const float halfFov = std::atan(std::tan(glm::radians(preparedCamera.fieldOfViewDegrees * 0.5f)) * std::min(aspect, 1.0f));
+        const float distance = radius * 1.15f / std::sin(halfFov);
+        preparedCamera.lookAt(center + glm::normalize(glm::vec3(0.15f, -1.0f, 0.25f)) * distance, center);
+        preparedCamera.nearPlane = std::max(radius * 0.001f, 0.01f);
+        preparedCamera.farPlane = std::max(distance + radius * 4.0f, 100.0f);
+        preparedCamera.moveSpeed = std::max(radius * 0.4f, 1.0f);
+        preparedCamera.scrollSpeed = std::max(radius * 0.1f, 0.1f);
+        preparedCamera.panSpeed = std::max(radius * 0.002f, 0.001f);
+
+        if (preset == ScenePreset::MaterialLab)
+            preparedCamera.lookAt({0.0f, -13.0f, 5.0f}, {0.0f, 0.0f, 1.3f});
+        else if (preset == ScenePreset::ShadowPlayground)
+            preparedCamera.lookAt({14.0f, -22.0f, 14.0f}, {0.0f, 15.0f, 0.0f});
+        else if (preset == ScenePreset::Original)
+            preparedCamera.lookAt({6.0f, -8.0f, 5.0f}, {0.0f, 0.0f, 0.0f});
+
+        const glm::mat4 preparedView = preparedCamera.view();
+        const glm::mat4 preparedProjection = preparedCamera.projection(aspect);
+        for (int column = 0; column < 4; ++column)
+            for (int row = 0; row < 4; ++row)
+                if (!std::isfinite(preparedView[column][row]) || !std::isfinite(preparedProjection[column][row]))
+                    throw std::runtime_error("Scene camera exceeds the supported numeric range");
 
         // Keep startup materials, replace all scene-specific/imported materials.
         // Both scenes remain alive until construction succeeds (including descriptors).
@@ -238,20 +226,21 @@ void TriangleApplication::loadScenePreset(ScenePreset preset)
     {
         preparingScenePreset = false;
         releaseSceneMaterialDescriptors(previousMaterialCount, materialLibrary.size());
-        sceneObjects.clear();
+        scene.objects.clear();
         materialLibrary.resize(previousMaterialCount);
         samplerLibrary.resize(previousSamplerCount);
-        sceneObjects.swap(previousObjects);
-        selectedSceneObjectIndex = previousSelection;
-        selectedPointLightIndex = previousLightSelection;
-        selectedObject = previousSelectionType;
-        selectedModel = previousSelectedModel;
+        scene.objects.swap(previousObjects);
+        editor.objectIndex = previousSelection;
+        editor.pointLightIndex = previousLightSelection;
+        editor.selection = previousSelectionType;
         pruneSceneCaches();
         throw;
     }
     preparingScenePreset = false;
     previousObjects.clear();
     pruneSceneCaches();
+    camera = preparedCamera;
+    cameraController.reset(window);
 
     // The editor exposes these shared startup materials too. Reset their factors
     // without reallocating or modifying descriptor sets.
@@ -267,62 +256,38 @@ void TriangleApplication::loadScenePreset(ScenePreset preset)
         material.emissiveFactor = initial.emissiveFactor;
     }
 
-    const glm::vec3 center = (minimum + maximum) * 0.5f;
-    const float radius = std::max(glm::length(maximum - minimum) * 0.5f, 0.1f);
-    const float aspect = swapchain.extent().width / static_cast<float>(swapchain.extent().height);
-    const float halfFov = std::atan(std::tan(glm::radians(22.5f)) * std::min(aspect, 1.0f));
-    const float distance = radius * 1.15f / std::sin(halfFov);
-    setSceneCamera(center + glm::normalize(glm::vec3(0.15f, -1.0f, 0.25f)) * distance, center);
-    cameraNear = std::max(radius * 0.001f, 0.01f);
-    cameraFar = std::max(distance + radius * 4.0f, 100.0f);
-    cameraMoveSpeed = std::max(radius * 0.4f, 1.0f);
-    cameraScrollSpeed = std::max(radius * 0.1f, 0.1f);
-    cameraPanSpeed = std::max(radius * 0.002f, 0.001f);
+    scene.pointLights.clear();
+    scene.directionalLight = DirectionalLight{};
+    scene.directionalLight.direction = {-0.6f, 0.7f, -1.0f};
+    scene.directionalLight.intensity = 3.0f;
+    scene.ambientLightColor = glm::vec3(1.0f);
+    scene.ambientLightIntensity = 0.0f;
+    scene.iblIntensity = preset == ScenePreset::ShadowPlayground ? 0.0f : 1.0f;
+    shadows.enabled = true;
+    shadows.pcfEnabled = true;
+    display.debugView = DebugView::Lit;
+    shadows.showDepth = false;
+    shadows.constantBias = 1.25f;
+    shadows.slopeBias = 1.75f;
+    shadows.receiverBias = 0.0005f;
+    shadows.center = center;
+    shadows.halfExtent = std::max(radius * 1.05f, 1.0f);
 
-    if (preset == ScenePreset::MaterialLab)
-        setSceneCamera({0.0f, -13.0f, 5.0f}, {0.0f, 0.0f, 1.3f});
-    else if (preset == ScenePreset::ShadowPlayground)
-        setSceneCamera({14.0f, -22.0f, 14.0f}, {0.0f, 15.0f, 0.0f});
-    else if (preset == ScenePreset::Original)
-        setSceneCamera({6.0f, -8.0f, 5.0f}, {0.0f, 0.0f, 0.0f});
-
-    pointLights.clear();
-    directionalLight = DirectionalLight{};
-    directionalLight.direction = {-0.6f, 0.7f, -1.0f};
-    directionalLight.intensity = 3.0f;
-    ambientLightColor = glm::vec3(1.0f);
-    ambientLightIntensity = 0.0f;
-    iblIntensity = preset == ScenePreset::ShadowPlayground ? 0.0f : 1.0f;
-    directionalShadowsEnabled = true;
-    shadowPcfEnabled = true;
-    // showShadowProjection = showShadowDepth = false;
-    debugView = DebugView::Lit;
-    showShadowDepth = false;
-    shadowConstantBias = 1.25f;
-    shadowSlopeBias = 1.75f;
-    shadowReceiverBias = 0.0005f;
-    shadowCenter = center;
-    shadowHalfExtent = std::max(radius * 1.05f, 1.0f);
-
-    selectedObject = SceneSelection::None;
-    selectedSceneObjectIndex = selectedPointLightIndex = -1;
-    selectedModel = false;
-    modelPickDistance = 0.0f;
-    gizmoHoveredAxis = gizmoActiveAxis = 0;
-    leftMouseWasDown = false;
-    sceneClickConsumed = true;
-    gltfImportSummary.clear();
-    gltfImportError.clear();
-    sceneStatusMessage.clear();
-    scenePresetError.clear();
-    activeScenePreset = selectedScenePreset = preset;
+    editor.clearSelection();
+    editor.leftMouseWasDown = false;
+    editor.sceneClickConsumed = true;
+    editor.gltfImportSummary.clear();
+    editor.gltfImportError.clear();
+    editor.sceneStatusMessage.clear();
+    editor.scenePresetError.clear();
+    activeScenePreset = editor.selectedScenePreset = preset;
     lastFrameTime = static_cast<float>(glfwGetTime());
     std::cout << "Scene preset: " << scenePresetInfo(preset).id
-              << " | objects: " << sceneObjects.size()
+              << " | objects: " << scene.objects.size()
               << " | material sets: " << allocatedMaterialSetCount << '\n';
 }
 
-void TriangleApplication::processPendingScenePreset()
+void Application::processPendingScenePreset()
 {
     if (!pendingScenePreset)
         return;
@@ -334,7 +299,7 @@ void TriangleApplication::processPendingScenePreset()
     }
     catch (const std::exception& error)
     {
-        scenePresetError = error.what();
+        editor.scenePresetError = error.what();
         std::cerr << "Scene switch failed (previous scene retained): " << error.what() << '\n';
     }
 }

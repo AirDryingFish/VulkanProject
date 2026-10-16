@@ -7,7 +7,7 @@
 当前流程是：
 
 ```text
-textures/pbr/newport_loft.hdr
+SKYBOX_HDR_PATH 指定的 HDR 环境图
     -> skybox HDR cubemap
         |-> irradiance cubemap（漫反射 IBL）-----------|
         |-> prefiltered environment cubemap（镜面 IBL）--|-> PBR fragment shader
@@ -16,7 +16,7 @@ fullscreen triangle
     -> BRDF integration LUT（与环境贴图无关）------------|
 ```
 
-`newport_loft.hdr` 是等距柱状投影 HDR 图。工程启动时先在 `Skybox.cpp` 中用 `stbi_loadf` 读取 HDR 像素，并在 CPU 端转换成 `VK_FORMAT_R16G16B16A16_SFLOAT` 的 skybox cubemap。这个 cubemap 既用于显示天空盒，也作为 irradiance 和 prefiltered environment 两项 IBL 预计算的输入环境图。
+`src/core/AppConfig.hpp` 的 `SKYBOX_HDR_PATH` 指定等距柱状投影 HDR 图。工程启动时先在 `src/render/EnvironmentSkybox.cpp` 中用 `stbi_loadf` 读取 HDR 像素，并在 CPU 端转换成 `VK_FORMAT_R16G16B16A16_SFLOAT` 的 skybox cubemap。这个 cubemap 既用于显示天空盒，也作为 irradiance 和 prefiltered environment 两项 IBL 预计算的输入环境图。
 
 ## 为什么需要 irradiance cubemap
 
@@ -40,13 +40,13 @@ vec3 irradiance = texture(irradianceMap, N).rgb;
 
 ## 启动时只计算一次
 
-Diffuse IBL 的预计算入口在：
+应用在 `Application::initializeRendering()` 中调用环境资源入口：
 
 ```cpp
-TriangleApplication::InitVulkan()
+environment.initialize(context, renderer);
 ```
 
-初始化顺序中，skybox 创建完成后调用：
+`Environment::initialize()` 按以下顺序创建 skybox 和 IBL 资源：
 
 ```cpp
 createSkyboxImage();
@@ -57,12 +57,14 @@ createBRDFLUTResources();
 ```
 
 `createIrradianceResources()`、`createPrefilterResources()` 和
-`createBRDFLUTResources()` 都位于 `src/app/IBL.cpp`。三项预计算只在 Vulkan
-初始化阶段执行一次，不在每帧 command buffer 中执行。
+`createBRDFLUTResources()` 都位于 `src/render/EnvironmentIBL.cpp`。三项预计算只在 Vulkan
+初始化阶段执行一次，不在每帧 command buffer 中执行。Environment 拥有这些图像、sampler
+及预计算临时资源；预计算完成后立即释放临时 pass、pipeline 和 framebuffer，供应用
+descriptor 借用的图像与 sampler 保留到 Environment 关闭。
 
 ## Irradiance 资源
 
-`src/app/IBL.cpp` 中创建了一张 32x32 的 cubemap：
+`src/render/EnvironmentIBL.cpp` 中创建了一张 32x32 的 cubemap：
 
 ```cpp
 constexpr uint32_t irradianceDimension = 32;

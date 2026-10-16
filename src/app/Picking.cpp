@@ -1,4 +1,5 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
+#include <GLFW/glfw3.h>
 
 #include <imgui.h>
 
@@ -69,13 +70,13 @@ void transformAabb(const glm::mat4 &transform, const glm::vec3 &localMin, const 
 }
 }
 
-void TriangleApplication::processModelPicking()
+void Application::processModelPicking()
 {
     const bool leftMouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-    const bool leftMousePressed = leftMouseDown && !leftMouseWasDown;
-    leftMouseWasDown = leftMouseDown;
+    const bool leftMousePressed = leftMouseDown && !editor.leftMouseWasDown;
+    editor.leftMouseWasDown = leftMouseDown;
 
-    if (!leftMousePressed || sceneClickConsumed || sceneObjects.empty() || ImGui::GetIO().WantCaptureMouse || gizmoHoveredAxis != 0 || gizmoActiveAxis != 0)
+    if (!leftMousePressed || editor.sceneClickConsumed || scene.objects.empty() || ImGui::GetIO().WantCaptureMouse || editor.gizmoHoveredAxis != 0 || editor.gizmoActiveAxis != 0)
     {
         return;
     }
@@ -95,9 +96,9 @@ void TriangleApplication::processModelPicking()
     const float ndcX = (2.0f * static_cast<float>(mouseX)) / static_cast<float>(width) - 1.0f;
     const float ndcY = (2.0f * static_cast<float>(mouseY)) / static_cast<float>(height) - 1.0f;
 
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
-    projection[1][1] *= -1;
+    glm::mat4 view = camera.view();
+    glm::mat4 projection = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
+
 
     const glm::mat4 inverseViewProjection = glm::inverse(projection * view);
     glm::vec4 nearPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, 0.0f, 1.0f);
@@ -110,9 +111,9 @@ void TriangleApplication::processModelPicking()
 
     int hitObjectIndex = -1;
     float bestHitDistance = std::numeric_limits<float>::max();
-    for (size_t i = 0; i < sceneObjects.size(); i++)
+    for (size_t i = 0; i < scene.objects.size(); i++)
     {
-        const SceneObject &object = sceneObjects[i];
+        const SceneObject &object = scene.objects[i];
         if (!object.mesh || !object.mesh->valid())
         {
             continue;
@@ -126,7 +127,7 @@ void TriangleApplication::processModelPicking()
 
         glm::vec3 worldBoundsMin;
         glm::vec3 worldBoundsMax;
-        transformAabb(getObjectMatrix(object), mesh.boundsMin, mesh.boundsMax, worldBoundsMin, worldBoundsMax);
+        transformAabb(object.modelMatrix(), mesh.boundsMin, mesh.boundsMax, worldBoundsMin, worldBoundsMax);
 
         float hitDistance = 0.0f;
         if (intersectRayAabb(rayOrigin, rayDirection, worldBoundsMin, worldBoundsMax, hitDistance) && hitDistance < bestHitDistance)
@@ -135,18 +136,16 @@ void TriangleApplication::processModelPicking()
             hitObjectIndex = static_cast<int>(i);
         }
     }
-
-    selectedModel = hitObjectIndex >= 0;
-    modelPickDistance = selectedModel ? bestHitDistance : 0.0f;
-    selectedSceneObjectIndex = hitObjectIndex;
-    if (selectedModel)
+    editor.pickDistance = hitObjectIndex >= 0 ? bestHitDistance : 0.0f;
+    editor.objectIndex = hitObjectIndex;
+    if (hitObjectIndex >= 0)
     {
-        selectedObject = SceneSelection::Model;
-        selectedPointLightIndex = -1;
+        editor.selection = SelectionKind::Object;
+        editor.pointLightIndex = -1;
     }
     else
     {
-        selectedObject = SceneSelection::None;
-        selectedPointLightIndex = -1;
+        editor.selection = SelectionKind::None;
+        editor.pointLightIndex = -1;
     }
 }

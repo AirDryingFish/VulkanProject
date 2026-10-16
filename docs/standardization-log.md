@@ -105,3 +105,29 @@ verified. New normalization work should add an entry here in the same change.
   configure presets, `CMakePresets.json` parses successfully, the shader script
   passes `sh -n`, and both Linux builds resolve `Vulkan::Vulkan` to the system
   loader and launch successfully with the installed NVIDIA ICD.
+
+## STD-008 — Explicit application, scene, environment, and shader boundaries
+
+- **Problem:** The central application mixed camera input, scene content, editor
+  state, diagnostics, environment precomputation, and GPU resource publication;
+  the Vulkan type header also exposed scene data and shader layouts.
+- **Change:** Renamed the entry point to `Application`; extracted `Scene`, the
+  mathematical `Camera`, `CameraController`, `Environment`, `EditorState`, and
+  `DiagnosticsState`. Environment owns the four environment images and four
+  samplers and releases its temporary bake resources after initialization.
+  Kept GPU asset upload, descriptors, and preset replacement transactions in the
+  application. Split render settings, frame timing, scene vertex/lighting types,
+  shader ABI declarations, and the frame-slot constant into their owning headers.
+  Renamed the editor view and VMA implementation files, removed proven unused
+  members/getters and the inactive `shader_rast` pair, and refreshed current
+  navigation while preserving historical tutorial code.
+- **Why:** State and resource lifetimes should have clear owners without adding
+  a speculative renderer backend or hiding the scene's existing GPU handles.
+- **Verification:** Linux Debug and Release builds and all five CTest cases
+  passed. An isolated Xvfb/lavapipe run checked Shadow Playground, Material Lab,
+  Damaged Helmet, camera controls, IBL/skybox, resize recovery, live diagnostics,
+  VMA refresh, and normal exit without validation errors or assertions. Baseline
+  export contained 300 valid CPU/GPU pairs after 120 warmup submissions, with no
+  dropped samples; resizing during capture cancelled it. Software-renderer
+  timings were used for functional checks, not performance claims. Native
+  minimization and Windows/macOS runtime behavior were not tested in this pass.

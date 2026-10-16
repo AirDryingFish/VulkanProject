@@ -1,4 +1,4 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
 
 #include <cstdlib>
 #include <charconv>
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
             else
                 throw std::invalid_argument("Unknown or incomplete option: " + std::string(argument) + ". Use --help.");
         }
-        TriangleApplication app;
+        Application app;
         app.run(preset, frameLimit);
     }
     catch (const std::exception &e)

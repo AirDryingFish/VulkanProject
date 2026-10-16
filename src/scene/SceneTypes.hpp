@@ -31,4 +31,6 @@ struct SceneObject
     bool autoRotate = false;
     float autoRotation = 0.0f;
     float autoRotateSpeed = 90.0f;
+
+    glm::mat4 modelMatrix() const;
 };

@@ -60,13 +60,13 @@ VulkanProject/
 │   ├── compile-shaders.sh
 │   └── run-macos.sh
 ├── src/
-│   ├── app/             # 应用流程与 TriangleApplication 的实现
-│   ├── scene/           # 场景、网格、材质与预设数据类型
-│   ├── render/          # Renderer、管线与渲染 pass
+│   ├── app/             # Application 编排、输入与资产上传
+│   ├── scene/           # Scene、Camera、光源与网格材质数据
+│   ├── render/          # Renderer、Environment、设置与 shader ABI
 │   ├── vulkan/          # Vulkan 上下文、交换链与 GPU 资源封装
 │   ├── assets/          # glTF 解析和图片解码源码
-│   ├── ui/              # ImGui、Diagnostics 展示与文件对话框
-│   ├── diagnostics/     # CPU 计时和基线采样工具
+│   ├── ui/              # 编辑器视图、交互状态与文件对话框
+│   ├── diagnostics/     # 计时契约、诊断状态与基线采样
 │   └── core/            # 应用配置、文件工具与延迟清理
 ├── CMakeLists.txt
 ├── CMakePresets.json
@@ -82,28 +82,58 @@ VulkanProject/
 
 | 目录 | 职责与入口 |
 | --- | --- |
-| `src/app/` | `TriangleApplication` 的主循环、相机、拾取、场景构建与资源准备；`ScenePresets.cpp` 在这里实现应用成员函数。 |
-| `src/scene/` | `Mesh`、`Material`、`SceneObject` 等场景数据，以及 `ScenePresets.hpp` 中的预设声明。 |
-| `src/render/` | `Renderer`、`RenderTypes`、图形管线、方向光阴影和 HDR 后处理。 |
-| `src/vulkan/` | `VulkanContext`、`Swapchain`、GPU 资源 RAII、上传命令、检查与调试工具，以及 `ThirdPartyImplementations.cpp`。 |
-| `src/assets/` | `GltfLoader`、`GltfImportTypes` 和 `ImageDecode`，负责资产解析与图片解码。 |
-| `src/ui/` | `ImGuiLayer.cpp`、`Diagnostics.cpp` 和 `FileDialog`，负责界面展示与交互。 |
-| `src/diagnostics/` | `CpuTiming.hpp` 与 `GpuBaselineCapture.hpp`，负责计时辅助和基线样本处理。 |
-| `src/core/` | `AppConfig.hpp`、`FileUtils` 与 `DeletionQueue` 等公共配置和工具。 |
+| `src/app/` | [Application](src/app/Application.hpp) 编排窗口、帧流程、GPU 资产上传、descriptor 绑定与预设切换事务；[CameraController](src/app/CameraController.hpp) 处理窗口输入。 |
+| `src/scene/` | [Scene](src/scene/Scene.hpp) 管理对象、光源、动画与包围范围；[Camera](src/scene/Camera.hpp) 提供相机数学；Mesh、Material、Vertex 和 Lighting 定义场景数据。 |
+| `src/render/` | [Renderer](src/render/Renderer.hpp) 录制渲染 pass；[Environment](src/render/Environment.hpp) 管理环境图与 IBL；[RenderSettings](src/render/RenderSettings.hpp)、[ShaderTypes](src/render/ShaderTypes.hpp) 分别定义显示/阴影设置与 CPU/GLSL 布局。 |
+| `src/vulkan/` | VulkanContext、Swapchain、GPU 资源 RAII、上传命令、检查与调试工具；[VulkanTypes](src/vulkan/VulkanTypes.hpp) 仅含队列族和交换链支持信息。 |
+| `src/assets/` | GltfLoader、GltfImportTypes 和 ImageDecode，负责 CPU 资产解析与图片解码。 |
+| `src/ui/` | [EditorUI.cpp](src/ui/EditorUI.cpp)、Diagnostics.cpp 和 FileDialog 展示应用视图；[EditorState](src/ui/EditorState.hpp) 保存选择、gizmo 与导入面板的临时状态。 |
+| `src/diagnostics/` | [FrameTiming](src/diagnostics/FrameTiming.hpp) 定义 CPU/GPU 计时与绘制统计契约；[BaselineCapture](src/diagnostics/BaselineCapture.hpp) 处理基线采样；[DiagnosticsState](src/diagnostics/DiagnosticsState.hpp) 保存面板使用的快照、缓存和采集状态。 |
+| `src/core/` | AppConfig、[FrameConfig](src/core/FrameConfig.hpp)、FileUtils 与 DeletionQueue 等公共配置和工具。 |
 
-目录划分沿用当前类的所有权。`TriangleApplication` 仍持有窗口、相机、场景与资产库、
-应用 descriptor/UBO 和 IBL 资源；`app/` 中的 `Buffers.cpp`、`Descriptors.cpp`、
-`ImageResources.cpp`、`IBL.cpp`、`Skybox.cpp`、`Model.cpp` 与 `ScenePresets.cpp`
-仍实现它的成员函数。`ui/` 中的界面成员函数也由应用持有状态。
+`Application` 持有窗口及各组件，安排初始化、逐帧更新、提交和退出。`Scene` 持有
+对象与光源，统一更新动画和计算包围范围，物体矩阵由 `SceneObject::modelMatrix()`
+生成。`Camera` 只处理姿态、view/projection 等数学；`CameraController` 处理 GLFW/ImGui
+输入与光标控制。`EditorUI.cpp` 和 `Diagnostics.cpp` 仍实现 `Application` 的视图成员函数，
+分别访问 `EditorState` 和 `DiagnosticsState`，没有新增独立的 Editor 对象。
+
 `VulkanContext` 管理 instance、device、queues 和 VMA allocator；`Swapchain`
-管理交换链及关联资源；`Renderer` 借用这两个对象，管理飞行帧、渲染目标、管线、
-GPU query 和命令录制。移动文件不改变这些生命周期边界。
+管理交换链及关联资源。`Renderer` 借用它们，管理飞行帧、渲染目标、管线、GPU query
+和 Vulkan 命令录制。`Environment` 拥有 skybox、irradiance、prefilter、BRDF LUT 的四张
+GPU 图像与四个 sampler，并管理预计算的临时资源；初始化完成后释放只用于预计算的
+pass、pipeline 和 framebuffer。应用 descriptor 借用 Environment 提供的图像视图与 sampler。
+
+```mermaid
+flowchart TD
+    App["Application"] --> Scene["Scene：对象、光源、动画与包围范围"]
+    App --> Camera["Camera：姿态与矩阵"]
+    App --> Input["CameraController：窗口输入"]
+    Input -->|更新| Camera
+    App --> State["EditorState / DiagnosticsState"]
+    App --> Assets["assets：CPU 解析与解码"]
+    App -->|RenderFrameData| Renderer
+    App --> Environment
+    App --> Context["VulkanContext"]
+    App --> Swapchain
+    Swapchain --> Context
+    Renderer -->|借用| Context
+    Renderer -->|借用| Swapchain
+    Environment -->|初始化时上传与预计算| Renderer
+    Environment --> Context
+```
+
+应用仍负责 GPU 资产上传、资产缓存、材质 descriptor 发布、预设切换与失败回滚，
+以及 UI 和渲染数据的绑定。`Scene` 中的 Mesh/Material 仍引用 GPU 资源句柄；Renderer
+仍直接使用 Vulkan，并在 Present pass 中录制 ImGui。这次拆分保留这些实际边界，
+没有引入多后端接口或把场景改成纯 CPU 数据模型。
 
 项目源码头文件的 include 搜索根为 `src/`，不逐个添加子目录。include 使用模块前缀：
 
 ```cpp
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
+#include "scene/Scene.hpp"
 #include "render/Renderer.hpp"
+#include "render/ShaderTypes.hpp"
 #include "assets/GltfLoader.hpp"
 ```
 
@@ -112,7 +142,21 @@ CMake 生成的 `BuildConfig.hpp` 位于 `build/<preset>/generated/`，该生成
 
 `src/assets/` 存放资产处理的 C++ 源码；项目根的 `assets/` 存放模型、纹理、
 GLSL 和 SPIR-V 等运行数据，并由构建步骤复制到 `build/<preset>/assets/`。
-历史手敲教程保留当时的平铺路径；在当前主线定位文件时，以本节的目录分组为准。
+
+历史手敲教程保留当时的类名和代码路径。阅读当前主线时可按下表定位，避免重复添加
+已经实现的类型或文件：
+
+| 历史名称或位置 | 当前入口 |
+| --- | --- |
+| `TriangleApplication.*`、`InitVulkan()` | [app/Application.hpp](src/app/Application.hpp)、[Application.cpp](src/app/Application.cpp) 的 `initializeRendering()` |
+| 应用成员中的相机数学和输入 | [scene/Camera.hpp](src/scene/Camera.hpp)、[app/CameraController.hpp](src/app/CameraController.hpp) |
+| `app/IBL.cpp`、`app/Skybox.cpp` | [render/EnvironmentIBL.cpp](src/render/EnvironmentIBL.cpp)、[EnvironmentSkybox.cpp](src/render/EnvironmentSkybox.cpp)，由 [Environment.cpp](src/render/Environment.cpp) 初始化 |
+| `ui/ImGuiLayer.cpp` | [ui/EditorUI.cpp](src/ui/EditorUI.cpp)；Diagnostics 视图位于 [ui/Diagnostics.cpp](src/ui/Diagnostics.cpp) |
+| `GpuBaselineCapture`、`BaselineGpuSample` | [diagnostics/BaselineCapture.hpp](src/diagnostics/BaselineCapture.hpp) 中的 `BaselineCapture`、`BaselineSample` |
+| `GpuTimingConfig` 与计时类型 | [diagnostics/FrameTiming.hpp](src/diagnostics/FrameTiming.hpp) 中的 `FrameTimingConfig` 等类型 |
+| `VulkanTypes.hpp` 中的 Vertex、光源、UBO | [scene/Vertex.hpp](src/scene/Vertex.hpp)、[scene/Lighting.hpp](src/scene/Lighting.hpp)、[render/ShaderTypes.hpp](src/render/ShaderTypes.hpp)；Draw/Post push constants 也集中在 ShaderTypes 中 |
+| `AppConfig.hpp` 中的飞行帧常量 | [core/FrameConfig.hpp](src/core/FrameConfig.hpp) |
+| `ThirdPartyImplementations.cpp` | [vulkan/VmaImplementation.cpp](src/vulkan/VmaImplementation.cpp) 定义 VMA；[assets/ImageDecode.cpp](src/assets/ImageDecode.cpp) 定义 stb_image |
 
 ## 从零开始：Linux（Ubuntu/Debian x86_64）
 
@@ -356,7 +400,7 @@ Windows：
 - 平台、验证层、版本号和构建资源根由 CMake 生成到 `BuildConfig.hpp`。
 - Debug preset 默认开启 Validation Layers，Release 默认关闭。
 - GLM 宏是 target 级 compile definitions。
-- `VMA_IMPLEMENTATION` 集中在 `src/vulkan/ThirdPartyImplementations.cpp`；
+- `VMA_IMPLEMENTATION` 集中在 `src/vulkan/VmaImplementation.cpp`；
   `STB_IMAGE_IMPLEMENTATION` 集中在 `src/assets/ImageDecode.cpp`，各自只定义一次。
 - 不在业务源码里直接新增 `_WIN32`、`__APPLE__` 或 `NDEBUG` 判断。
 

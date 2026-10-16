@@ -5,6 +5,8 @@
 规划日期：2026-09-23。源码评估基线：`98fd00f`（`Support mask material`）。
 本文记录目标与依赖关系，不表示下面的功能已经实现，也不替代运行验收记录。
 
+> 当前类名和源码路径见 [README · 源码目录](../../README.md#源码目录)；下文保留规划基线的叙述，源码导航链接按当前结构维护。
+
 项目目标包含引擎图形工程师求职展示：逐步积累渲染算法、GPU 数据与同步管理、性能分析和技术
 表达能力。每个重点功能应有可运行的对照、可解释的取舍和实际测量结果；新增任务均保持待完成状态。
 
@@ -153,9 +155,9 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 
 | 位置 | 要处理的内容 |
 |---|---|
-| [TriangleApplication.cpp](../../src/app/TriangleApplication.cpp)、[AppConfig.hpp](../../src/core/AppConfig.hpp) | 版本请求与必选/可选扩展策略，替换分散的硬编码 |
+| [Application.cpp](../../src/app/Application.cpp)、[AppConfig.hpp](../../src/core/AppConfig.hpp) | 版本请求与必选/可选扩展策略，替换分散的硬编码 |
 | [VulkanContext.hpp](../../src/vulkan/VulkanContext.hpp)、[VulkanContext.cpp](../../src/vulkan/VulkanContext.cpp) | Loader/设备协商、Features2、核心/扩展入口、能力记录与 VMA 配置 |
-| [ImGuiLayer.cpp](../../src/ui/ImGuiLayer.cpp) | 统一 API 版本；第三组迁移时再配置 Dynamic Rendering 模式与附件格式 |
+| [EditorUI.cpp](../../src/ui/EditorUI.cpp) | 统一 API 版本；第三组迁移时再配置 Dynamic Rendering 模式与附件格式 |
 | [compile-shaders.bat](../../scripts/compile-shaders.bat)、[compile-shaders.sh](../../scripts/compile-shaders.sh) | 明确编译目标；新增 shader 能力不能超出选定设备路径的支持范围 |
 
 完成标准：
@@ -211,7 +213,7 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 - [ ] 记录暂留的旧式 Pass 或兼容路径，迁移中没有提前销毁仍被使用的对象。
 
 主要修改入口为 [GraphicsPipeline.cpp](../../src/render/GraphicsPipeline.cpp)、[PostProcessing.cpp](../../src/render/PostProcessing.cpp)
-以及 Renderer/ImGuiLayer。Dynamic Rendering 仍需要显式同步和 layout 管理；参考
+以及 Renderer/EditorUI。Dynamic Rendering 仍需要显式同步和 layout 管理；参考
 [Khronos 示例](https://docs.vulkan.org/samples/latest/samples/extensions/dynamic_rendering/README.html)。
 
 ### 后续特性的引入时机

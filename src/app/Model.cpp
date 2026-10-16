@@ -1,4 +1,4 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
 #include "assets/GltfLoader.hpp"
 
 #include <tiny_obj_loader.h>
@@ -94,7 +94,7 @@ MeshBuildData buildGltfPrimitiveMeshData(const GltfPrimitiveData& primitive)
 
 }
 
-MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::string &path)
+MeshBuildData Application::buildMeshData(MeshSource source, const std::string &path)
 {
     MeshBuildData meshData{};
     auto computeBounds = [&]() {
@@ -320,7 +320,7 @@ MeshBuildData TriangleApplication::buildMeshData(MeshSource source, const std::s
     return meshData;
 }
 
-void TriangleApplication::addMeshObject(MeshSource source, const std::string &path)
+void Application::addMeshObject(MeshSource source, const std::string &path)
 {
     std::string meshPath;
     if (source == MeshSource::Obj)
@@ -335,36 +335,35 @@ void TriangleApplication::addMeshObject(MeshSource source, const std::string &pa
     SceneObject object{};
     if (source == MeshSource::Cube)
     {
-        object.name = "Cube " + std::to_string(sceneObjects.size() + 1);
+        object.name = "Cube " + std::to_string(scene.objects.size() + 1);
     }
     else if (source == MeshSource::Sphere)
     {
-        object.name = "Sphere " + std::to_string(sceneObjects.size() + 1);
+        object.name = "Sphere " + std::to_string(scene.objects.size() + 1);
     }
     else if (source == MeshSource::Obj)
     {
         const std::string objName = fileNameFromPath(meshPath);
-        object.name = objName.empty() ? "OBJ " + std::to_string(sceneObjects.size() + 1) : objName;
+        object.name = objName.empty() ? "OBJ " + std::to_string(scene.objects.size() + 1) : objName;
     }
     else if (source == MeshSource::Gltf)
     {
         const std::string gltfName = fileNameFromPath(meshPath);
-        object.name = gltfName.empty() ? "glTF " + std::to_string(sceneObjects.size() + 1) : gltfName;
+        object.name = gltfName.empty() ? "glTF " + std::to_string(scene.objects.size() + 1) : gltfName;
     }
     object.source = source;
     object.sourcePath = meshPath;
     object.mesh = getOrCreateMesh(source, meshPath);
     object.material = defaultMaterial;
 
-    sceneObjects.push_back(std::move(object));
+    scene.objects.push_back(std::move(object));
 
-    selectedSceneObjectIndex = static_cast<int>(sceneObjects.size()) - 1;
-    selectedObject = SceneSelection::Model;
-    selectedModel = true;
-    selectedPointLightIndex = -1;
+    editor.objectIndex = static_cast<int>(scene.objects.size()) - 1;
+    editor.selection = SelectionKind::Object;
+    editor.pointLightIndex = -1;
 }
 
-TriangleApplication::GltfImportResult TriangleApplication::addGltfMeshObjects(const std::string &path)
+Application::GltfImportResult Application::addGltfMeshObjects(const std::string &path)
 {
     if (path.empty())
     {
@@ -589,7 +588,7 @@ TriangleApplication::GltfImportResult TriangleApplication::addGltfMeshObjects(co
     static_assert(std::is_nothrow_move_constructible_v<MaterialHandle>);
 
     // 提前完成可能发生内存分配的扩容
-    sceneObjects.reserve(sceneObjects.size() + stagedObjects.size());
+    scene.objects.reserve(scene.objects.size() + stagedObjects.size());
     materialLibrary.reserve(materialLibrary.size() + materialUpload.materials.size());
 
     // 为本次导入的新材质分配并写入 descripotr set
@@ -615,16 +614,15 @@ TriangleApplication::GltfImportResult TriangleApplication::addGltfMeshObjects(co
 
     for (SceneObject& object : stagedObjects)
     {
-        sceneObjects.push_back(std::move(object));
+        scene.objects.push_back(std::move(object));
     }
-    selectedSceneObjectIndex = static_cast<int>(sceneObjects.size() - 1);
-    selectedObject = SceneSelection::Model;
-    selectedModel = true;
-    selectedPointLightIndex = -1;
+    editor.objectIndex = static_cast<int>(scene.objects.size() - 1);
+    editor.selection = SelectionKind::Object;
+    editor.pointLightIndex = -1;
     return importResult;
 }
 
-MeshHandle TriangleApplication::getOrCreateMesh(MeshSource source, const std::string &path)
+MeshHandle Application::getOrCreateMesh(MeshSource source, const std::string &path)
 {
     const std::string key = makeMeshCacheKey(source, path);
     const auto cacheIt = meshCache.find(key);

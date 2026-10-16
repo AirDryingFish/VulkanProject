@@ -32,7 +32,7 @@ experimental-feature settings.
 Header-only libraries that require one implementation translation unit each
 have a single definition in their owning module:
 
-- `VMA_IMPLEMENTATION`: `src/vulkan/ThirdPartyImplementations.cpp`.
+- `VMA_IMPLEMENTATION`: `src/vulkan/VmaImplementation.cpp`.
 - `STB_IMAGE_IMPLEMENTATION`: `src/assets/ImageDecode.cpp`, shared through the
   `gltf_import` target.
 

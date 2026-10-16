@@ -22,6 +22,8 @@
 
 #include <vk_mem_alloc.h>
 
+struct GLFWwindow;
+
 struct VulkanContextConfig
 {
     const char* applicationName = "VulkanProject";
@@ -94,7 +96,6 @@ public:
     VkResult waitIdle() const noexcept;
 
     VkInstance instance() const noexcept;
-    VkDebugUtilsMessengerEXT debugMessenger() const noexcept;
     VkSurfaceKHR surface() const noexcept;
     VkPhysicalDevice physicalDevice() const noexcept;
     VkDevice device() const noexcept;

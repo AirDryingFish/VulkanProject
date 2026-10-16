@@ -1,4 +1,5 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
+#include "render/ShaderTypes.hpp"
 
 #include <array>
 #include <stdexcept>
@@ -10,7 +11,7 @@ constexpr uint32_t descriptorSetGroupCount = 2; // frame + skybox
 constexpr uint32_t skyboxImageDescriptorCount = 1;
 }
 
-void TriangleApplication::createDescriptorPool()
+void Application::createDescriptorPool()
 {
     const uint32_t frameCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
@@ -53,7 +54,7 @@ void TriangleApplication::createDescriptorPool()
     });
 }
 
-void TriangleApplication::createFrameDescriptorSets()
+void Application::createFrameDescriptorSets()
 {
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, renderer.frameDescriptorSetLayout());
     VkDescriptorSetAllocateInfo allocInfo{};
@@ -65,9 +66,9 @@ void TriangleApplication::createFrameDescriptorSets()
     VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, frameDescriptorSets.data()));
 
     std::array<VkDescriptorImageInfo, frameImageDescriptorCount> imageInfos{};
-    imageInfos[0] = {irradianceSampler.get(), irradianceImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[1] = {prefilterSampler.get(), prefilterImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    imageInfos[2] = {brdfLUTSampler.get(), brdfLUTImage.view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    imageInfos[0] = environment.irradianceDescriptorInfo();
+    imageInfos[1] = environment.prefilterDescriptorInfo();
+    imageInfos[2] = environment.brdfLutDescriptorInfo();
 
     for (std::size_t frameIndex = 0; frameIndex < MAX_FRAMES_IN_FLIGHT; frameIndex++)
     {
@@ -100,7 +101,7 @@ void TriangleApplication::createFrameDescriptorSets()
     }
 }
 
-void TriangleApplication::createMaterialDescriptorSets()
+void Application::createMaterialDescriptorSets()
 {
     allocateMaterialDescriptorSets(materialLibrary);
 }
@@ -110,7 +111,7 @@ void TriangleApplication::createMaterialDescriptorSets()
 
 // 后续导入时：只为本次新创建的材质分配 descriptor
 // allocateMaterialDescriptorSets(materialUpload.materials);
-void TriangleApplication::allocateMaterialDescriptorSets(const std::vector<MaterialHandle> &materials)
+void Application::allocateMaterialDescriptorSets(const std::vector<MaterialHandle> &materials)
 {
     if (materials.empty())
     {
@@ -189,7 +190,7 @@ void TriangleApplication::allocateMaterialDescriptorSets(const std::vector<Mater
     }
 }
 
-void TriangleApplication::writeMaterialDescriptorSet(Material &material)
+void Application::writeMaterialDescriptorSet(Material &material)
 {
     // 一个 Material 只能创建一次 DescriptorSet
     if (material.descriptorSet == VK_NULL_HANDLE)
@@ -253,7 +254,7 @@ void TriangleApplication::writeMaterialDescriptorSet(Material &material)
     vkUpdateDescriptorSets(context.device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 
-void TriangleApplication::ensureMaterialDescriptorCapacity(std::size_t additionalCount) const
+void Application::ensureMaterialDescriptorCapacity(std::size_t additionalCount) const
 {
     const std::uint32_t capacity = preparingScenePreset ? materialPoolCapacity : maxMaterialCount;
     if (allocatedMaterialSetCount > capacity || additionalCount > capacity - allocatedMaterialSetCount)
@@ -264,7 +265,7 @@ void TriangleApplication::ensureMaterialDescriptorCapacity(std::size_t additiona
     }
 }
 
-void TriangleApplication::createSkyboxDescriptorSets()
+void Application::createSkyboxDescriptorSets()
 {
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, renderer.skyboxDescriptorSetLayout());
 
@@ -284,10 +285,7 @@ void TriangleApplication::createSkyboxDescriptorSets()
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.sampler = skyboxSampler.get();
-        imageInfo.imageView = skyboxImage.view();
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo imageInfo = environment.skyboxDescriptorInfo();
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 

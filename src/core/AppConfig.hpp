@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BuildConfig.hpp"
+#include "core/FrameConfig.hpp"
 #include "vulkan/VulkanHeaders.hpp"
 
 #include <array>
@@ -51,7 +52,6 @@ inline const std::string SHADOW_DEBUG_FRAGMENT_SHADER_PATH = assetPath("shaders/
 inline const std::string FULLSCREEN_VERTEX_SHADER_PATH = assetPath("shaders/fullscreen.vert.spv");
 inline const std::string TONEMAP_FRAGMENT_SHADER_PATH = assetPath("shaders/tonemap.frag.spv");
 
-inline constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
 inline const std::vector<const char *> validationLayers = {
     "VK_LAYER_KHRONOS_validation"};

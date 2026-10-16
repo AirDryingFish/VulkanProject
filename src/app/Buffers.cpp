@@ -1,5 +1,5 @@
-#include "app/TriangleApplication.hpp"
-#include "vulkan/UploadCommands.hpp"
+#include "app/Application.hpp"
+#include "render/ShaderTypes.hpp"
 
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
@@ -16,38 +16,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-glm::mat4 TriangleApplication::getObjectMatrix(const SceneObject &object) const
-{
-    const Transform& transform = object.transform;
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position);
-    model = model * object.assetTransform;
-    model = glm::rotate(model, glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::rotate(model, glm::radians(object.autoRotation), glm::vec3(0.0f, 0.0f, 1.0f));
-    model = glm::scale(model, transform.scale);
-    return model;
-}
-
-SceneObject *TriangleApplication::getSelectedSceneObject()
-{
-    if (selectedSceneObjectIndex < 0 || selectedSceneObjectIndex >= static_cast<int>(sceneObjects.size()))
-    {
-        return nullptr;
-    }
-    return &sceneObjects[selectedSceneObjectIndex];
-}
-
-const SceneObject *TriangleApplication::getSelectedSceneObject() const
-{
-    if (selectedSceneObjectIndex < 0 || selectedSceneObjectIndex >= static_cast<int>(sceneObjects.size()))
-    {
-        return nullptr;
-    }
-    return &sceneObjects[selectedSceneObjectIndex];
-}
-
-Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
+Mesh Application::createMesh(const MeshBuildData &meshData)
 {
     if (meshData.vertices.empty() || meshData.indices.empty())
     {
@@ -94,7 +63,7 @@ Mesh TriangleApplication::createMesh(const MeshBuildData &meshData)
     return mesh;
 }
 
-void TriangleApplication::createUniformBuffer()
+void Application::createUniformBuffer()
 {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
     uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -113,33 +82,21 @@ void TriangleApplication::createUniformBuffer()
     }
 }
 
-void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float deltaTime)
+void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
 {
-    for (SceneObject &object : sceneObjects)
-    {
-        if (!object.autoRotate)
-        {
-            continue;
-        }
-
-        object.autoRotation += object.autoRotateSpeed * deltaTime;
-        if (object.autoRotation > 360.0f || object.autoRotation < -360.0f)
-        {
-            object.autoRotation = std::fmod(object.autoRotation, 360.0f);
-        }
-    }
+    scene.updateAnimations(deltaTime);
 
     UniformBufferObject ubo{};
-    ubo.view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
-    ubo.proj[1][1] *= -1;
-    ubo.cameraPosition = glm::vec4(cameraPos, 1.0f);
-    ubo.ambientLight = glm::vec4(ambientLightColor, ambientLightIntensity);
-    ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
-    ubo.renderParams = glm::vec4(iblIntensity, cameraNear, std::max(debugDepthFar, cameraNear + 0.001f), 0.0f);
+    ubo.view = camera.view();
+    ubo.proj = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
+
+    ubo.cameraPosition = glm::vec4(camera.position, 1.0f);
+    ubo.ambientLight = glm::vec4(scene.ambientLightColor, scene.ambientLightIntensity);
+    ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
+    ubo.renderParams = glm::vec4(scene.iblIntensity, camera.nearPlane, std::max(display.debugDepthFar, camera.nearPlane + 0.001f), 0.0f);
 
     // -- 计算方向光方向 --
-    glm::vec3 direction = directionalLight.direction;
+    glm::vec3 direction = scene.directionalLight.direction;
     float lengthSquared = glm::dot(direction, direction);
     if (!std::isfinite(lengthSquared) || lengthSquared < 1e-8f)
     {
@@ -149,20 +106,20 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     direction /= std::sqrt(lengthSquared);
     // ----
 
-    ubo.directionalDirectionEnabled = glm::vec4(direction, directionalLight.enabled ? 1.0f : 0.0f);
-    ubo.directionalColorIntensity = glm::vec4(directionalLight.color, std::max(directionalLight.intensity, 0.0f));
+    ubo.directionalDirectionEnabled = glm::vec4(direction, scene.directionalLight.enabled ? 1.0f : 0.0f);
+    ubo.directionalColorIntensity = glm::vec4(scene.directionalLight.color, std::max(scene.directionalLight.intensity, 0.0f));
 
     // -- 计算 shadow 相关
-    const float halfExtent = shadowHalfExtent;
+    const float halfExtent = shadows.halfExtent;
     const float lighDistance = 2.0f * halfExtent + 1.0f;
     constexpr float shadowNear = 0.1f;
     const float shadowFar = 4.0f * halfExtent + 2.0f;
     // 虚拟光源相机位置，为了从光的视角去渲染场景
-    const glm::vec3 lightPosition = shadowCenter - direction * lighDistance;
+    const glm::vec3 lightPosition = shadows.center - direction * lighDistance;
     const glm::vec3 worldUp{0.0f, 0.0f, 1.0f};
     const glm::vec3 lightUp = std::abs(glm::dot(direction, worldUp)) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f) : worldUp;
     // 里面会进行 cross 操作，如果看向方向和 up 方向平行，cross 为 0，算不出 right 方向
-    const glm::mat4 lightView = glm::lookAtRH(lightPosition, shadowCenter, lightUp);
+    const glm::mat4 lightView = glm::lookAtRH(lightPosition, shadows.center, lightUp);
     // 构建一个右手系、深度范围为 [0, 1] 的正交投影矩阵
     glm::mat4 lightProjection = glm::orthoRH_ZO(
         -halfExtent, halfExtent, -halfExtent, halfExtent,
@@ -187,7 +144,7 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     ubo.shadowParams = glm::vec4(
         1.0f / static_cast<float>(directionalShadowResolution),
         1.0f / static_cast<float>(directionalShadowResolution),
-        shadowReceiverBias,
+        shadows.receiverBias,
         0.0f);
 
     // shadowFlags:
@@ -196,15 +153,15 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     // z: PCF enabled
     // w: DebugView
     ubo.shadowFlags = glm::ivec4(
-        (directionalShadowsEnabled && directionalLight.enabled) ? 1 : 0,
-        debugView == DebugView::ShadowProjection ? 1 : 0,
-        shadowPcfEnabled ? 1 : 0,
-        static_cast<std::uint32_t>(debugView));
+        (shadows.enabled && scene.directionalLight.enabled) ? 1 : 0,
+        display.debugView == DebugView::ShadowProjection ? 1 : 0,
+        shadows.pcfEnabled ? 1 : 0,
+        static_cast<std::uint32_t>(display.debugView));
     // ----
 
-    for (size_t i = 0; i < std::min<size_t>(pointLights.size(), MAX_POINT_LIGHTS); i++)
+    for (size_t i = 0; i < std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS); i++)
     {
-        const PointLight &light = pointLights[i];
+        const PointLight &light = scene.pointLights[i];
         ubo.pointLights[i].position = glm::vec4(light.position, 1.0f);
         ubo.pointLights[i].color = glm::vec4(light.color, light.intensity);
         ubo.pointLights[i].params = glm::vec4(light.range, light.enabled ? 1.0f : 0.0f, 0.0f, 0.0f);
@@ -213,7 +170,7 @@ void TriangleApplication::updateUniformBuffer(uint32_t currentImage, float delta
     memcpy(uniformBufferMapped[currentImage], &ubo, sizeof(ubo));
 }
 
-void TriangleApplication::releaseMesh(MeshHandle& mesh)
+void Application::releaseMesh(MeshHandle& mesh)
 {
     if (!mesh)
     {
@@ -228,7 +185,7 @@ void TriangleApplication::releaseMesh(MeshHandle& mesh)
     mesh.reset();
 }
 
-void TriangleApplication::destroyBufferDeferred(GpuBuffer& buffer)
+void Application::destroyBufferDeferred(GpuBuffer& buffer)
 {
     if (buffer.get() == VK_NULL_HANDLE)
     {

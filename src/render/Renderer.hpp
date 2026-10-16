@@ -1,6 +1,7 @@
 #pragma once
 
-#include "core/AppConfig.hpp"
+#include "core/FrameConfig.hpp"
+#include "diagnostics/FrameTiming.hpp"
 #include "render/RenderTypes.hpp"
 #include "vulkan/VulkanResources.hpp"
 
@@ -55,13 +56,13 @@ private:
         // ----
         std::uint32_t recordedGpuPassMask = 0;
         // 录制命令时使用的的计时配置
-        GpuTimingConfig recordedTimingConfig{};
+        FrameTimingConfig recordedTimingConfig{};
         // 成功提交的命令里，哪些 pass 实际录入了有效时间戳
         std::uint32_t submittedGpuPassMask = 0;
         // 这个 frame slot 当前保存的成功提交序号
         std::uint64_t submittedGpuSubmissionId = 0;
         // 成功提交的命令对应副本
-        GpuTimingConfig submittedTimingConfig{};
+        FrameTimingConfig submittedTimingConfig{};
 
         DrawStatistics recordedDraws{};
 
@@ -174,7 +175,7 @@ private:
     bool initialized_ = false;
 
 
-    void createTimestampQueyPools();
+    void createTimestampQueryPools();
     void createUploadContext();
 
     void createDescriptorSetLayouts();
@@ -225,7 +226,7 @@ public:
     void initialize(VulkanContext &context, Swapchain &swapchain);
     void shutdown() noexcept;
 
-    // 让 FrameContext 保持为 Renderer 的私有实现，同时给 TriangleApplication 提供完成一帧所需的最少信息
+    // 让 FrameContext 保持为 Renderer 的私有实现，同时给 Application 提供完成一帧所需的最少信息
     BeginFrameResult beginFrame();
     void recordFrame(const FrameToken &token, const RenderFrameData &data);
     FrameStatus endFrame(const FrameToken &token);
@@ -233,11 +234,9 @@ public:
     void waitForAllFrames();
     void retireBuffer(GpuBuffer &&buffer);
 
-    uint32_t currentFrameIndex() const noexcept;
 
     bool hasActiveFrame() const noexcept;
 
-    VkRenderPass sceneRenderPass() const noexcept;
     VkRenderPass presentRenderPass() const noexcept;
     VkSampleCountFlagBits sceneSamples() const noexcept;
 

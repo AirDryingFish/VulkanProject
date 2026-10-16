@@ -1,4 +1,4 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
 #include "ui/FileDialog.hpp"
 
 #include <algorithm>
@@ -113,15 +113,15 @@ bool intersectRayPlane(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection
     return true;
 }
 
-glm::vec3 makeGizmoDragPlaneNormal(const glm::vec3 &axisDirection, const glm::vec3 &cameraFront, const glm::vec3 &cameraUp)
+glm::vec3 makeGizmoDragPlaneNormal(const glm::vec3 &axisDirection, const glm::vec3 &viewDirection, const glm::vec3 &viewUp)
 {
-    glm::vec3 planeNormal = cameraFront - axisDirection * glm::dot(cameraFront, axisDirection);
+    glm::vec3 planeNormal = viewDirection - axisDirection * glm::dot(viewDirection, axisDirection);
     if (glm::length(planeNormal) > 0.0001f)
     {
         return glm::normalize(planeNormal);
     }
 
-    planeNormal = cameraUp - axisDirection * glm::dot(cameraUp, axisDirection);
+    planeNormal = viewUp - axisDirection * glm::dot(viewUp, axisDirection);
     if (glm::length(planeNormal) > 0.0001f)
     {
         return glm::normalize(planeNormal);
@@ -188,7 +188,7 @@ const char *axisLabel(int axis)
 }
 }
 
-void TriangleApplication::initImGui()
+void Application::initImGui()
 {
     // 为什么Imgui需要descriptor？
     // descriptor是渲染的时候需要渲染UI，渲染一个Image或者Text的时候
@@ -249,10 +249,10 @@ void TriangleApplication::initImGui()
     });
 }
 
-void TriangleApplication::drawImGui()
+void Application::drawImGui()
 {
     ImGuiIO &io = ImGui::GetIO();
-    sceneClickConsumed = false;
+    editor.sceneClickConsumed = false;
 
     const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(
@@ -276,47 +276,47 @@ void TriangleApplication::drawImGui()
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::SeparatorText("Scene Presets");
                 ImGui::Text("Active: %s", scenePresetInfo(activeScenePreset).label);
-                if (ImGui::BeginCombo("Preset", scenePresetInfo(selectedScenePreset).label))
+                if (ImGui::BeginCombo("Preset", scenePresetInfo(editor.selectedScenePreset).label))
                 {
                     for (const auto& info : scenePresets)
                     {
-                        const bool selected = selectedScenePreset == info.preset;
+                        const bool selected = editor.selectedScenePreset == info.preset;
                         if (ImGui::Selectable(info.label, selected))
                         {
-                            selectedScenePreset = info.preset;
-                            sceneClickConsumed = true;
+                            editor.selectedScenePreset = info.preset;
+                            editor.sceneClickConsumed = true;
                         }
                         if (selected)
                             ImGui::SetItemDefaultFocus();
                     }
                     ImGui::EndCombo();
                 }
-                ImGui::TextWrapped("%s", scenePresetInfo(selectedScenePreset).description);
-                const std::string unavailable = scenePresetUnavailableReason(selectedScenePreset);
+                ImGui::TextWrapped("%s", scenePresetInfo(editor.selectedScenePreset).description);
+                const std::string unavailable = scenePresetUnavailableReason(editor.selectedScenePreset);
                 ImGui::BeginDisabled(!unavailable.empty() || pendingScenePreset.has_value());
                 if (ImGui::Button("Load / Reset Scene"))
                 {
-                    pendingScenePreset = selectedScenePreset;
-                    sceneClickConsumed = true;
+                    pendingScenePreset = editor.selectedScenePreset;
+                    editor.sceneClickConsumed = true;
                 }
                 ImGui::EndDisabled();
                 ImGui::TextWrapped("Replaces current objects and resets camera/lighting; edits are not saved.");
                 if (!unavailable.empty())
                     ImGui::TextWrapped("Unavailable: %s", unavailable.c_str());
-                if (!scenePresetError.empty())
-                    ImGui::TextWrapped("Scene switch failed: %s", scenePresetError.c_str());
+                if (!editor.scenePresetError.empty())
+                    ImGui::TextWrapped("Scene switch failed: %s", editor.scenePresetError.c_str());
                 ImGui::SeparatorText("Scene");
                 auto addObject = [&](MeshSource source, const std::string &path = std::string()) {
                     try
                     {
                         addMeshObject(source, path);
-                        sceneStatusMessage.clear();
+                        editor.sceneStatusMessage.clear();
                     }
                     catch (const std::exception &exception)
                     {
-                        sceneStatusMessage = exception.what();
+                        editor.sceneStatusMessage = exception.what();
                     }
-                    sceneClickConsumed = true;
+                    editor.sceneClickConsumed = true;
                 };
 
                 if (ImGui::Button("Add Cube"))
@@ -330,28 +330,28 @@ void TriangleApplication::drawImGui()
                 }
                 if (ImGui::CollapsingHeader("Import OBJ##Section"))
                 {
-                    ImGui::InputText("OBJ Path", importModelPath, sizeof(importModelPath));
+                    ImGui::InputText("OBJ Path", editor.importModelPath, sizeof(editor.importModelPath));
                     if (ImGui::Button("Import OBJ"))
                     {
-                        addObject(MeshSource::Obj, importModelPath);
+                        addObject(MeshSource::Obj, editor.importModelPath);
                     }
                 }
 
-                if (!sceneStatusMessage.empty())
+                if (!editor.sceneStatusMessage.empty())
                 {
-                    ImGui::TextWrapped("Import failed: %s", sceneStatusMessage.c_str());
+                    ImGui::TextWrapped("Import failed: %s", editor.sceneStatusMessage.c_str());
                 }
 
                 if (ImGui::CollapsingHeader("Import glTF / GLB"))
                 {
-                    ImGui::InputText("glTF/GLB path", importGltfPath, sizeof(importGltfPath));
+                    ImGui::InputText("glTF/GLB path", editor.importGltfPath, sizeof(editor.importGltfPath));
                     ImGui::Text("Material slots: %u / %u", static_cast<unsigned int>(allocatedMaterialSetCount), static_cast<unsigned int>(maxMaterialCount));
                     bool importRequested = ImGui::Button("Import glTF Scene");
-                    std::string requestedPath = importGltfPath;
+                    std::string requestedPath = editor.importGltfPath;
                     ImGui::SameLine();
                     if (ImGui::Button("Browse and Import..."))
                     {
-                        sceneClickConsumed = true;
+                        editor.sceneClickConsumed = true;
                         try
                         {
                             const auto path = FileDialog::openGltf();
@@ -363,13 +363,13 @@ void TriangleApplication::drawImGui()
                         }
                         catch (const std::exception& exception)
                         {
-                            gltfImportError = exception.what();
+                            editor.gltfImportError = exception.what();
                         }
                     }
                     if (importRequested)
                     {
-                        sceneClickConsumed = true;
-                        gltfImportError.clear();
+                        editor.sceneClickConsumed = true;
+                        editor.gltfImportError.clear();
 
                         GltfImportResult importResult{};
                         bool importSucceeded = false;
@@ -380,12 +380,12 @@ void TriangleApplication::drawImGui()
                         }
                         catch(const std::exception& exception)
                         {
-                            gltfImportError = exception.what();
+                            editor.gltfImportError = exception.what();
                         }
 
                         if (importSucceeded)
                         {
-                            gltfImportSummary =
+                            editor.gltfImportSummary =
                             "Objects: " + std::to_string(importResult.objectCount) +
                             ", uploaded meshes: " + std::to_string(importResult.uploadedMeshCount) +
                             ", reused meshes: " + std::to_string(importResult.reusedMeshCount) +
@@ -395,33 +395,32 @@ void TriangleApplication::drawImGui()
                         }
                     }
 
-                    if (!gltfImportSummary.empty())
+                    if (!editor.gltfImportSummary.empty())
                     {
-                        ImGui::TextWrapped("Last successful import: %s", gltfImportSummary.c_str());
+                        ImGui::TextWrapped("Last successful import: %s", editor.gltfImportSummary.c_str());
                     }
 
-                    if (!gltfImportError.empty())
+                    if (!editor.gltfImportError.empty())
                     {
-                        ImGui::TextWrapped("glTF import failed: %s", gltfImportError.c_str());
+                        ImGui::TextWrapped("glTF import failed: %s", editor.gltfImportError.c_str());
                     }
 
                 }
 
                 ImGui::SeparatorText("Objects");
-                ImGui::TextDisabled("%zu scene object(s)", sceneObjects.size());
+                ImGui::TextDisabled("%zu scene object(s)", scene.objects.size());
                 ImGui::BeginChild("ObjectList", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders);
-                for (size_t i = 0; i < sceneObjects.size(); i++)
+                for (size_t i = 0; i < scene.objects.size(); i++)
                 {
-                    SceneObject &object = sceneObjects[i];
+                    SceneObject &object = scene.objects[i];
                     ImGui::PushID(static_cast<int>(i));
-                    const bool selected = selectedObject == SceneSelection::Model && selectedSceneObjectIndex == static_cast<int>(i);
+                    const bool selected = editor.selection == SelectionKind::Object && editor.objectIndex == static_cast<int>(i);
                     if (ImGui::Selectable(object.name.c_str(), selected))
                     {
-                        selectedObject = SceneSelection::Model;
-                        selectedSceneObjectIndex = static_cast<int>(i);
-                        selectedModel = true;
-                        selectedPointLightIndex = -1;
-                        sceneClickConsumed = true;
+                        editor.selection = SelectionKind::Object;
+                        editor.objectIndex = static_cast<int>(i);
+                        editor.pointLightIndex = -1;
+                        editor.sceneClickConsumed = true;
                     }
                     ImGui::PopID();
                 }
@@ -440,13 +439,13 @@ void TriangleApplication::drawImGui()
             {
                 ImGui::BeginChild("InspectorContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-                SceneObject* selectedSceneObject = getSelectedSceneObject();
+                SceneObject* selectedSceneObject = editor.selectedSceneObject(scene);
                 ImGui::SeparatorText("Object Transform");
                 ImGui::Text("Selected: %s", selectedSceneObject != nullptr ? selectedSceneObject->name.c_str() : "None");
-                if (selectedObject == SceneSelection::Model && selectedSceneObject != nullptr)
+                if (editor.selection == SelectionKind::Object && selectedSceneObject != nullptr)
                 {
                     Transform& transform = selectedSceneObject->transform;
-                    ImGui::Text("Pick Distance: %.3f", modelPickDistance);
+                    ImGui::Text("Pick Distance: %.3f", editor.pickDistance);
                     ImGui::Checkbox("Auto Rotate", &selectedSceneObject->autoRotate);
                     ImGui::DragFloat("Auto Rotate Speed", &selectedSceneObject->autoRotateSpeed, 1.0f, -720.0f, 720.0f);
                     ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
@@ -461,15 +460,12 @@ void TriangleApplication::drawImGui()
                     }
                     if (ImGui::Button("Delete Selected"))
                     {
-                        SceneObject& object = sceneObjects[selectedSceneObjectIndex];
+                        SceneObject& object = scene.objects[editor.objectIndex];
                         releaseMesh(object.mesh);
                         selectedSceneObject = nullptr;
-                        sceneObjects.erase(sceneObjects.begin() + selectedSceneObjectIndex);
-                        selectedSceneObjectIndex = -1;
-                        selectedObject = SceneSelection::None;
-                        selectedModel = false;
-                        modelPickDistance = 0.0f;
-                        sceneClickConsumed = true;
+                        scene.objects.erase(scene.objects.begin() + editor.objectIndex);
+                        editor.clearSelection();
+                        editor.sceneClickConsumed = true;
                     }
                 }
 
@@ -497,7 +493,7 @@ void TriangleApplication::drawImGui()
                             if (ImGui::Selectable(candidate->name.c_str(), isSelected))
                             {
                                 selectedMaterial = candidate;
-                                sceneClickConsumed = true;
+                                editor.sceneClickConsumed = true;
                             }
 
                             if (isSelected)
@@ -520,7 +516,7 @@ void TriangleApplication::drawImGui()
                         ImGui::SliderFloat("Normal scale", &material.normalScale, 0.0f, 2.0f);
                         ImGui::ColorEdit3("Emissive Factor", &material.emissiveFactor.x);
                         std::size_t objectReferenceCount = 0;
-                        for (const SceneObject& object : sceneObjects)
+                        for (const SceneObject& object : scene.objects)
                         {
                             if (object.material == selectedMaterial)
                             {
@@ -536,7 +532,7 @@ void TriangleApplication::drawImGui()
                 {
                     ImGui::SeparatorText("Resources");
 
-                    ImGui::Text("Objects: %zu", sceneObjects.size());
+                    ImGui::Text("Objects: %zu", scene.objects.size());
                     if (selectedSceneObject != nullptr && selectedSceneObject->mesh)
                     {
                         const Mesh& mesh = *selectedSceneObject->mesh;
@@ -582,7 +578,8 @@ void TriangleApplication::drawImGui()
 
                     ImGui::Text("Texture Library Entries: %zu", textureLibrary.size());
                     ImGui::Text("Materials: %zu", materialLibrary.size());
-                    ImGui::Text("Mip Levels: %u", mipLevels);
+                    ImGui::Text("Mip Levels: %u", defaultMaterial && defaultMaterial->baseColorTexture.image
+                        ? defaultMaterial->baseColorTexture.image->image.mipLevels() : 0u);
 
                 }
 
@@ -596,19 +593,19 @@ void TriangleApplication::drawImGui()
                 ImGui::BeginChild("LightingContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::SeparatorText("Environment");
-                ImGui::ColorEdit3("Ambient Color", &ambientLightColor.x);
-                ImGui::DragFloat("Ambient Intensity", &ambientLightIntensity, 0.01f, 0.0f, 2.0f);
-                ImGui::DragFloat("IBL Intensity", &iblIntensity, 0.01f, 0.0f, 5.0f);
+                ImGui::ColorEdit3("Ambient Color", &scene.ambientLightColor.x);
+                ImGui::DragFloat("Ambient Intensity", &scene.ambientLightIntensity, 0.01f, 0.0f, 2.0f);
+                ImGui::DragFloat("IBL Intensity", &scene.iblIntensity, 0.01f, 0.0f, 5.0f);
 
                 ImGui::Separator();
                 ImGui::TextUnformatted("Directional Light");
-                ImGui::Checkbox("Enabled##DirectionalLight", &directionalLight.enabled);
-                ImGui::DragFloat3("Direction##DirectionalLight", &directionalLight.direction.x, 0.02f);
-                ImGui::ColorEdit3("Color##DirectionalLight", &directionalLight.color.x);
-                ImGui::DragFloat("Intensity##DirectionalLight", &directionalLight.intensity, 0.05f, 0.0f, 20.0f);
+                ImGui::Checkbox("Enabled##DirectionalLight", &scene.directionalLight.enabled);
+                ImGui::DragFloat3("Direction##DirectionalLight", &scene.directionalLight.direction.x, 0.02f);
+                ImGui::ColorEdit3("Color##DirectionalLight", &scene.directionalLight.color.x);
+                ImGui::DragFloat("Intensity##DirectionalLight", &scene.directionalLight.intensity, 0.05f, 0.0f, 20.0f);
 
                 ImGui::SeparatorText("Point lights");
-                const bool canAddLight = pointLights.size() < MAX_POINT_LIGHTS;
+                const bool canAddLight = scene.pointLights.size() < MAX_POINT_LIGHTS;
                 if (!canAddLight)
                 {
                     ImGui::BeginDisabled();
@@ -616,35 +613,33 @@ void TriangleApplication::drawImGui()
                 if (ImGui::Button("Add Point Light"))
                 {
                     PointLight light{};
-                    light.position = cameraPos + cameraFront * 2.0f;
-                    pointLights.push_back(light);
-                    selectedObject = SceneSelection::PointLight;
-                    selectedModel = false;
-                    selectedSceneObjectIndex = -1;
-                    selectedPointLightIndex = static_cast<int>(pointLights.size()) - 1;
-                    sceneClickConsumed = true;
+                    light.position = camera.position + camera.front * 2.0f;
+                    scene.pointLights.push_back(light);
+                    editor.selection = SelectionKind::PointLight;
+                    editor.objectIndex = -1;
+                    editor.pointLightIndex = static_cast<int>(scene.pointLights.size()) - 1;
+                    editor.sceneClickConsumed = true;
                 }
                 if (!canAddLight)
                 {
                     ImGui::EndDisabled();
                 }
                 ImGui::SameLine();
-                ImGui::Text("%zu / %u", pointLights.size(), MAX_POINT_LIGHTS);
+                ImGui::Text("%zu / %u", scene.pointLights.size(), MAX_POINT_LIGHTS);
 
-                for (size_t i = 0; i < pointLights.size(); i++)
+                for (size_t i = 0; i < scene.pointLights.size(); i++)
                 {
-                    PointLight &light = pointLights[i];
+                    PointLight &light = scene.pointLights[i];
                     ImGui::PushID(static_cast<int>(i));
 
-                    const bool selected = selectedObject == SceneSelection::PointLight && selectedPointLightIndex == static_cast<int>(i);
+                    const bool selected = editor.selection == SelectionKind::PointLight && editor.pointLightIndex == static_cast<int>(i);
                     const std::string lightLabel = "Point Light " + std::to_string(i + 1);
                     if (ImGui::Selectable(lightLabel.c_str(), selected))
                     {
-                        selectedObject = SceneSelection::PointLight;
-                        selectedModel = false;
-                        selectedSceneObjectIndex = -1;
-                        selectedPointLightIndex = static_cast<int>(i);
-                        sceneClickConsumed = true;
+                        editor.selection = SelectionKind::PointLight;
+                        editor.objectIndex = -1;
+                        editor.pointLightIndex = static_cast<int>(i);
+                        editor.sceneClickConsumed = true;
                     }
 
                     if (ImGui::TreeNode("Properties"))
@@ -672,23 +667,22 @@ void TriangleApplication::drawImGui()
                 ImGui::BeginChild("ShadowsContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::SeparatorText("Directional shadows");
-                ImGui::Checkbox("Shadows##DirectionalLight", &directionalShadowsEnabled);
-                ImGui::Checkbox("Shadow PCF 3x3", &shadowPcfEnabled);
+                ImGui::Checkbox("Shadows##DirectionalLight", &shadows.enabled);
+                ImGui::Checkbox("Shadow PCF 3x3", &shadows.pcfEnabled);
 
                 ImGui::SeparatorText("Depth bias");
-                ImGui::SliderFloat("Shadow constant bias", &shadowConstantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::SliderFloat("Shadow slope bias", &shadowSlopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::SliderFloat("Shadow receiver bias", &shadowReceiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("Shadow constant bias", &shadows.constantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("Shadow slope bias", &shadows.slopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("Shadow receiver bias", &shadows.receiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
                 if (ImGui::Button("Reset shadow bias"))
                 {
-                    shadowConstantBias = 1.25f;
-                    shadowSlopeBias = 1.75f;
-                    shadowReceiverBias = 0.0005f;
+                    shadows.constantBias = 1.25f;
+                    shadows.slopeBias = 1.75f;
+                    shadows.receiverBias = 0.0005f;
                 }
                 ImGui::SeparatorText("Debug views");
-                ImGui::Checkbox("Show shadow depth", &showShadowDepth);
+                ImGui::Checkbox("Show shadow depth", &shadows.showDepth);
                 // 调试显示
-                // ImGui::Checkbox("Show light-space coordinates", &showShadowProjection);
 
 
                 ImGui::TextWrapped("Bias corrects depth comparisons; PCF filters shadow edges. The depth preview shows raw depth, not visibility.");
@@ -703,16 +697,25 @@ void TriangleApplication::drawImGui()
                 ImGui::BeginChild("CameraContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::SeparatorText("Camera");
-                ImGui::Text("Position: %.2f %.2f %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
-                ImGui::Text("Front: %.2f %.2f %.2f", cameraFront.x, cameraFront.y, cameraFront.z);
-                ImGui::Text("Yaw/Pitch: %.1f %.1f", cameraYaw, cameraPitch);
-                ImGui::DragFloat("Near Plane", &cameraNear, 0.01f, 0.01f, 10.0f);
-                ImGui::DragFloat("Far Plane", &cameraFar, 1.0f, 10.0f, 10000.0f);
-                ImGui::DragFloat("Move Speed", &cameraMoveSpeed, 0.1f, 0.1f, 30.0f);
-                ImGui::DragFloat("Fast Multiplier", &cameraFastMultiplier, 0.1f, 1.0f, 10.0f);
-                ImGui::DragFloat("Scroll Speed", &cameraScrollSpeed, 0.1f, 0.1f, 20.0f);
-                ImGui::DragFloat("Pan Speed", &cameraPanSpeed, 0.001f, 0.001f, 0.2f, "%.3f");
-                ImGui::DragFloat("Mouse Sensitivity", &mouseSensitivity, 0.01f, 0.01f, 2.0f);
+                ImGui::Text("Position: %.2f %.2f %.2f", camera.position.x, camera.position.y, camera.position.z);
+                ImGui::Text("Front: %.2f %.2f %.2f", camera.front.x, camera.front.y, camera.front.z);
+                ImGui::Text("Yaw/Pitch: %.1f %.1f", camera.yaw, camera.pitch);
+                bool clippingEdited = ImGui::DragFloat("Near Plane", &camera.nearPlane, 0.01f, 0.01f,
+                    std::min(10.0f, camera.farPlane - 0.01f), "%.3f", ImGuiSliderFlags_AlwaysClamp);
+                clippingEdited |= ImGui::DragFloat("Far Plane", &camera.farPlane, 1.0f,
+                    std::max(10.0f, camera.nearPlane + 0.01f), 10000.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                // Text entry must preserve a valid projection too.
+                if (clippingEdited)
+                {
+                    camera.nearPlane = std::clamp(std::isfinite(camera.nearPlane) ? camera.nearPlane : 0.1f, 0.01f, 10.0f);
+                    camera.farPlane = std::clamp(std::isfinite(camera.farPlane) ? camera.farPlane : 1000.0f,
+                        std::max(10.0f, camera.nearPlane + 0.01f), 10000.0f);
+                }
+                ImGui::DragFloat("Move Speed", &camera.moveSpeed, 0.1f, 0.1f, 30.0f);
+                ImGui::DragFloat("Fast Multiplier", &camera.fastMultiplier, 0.1f, 1.0f, 10.0f);
+                ImGui::DragFloat("Scroll Speed", &camera.scrollSpeed, 0.1f, 0.1f, 20.0f);
+                ImGui::DragFloat("Pan Speed", &camera.panSpeed, 0.001f, 0.001f, 0.2f, "%.3f");
+                ImGui::DragFloat("Mouse Sensitivity", &camera.mouseSensitivity, 0.01f, 0.01f, 2.0f);
 
 
                 ImGui::PopItemWidth();
@@ -737,46 +740,46 @@ void TriangleApplication::drawImGui()
                     "Linear depth",
                     "HDR luminance",
                     "Shadow projection"};
-                int selectedView = static_cast<int>(debugView);
+                int selectedView = static_cast<int>(display.debugView);
                 if (ImGui::Combo("Debug View", &selectedView, viewNames, 8))
                 {
-                    debugView = static_cast<DebugView>(selectedView);
+                    display.debugView = static_cast<DebugView>(selectedView);
                 }
 
-                if (debugView == DebugView::LinearDepth)
+                if (display.debugView == DebugView::LinearDepth)
                 {
-                    // debugDepthFar: 表示多元的位置映射成白色
-                    ImGui::DragFloat("Depth display far", &debugDepthFar, 0.5f, cameraNear + 0.001f, cameraFar, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::Text("Forward distance: %.3f .. %.3f", cameraNear, std::max(debugDepthFar, cameraNear + 0.001f));
+                    // display.debugDepthFar: 表示多元的位置映射成白色
+                    ImGui::DragFloat("Depth display far", &display.debugDepthFar, 0.5f, camera.nearPlane + 0.001f, camera.farPlane, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                    ImGui::Text("Forward distance: %.3f .. %.3f", camera.nearPlane, std::max(display.debugDepthFar, camera.nearPlane + 0.001f));
                 }
-                if (debugView == DebugView::Roughness)
+                if (display.debugView == DebugView::Roughness)
                 {
                     ImGui::TextUnformatted("Shading roughness: clamped to [0.04, 1].");
                 }
-                if (debugView == DebugView::HdrLuminance)
+                if (display.debugView == DebugView::HdrLuminance)
                 {
                     ImGui::TextUnformatted("log2(Y): [-8, +8], scene-linear, before EV.");
                 }
 
-                ImGui::BeginDisabled(debugView != DebugView::Lit);
+                ImGui::BeginDisabled(display.debugView != DebugView::Lit);
 
-                ImGui::SliderFloat("Exposure EV", &exposureEv, -8.0f, 8.0f, "%.2f");
+                ImGui::SliderFloat("Exposure EV", &display.exposureEv, -8.0f, 8.0f, "%.2f");
                 const char* mapperNames[] = {"Reinhard", "ACES fitted (Narkowicz)"};
-                int selectedMapper = static_cast<int>(toneMapper);
+                int selectedMapper = static_cast<int>(display.toneMapper);
 
                 // 下拉框
                 if (ImGui::Combo("Tone mapper", &selectedMapper, mapperNames, 2))
                 {
-                    toneMapper = static_cast<ToneMapper>(selectedMapper);
+                    display.toneMapper = static_cast<ToneMapper>(selectedMapper);
                 }
                 if (ImGui::Button("Reset display"))
                 {
-                    exposureEv = 0.0f;
-                    toneMapper = ToneMapper::Reinhard;
+                    display.exposureEv = 0.0f;
+                    display.toneMapper = ToneMapper::Reinhard;
                 }
                 ImGui::EndDisabled();
 
-                if (debugView != DebugView::Lit)
+                if (display.debugView != DebugView::Lit)
                 {
                     ImGui::TextUnformatted("Data view: exposure and tone mapping bypassed");
                 }
@@ -797,7 +800,7 @@ void TriangleApplication::drawImGui()
     viewport->Pos.x + viewport->Size.x - margin - radius,
     viewport->Pos.y + viewport->Size.y - margin - radius);
 
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+    glm::mat4 view = camera.view();
     glm::mat3 viewRotation(view);
 
     drawList->AddCircleFilled(origin, radius, IM_COL32(16, 18, 22, 150), 32);
@@ -810,9 +813,9 @@ void TriangleApplication::drawImGui()
     drawTransformGizmo();
 }
 
-void TriangleApplication::drawLightOverlays()
+void Application::drawLightOverlays()
 {
-    if (pointLights.empty())
+    if (scene.pointLights.empty())
     {
         return;
     }
@@ -821,27 +824,27 @@ void TriangleApplication::drawLightOverlays()
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();
 
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
-    projection[1][1] *= -1;
+    glm::mat4 view = camera.view();
+    glm::mat4 projection = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
+
 
     const ImVec2 mouse = io.MousePos;
     int hoveredLight = -1;
     float bestDistance = 12.0f;
 
-    std::vector<ImVec2> lightScreens(pointLights.size());
-    std::vector<bool> lightVisible(pointLights.size(), false);
+    std::vector<ImVec2> lightScreens(scene.pointLights.size());
+    std::vector<bool> lightVisible(scene.pointLights.size(), false);
 
-    for (size_t i = 0; i < pointLights.size(); i++)
+    for (size_t i = 0; i < scene.pointLights.size(); i++)
     {
-        lightVisible[i] = worldToScreen(pointLights[i].position, view, projection, viewport, lightScreens[i]);
+        lightVisible[i] = worldToScreen(scene.pointLights[i].position, view, projection, viewport, lightScreens[i]);
         if (!lightVisible[i])
         {
             continue;
         }
 
         const float distance = length(mouse - lightScreens[i]);
-        if (!io.WantCaptureMouse && gizmoHoveredAxis == 0 && gizmoActiveAxis == 0 && distance < bestDistance)
+        if (!io.WantCaptureMouse && editor.gizmoHoveredAxis == 0 && editor.gizmoActiveAxis == 0 && distance < bestDistance)
         {
             bestDistance = distance;
             hoveredLight = static_cast<int>(i);
@@ -853,23 +856,22 @@ void TriangleApplication::drawLightOverlays()
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
-            selectedObject = SceneSelection::PointLight;
-            selectedModel = false;
-            selectedSceneObjectIndex = -1;
-            selectedPointLightIndex = hoveredLight;
-            sceneClickConsumed = true;
+            editor.selection = SelectionKind::PointLight;
+            editor.objectIndex = -1;
+            editor.pointLightIndex = hoveredLight;
+            editor.sceneClickConsumed = true;
         }
     }
 
-    for (size_t i = 0; i < pointLights.size(); i++)
+    for (size_t i = 0; i < scene.pointLights.size(); i++)
     {
         if (!lightVisible[i])
         {
             continue;
         }
 
-        const PointLight &light = pointLights[i];
-        const bool selected = selectedObject == SceneSelection::PointLight && selectedPointLightIndex == static_cast<int>(i);
+        const PointLight &light = scene.pointLights[i];
+        const bool selected = editor.selection == SelectionKind::PointLight && editor.pointLightIndex == static_cast<int>(i);
         const bool hovered = hoveredLight == static_cast<int>(i);
         const ImVec2 screen = lightScreens[i];
         const ImU32 color = IM_COL32(
@@ -884,7 +886,7 @@ void TriangleApplication::drawLightOverlays()
     }
 }
 
-void TriangleApplication::drawTransformGizmo()
+void Application::drawTransformGizmo()
 {
     glm::vec3 *selectedPosition = nullptr;
     glm::vec3 originWorld(0.0f);
@@ -894,32 +896,32 @@ void TriangleApplication::drawTransformGizmo()
         glm::vec3(0.0f, 0.0f, 1.0f),
     };
 
-    if (selectedObject == SceneSelection::Model)
+    if (editor.selection == SelectionKind::Object)
     {
-        SceneObject *object = getSelectedSceneObject();
+        SceneObject *object = editor.selectedSceneObject(scene);
         if (object == nullptr)
         {
-            gizmoHoveredAxis = 0;
-            gizmoActiveAxis = 0;
+            editor.gizmoHoveredAxis = 0;
+            editor.gizmoActiveAxis = 0;
             return;
         }
 
         selectedPosition = &object->transform.position;
-        glm::mat4 model = getObjectMatrix(*object);
+        glm::mat4 model = object->modelMatrix();
         originWorld = glm::vec3(model * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
         axisDirections[0] = glm::normalize(glm::vec3(model * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)));
         axisDirections[1] = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f)));
         axisDirections[2] = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
     }
-    else if (selectedObject == SceneSelection::PointLight && selectedPointLightIndex >= 0 && selectedPointLightIndex < static_cast<int>(pointLights.size()))
+    else if (editor.selection == SelectionKind::PointLight && editor.pointLightIndex >= 0 && editor.pointLightIndex < static_cast<int>(scene.pointLights.size()))
     {
-        selectedPosition = &pointLights[selectedPointLightIndex].position;
+        selectedPosition = &scene.pointLights[editor.pointLightIndex].position;
         originWorld = *selectedPosition;
     }
     else
     {
-        gizmoHoveredAxis = 0;
-        gizmoActiveAxis = 0;
+        editor.gizmoHoveredAxis = 0;
+        editor.gizmoActiveAxis = 0;
         return;
     }
 
@@ -927,17 +929,17 @@ void TriangleApplication::drawTransformGizmo()
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();
 
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), swapchain.extent().width / static_cast<float>(swapchain.extent().height), cameraNear, cameraFar);
-    projection[1][1] *= -1;
+    glm::mat4 view = camera.view();
+    glm::mat4 projection = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
 
-    const float distanceToCamera = glm::length(cameraPos - originWorld);
+
+    const float distanceToCamera = glm::length(camera.position - originWorld);
     const float axisWorldLength = std::clamp(distanceToCamera * 0.18f, 0.3f, 3.0f);
 
     ImVec2 originScreen;
     if (!worldToScreen(originWorld, view, projection, viewport, originScreen))
     {
-        gizmoHoveredAxis = 0;
+        editor.gizmoHoveredAxis = 0;
         return;
     }
 
@@ -960,8 +962,8 @@ void TriangleApplication::drawTransformGizmo()
     }
 
     const ImVec2 mouse = io.MousePos;
-    gizmoHoveredAxis = 0;
-    if (gizmoActiveAxis == 0 && !io.WantCaptureMouse)
+    editor.gizmoHoveredAxis = 0;
+    if (editor.gizmoActiveAxis == 0 && !io.WantCaptureMouse)
     {
         float bestDistance = 12.0f;
         for (int i = 0; i < 3; i++)
@@ -975,54 +977,53 @@ void TriangleApplication::drawTransformGizmo()
             if (distance < bestDistance)
             {
                 bestDistance = distance;
-                gizmoHoveredAxis = i + 1;
+                editor.gizmoHoveredAxis = i + 1;
             }
         }
     }
 
-    if (gizmoHoveredAxis != 0)
+    if (editor.gizmoHoveredAxis != 0)
     {
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     }
 
-    if (gizmoActiveAxis == 0 && gizmoHoveredAxis != 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    if (editor.gizmoActiveAxis == 0 && editor.gizmoHoveredAxis != 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
-        const int axisIndex = gizmoHoveredAxis - 1;
+        const int axisIndex = editor.gizmoHoveredAxis - 1;
         glm::vec3 rayOrigin;
         glm::vec3 rayDirection;
         glm::vec3 hitPoint;
-        const glm::vec3 planeNormal = makeGizmoDragPlaneNormal(axisDirections[axisIndex], cameraFront, cameraUp);
+        const glm::vec3 planeNormal = makeGizmoDragPlaneNormal(axisDirections[axisIndex], camera.front, camera.up);
 
         buildMouseRay(mouse, view, projection, viewport, rayOrigin, rayDirection);
         if (intersectRayPlane(rayOrigin, rayDirection, originWorld, planeNormal, hitPoint))
         {
-            gizmoActiveAxis = gizmoHoveredAxis;
-            gizmoDragStartMouse = glm::vec2(mouse.x, mouse.y);
-            gizmoDragStartPosition = *selectedPosition;
-            gizmoDragAxis = axisDirections[axisIndex];
-            gizmoDragPlaneNormal = planeNormal;
-            gizmoDragStartHitPoint = hitPoint;
+            editor.gizmoActiveAxis = editor.gizmoHoveredAxis;
+            editor.gizmoDragStartPosition = *selectedPosition;
+            editor.gizmoDragAxis = axisDirections[axisIndex];
+            editor.gizmoDragPlaneNormal = planeNormal;
+            editor.gizmoDragStartHitPoint = hitPoint;
         }
     }
 
-    if (gizmoActiveAxis != 0)
+    if (editor.gizmoActiveAxis != 0)
     {
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            gizmoActiveAxis = 0;
+            editor.gizmoActiveAxis = 0;
         }
         else
         {
-            const int axisIndex = gizmoActiveAxis - 1;
+            const int axisIndex = editor.gizmoActiveAxis - 1;
             glm::vec3 rayOrigin;
             glm::vec3 rayDirection;
             glm::vec3 hitPoint;
 
             buildMouseRay(mouse, view, projection, viewport, rayOrigin, rayDirection);
-            if (intersectRayPlane(rayOrigin, rayDirection, gizmoDragStartHitPoint, gizmoDragPlaneNormal, hitPoint))
+            if (intersectRayPlane(rayOrigin, rayDirection, editor.gizmoDragStartHitPoint, editor.gizmoDragPlaneNormal, hitPoint))
             {
-                const float worldDistance = glm::dot(hitPoint - gizmoDragStartHitPoint, gizmoDragAxis);
-                *selectedPosition = gizmoDragStartPosition + gizmoDragAxis * worldDistance;
+                const float worldDistance = glm::dot(hitPoint - editor.gizmoDragStartHitPoint, editor.gizmoDragAxis);
+                *selectedPosition = editor.gizmoDragStartPosition + editor.gizmoDragAxis * worldDistance;
             }
         }
     }
@@ -1038,7 +1039,7 @@ void TriangleApplication::drawTransformGizmo()
         }
 
         const int axis = i + 1;
-        const bool highlighted = axis == gizmoHoveredAxis || axis == gizmoActiveAxis;
+        const bool highlighted = axis == editor.gizmoHoveredAxis || axis == editor.gizmoActiveAxis;
         const ImU32 color = axisColor(axis, highlighted);
         const float thickness = highlighted ? 5.0f : 3.0f;
         const ImVec2 direction = normalize(axes[i].end - originScreen);

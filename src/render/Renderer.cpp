@@ -86,7 +86,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         }
 
         // -- gpu 计时 --
-        createTimestampQueyPools();
+        createTimestampQueryPools();
         latestGpuTiming_ = {};
         latestGpuTiming_.supported = gpuTimingSupported_;
         for (GpuPassTiming& timing : latestGpuTiming_.passes)
@@ -129,7 +129,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
 }
 
 // 能力查询和资源创建
-void Renderer::createTimestampQueyPools()
+void Renderer::createTimestampQueryPools()
 {
     if (context_ == nullptr)
     {
@@ -410,11 +410,6 @@ void Renderer::retireBuffer(GpuBuffer &&buffer)
     frames_[currentFrame_].retiredBuffers.push_back(std::move(buffer));
 }
 
-uint32_t Renderer::currentFrameIndex() const noexcept
-{
-    return currentFrame_;
-}
-
 bool Renderer::hasActiveFrame() const noexcept
 {
     return hasActiveFrame_;
@@ -436,10 +431,6 @@ VkDescriptorSetLayout Renderer::materialDescriptorSetLayout() const noexcept
     return materialDescriptorSetLayout_;
 }
 
-VkRenderPass Renderer::sceneRenderPass() const noexcept
-{
-    return sceneRenderPass_;
-}
 VkRenderPass Renderer::presentRenderPass() const noexcept
 {
     return presentRenderPass_;
@@ -1032,13 +1023,13 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     }
 
     // 3. vkQueuePresentKHR()。
-    VkSwapchainKHR swapchianHandle = swapchain_->get();
+    VkSwapchainKHR swapchainHandle = swapchain_->get();
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &renderFinished;
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &swapchianHandle;
+    presentInfo.pSwapchains = &swapchainHandle;
     presentInfo.pImageIndices = &token.imageIndex;
 
     const auto presentBegin = CpuClock::now();

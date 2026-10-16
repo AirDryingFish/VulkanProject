@@ -1,7 +1,13 @@
-#include "app/TriangleApplication.hpp"
+#include "render/Environment.hpp"
+#include "render/Renderer.hpp"
+#include "vulkan/VulkanContext.hpp"
+#include "vulkan/VulkanCheck.hpp"
+#include "core/AppConfig.hpp"
 #include "core/FileUtils.hpp"
 
+#include <algorithm>
 #include <array>
+#include <glm/gtc/matrix_transform.hpp>
 #include <stdexcept>
 
 namespace
@@ -187,7 +193,7 @@ namespace
         const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {vertexStage, fragmentStage};
         VkPipelineVertexInputStateCreateInfo vertexInput{};
         vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        
+
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -214,12 +220,12 @@ namespace
 
         VkPipelineColorBlendAttachmentState blendAttachment{};
         blendAttachment.blendEnable = VK_FALSE;
-        blendAttachment.colorWriteMask = 
+        blendAttachment.colorWriteMask =
             VK_COLOR_COMPONENT_R_BIT |
             VK_COLOR_COMPONENT_G_BIT |
             VK_COLOR_COMPONENT_B_BIT |
             VK_COLOR_COMPONENT_A_BIT;
-        
+
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.logicOpEnable = VK_FALSE;
@@ -270,13 +276,17 @@ namespace
             &pipeline
         );
 
+        if (result != VK_SUCCESS && pipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device, pipeline, nullptr);
+        }
         VK_CHECK_RESULT(result, desc.debugName);
 
         return pipeline;
     }
 }
 
-void TriangleApplication::createIrradianceResources()
+void Environment::createIrradianceResources()
 {
     ImageDesc irradianceDesc{};
     irradianceDesc.extent = {
@@ -294,23 +304,21 @@ void TriangleApplication::createIrradianceResources()
     irradianceDesc.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
     irradianceDesc.debugName = "irradiance cubemap";
 
-    irradianceImage = context.createImage(irradianceDesc);
+    irradianceImage_ = context_->createImage(irradianceDesc);
 
-    irradianceImage.setView(context.createImageView(
-        irradianceImage.get(),
+    irradianceImage_.setView(context_->createImageView(
+        irradianceImage_.get(),
         irradianceFormat,
         1,
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_VIEW_TYPE_CUBE,
         6));
 
-    for (uint32_t face = 0; face < irradianceFaceImageViews.size(); face++)
+    for (uint32_t face = 0; face < irradianceFaceImageViews_.size(); face++)
     {
-        irradianceFaceImageViews[face] = createIrradianceFaceImageView(context.device(), irradianceImage.get(), face);
-        mainDeletionQueue.pushFunction([this, imageView = irradianceFaceImageViews[face]]()
-                                       { vkDestroyImageView(context.device(), imageView, nullptr); });
-    }
+        irradianceFaceImageViews_[face] = createIrradianceFaceImageView(context_->device(), irradianceImage_.get(), face);
 
+    }
 
     SamplerDesc samplerDesc{};
     samplerDesc.magFilter = VK_FILTER_LINEAR;
@@ -329,7 +337,7 @@ void TriangleApplication::createIrradianceResources()
     samplerDesc.minLod = 0.0f;
     samplerDesc.maxLod = 0.0f;
     samplerDesc.debugName = "irradiance sampler";
-    irradianceSampler = context.createSampler(samplerDesc);
+    irradianceSampler_ = context_->createSampler(samplerDesc);
 
     VkSubpassDependency irradianceDependency{};
     irradianceDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -345,32 +353,20 @@ void TriangleApplication::createIrradianceResources()
     irradianceRenderPassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     irradianceRenderPassDesc.dependency = irradianceDependency;
 
-    irradianceRenderPass = createSingleColorRenderPass(context.device(), irradianceRenderPassDesc);
+    irradianceRenderPass_ = createSingleColorRenderPass(context_->device(), irradianceRenderPassDesc);
 
-    const VkDevice device = context.device();
-    const VkRenderPass renderPass = irradianceRenderPass;
-
-    mainDeletionQueue.pushFunction([device, renderPass]() noexcept{
-        vkDestroyRenderPass(device, renderPass, nullptr);
-    });
-
-    for (uint32_t face = 0; face < irradianceFramebuffers.size(); face++)
+    for (uint32_t face = 0; face < irradianceFramebuffers_.size(); face++)
     {
-        irradianceFramebuffers[face] = createSingleAttachmentFramebuffer(
-            context.device(), 
-            irradianceRenderPass, 
-            irradianceFaceImageViews[face], 
+        irradianceFramebuffers_[face] = createSingleAttachmentFramebuffer(
+            context_->device(),
+            irradianceRenderPass_,
+            irradianceFaceImageViews_[face],
             {
-                irradianceDimension, 
+                irradianceDimension,
                 irradianceDimension
             }
         );
-        
-        VkFramebuffer framebuffer = irradianceFramebuffers[face];
 
-        mainDeletionQueue.pushFunction([device, framebuffer]() noexcept {
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
-        });
     }
 
     VkDescriptorSetLayoutBinding environmentMapBinding{};
@@ -384,9 +380,7 @@ void TriangleApplication::createIrradianceResources()
     descriptorLayoutInfo.bindingCount = 1;
     descriptorLayoutInfo.pBindings = &environmentMapBinding;
 
-    VK_CHECK(vkCreateDescriptorSetLayout(context.device(), &descriptorLayoutInfo, nullptr, &irradianceDescriptorSetLayout));
-    mainDeletionQueue.pushFunction([this, layout = irradianceDescriptorSetLayout]()
-                                   { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &descriptorLayoutInfo, nullptr, &irradianceDescriptorSetLayout_));
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -398,31 +392,29 @@ void TriangleApplication::createIrradianceResources()
     descriptorPoolInfo.pPoolSizes = &poolSize;
     descriptorPoolInfo.maxSets = 1;
 
-    VK_CHECK(vkCreateDescriptorPool(context.device(), &descriptorPoolInfo, nullptr, &irradianceDescriptorPool));
-    mainDeletionQueue.pushFunction([this, pool = irradianceDescriptorPool]()
-                                   { vkDestroyDescriptorPool(context.device(), pool, nullptr); });
+    VK_CHECK(vkCreateDescriptorPool(context_->device(), &descriptorPoolInfo, nullptr, &irradianceDescriptorPool_));
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = irradianceDescriptorPool;
+    allocInfo.descriptorPool = irradianceDescriptorPool_;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &irradianceDescriptorSetLayout;
+    allocInfo.pSetLayouts = &irradianceDescriptorSetLayout_;
 
-    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &irradianceDescriptorSet));
+    VK_CHECK(vkAllocateDescriptorSets(context_->device(), &allocInfo, &irradianceDescriptorSet_));
 
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.sampler = skyboxSampler.get();
-    imageInfo.imageView = skyboxImage.view();
+    imageInfo.sampler = skyboxSampler_.get();
+    imageInfo.imageView = skyboxImage_.view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet descriptorWrite{};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = irradianceDescriptorSet;
+    descriptorWrite.dstSet = irradianceDescriptorSet_;
     descriptorWrite.dstBinding = 0;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &imageInfo;
-    vkUpdateDescriptorSets(context.device(), 1, &descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context_->device(), 1, &descriptorWrite, 0, nullptr);
 
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -432,34 +424,29 @@ void TriangleApplication::createIrradianceResources()
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &irradianceDescriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &irradianceDescriptorSetLayout_;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &irradiancePipelineLayout));
-    mainDeletionQueue.pushFunction([this, layout = irradiancePipelineLayout]()
-                                   { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
+    VK_CHECK(vkCreatePipelineLayout(context_->device(), &pipelineLayoutInfo, nullptr, &irradiancePipelineLayout_));
 
     auto vertShaderCode = readBinaryFile(IRRADIANCE_VERTEX_SHADER_PATH);
     auto fragShaderCode = readBinaryFile(IRRADIANCE_FRAGMENT_SHADER_PATH);
 
-    UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
-    UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = context_->createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = context_->createShaderModule(fragShaderCode);
 
     OffscreenPipelineDesc pipelineDesc{};
-    pipelineDesc.layout = irradiancePipelineLayout;
-    pipelineDesc.renderPass = irradianceRenderPass;
+    pipelineDesc.layout = irradiancePipelineLayout_;
+    pipelineDesc.renderPass = irradianceRenderPass_;
     pipelineDesc.vertexShader = vertShaderModule.get();
     pipelineDesc.fragmentShader = fragShaderModule.get();
     pipelineDesc.debugName = "vkCreateGraphicsPipelines(irradiance)";
 
-    irradiancePipeline = createNoVertexInputPipeline(context.device(), pipelineDesc);
-
-    mainDeletionQueue.pushFunction([this, pipeline = irradiancePipeline]()
-                                   { vkDestroyPipeline(context.device(), pipeline, nullptr); });
+    irradiancePipeline_ = createNoVertexInputPipeline(context_->device(), pipelineDesc);
 
     transitionImageLayout(
-        irradianceImage.get(),
+        irradianceImage_.get(),
         irradianceFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -469,7 +456,7 @@ void TriangleApplication::createIrradianceResources()
     renderIrradianceCubemap();
 
     transitionImageLayout(
-        irradianceImage.get(),
+        irradianceImage_.get(),
         irradianceFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -477,7 +464,7 @@ void TriangleApplication::createIrradianceResources()
         6);
 }
 
-void TriangleApplication::renderIrradianceCubemap()
+void Environment::renderIrradianceCubemap()
 {
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
     // captureProjection[1][1] *= -1.0f;
@@ -491,7 +478,7 @@ void TriangleApplication::renderIrradianceCubemap()
         glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
     };
 
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+    renderer_->immediateSubmit([&](VkCommandBuffer commandBuffer)
                              {
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -508,12 +495,12 @@ void TriangleApplication::renderIrradianceCubemap()
         VkClearValue clearValue{};
         clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
-        for (uint32_t face = 0; face < irradianceFramebuffers.size(); face++)
+        for (uint32_t face = 0; face < irradianceFramebuffers_.size(); face++)
         {
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = irradianceRenderPass;
-            renderPassInfo.framebuffer = irradianceFramebuffers[face];
+            renderPassInfo.renderPass = irradianceRenderPass_;
+            renderPassInfo.framebuffer = irradianceFramebuffers_[face];
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = {irradianceDimension, irradianceDimension};
             renderPassInfo.clearValueCount = 1;
@@ -522,21 +509,21 @@ void TriangleApplication::renderIrradianceCubemap()
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, irradiancePipeline);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, irradiancePipeline_);
             vkCmdBindDescriptorSets(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                irradiancePipelineLayout,
+                irradiancePipelineLayout_,
                 0,
                 1,
-                &irradianceDescriptorSet,
+                &irradianceDescriptorSet_,
                 0,
                 nullptr);
 
             const glm::mat4 viewProjection = captureProjection * captureViews[face];
             vkCmdPushConstants(
                 commandBuffer,
-                irradiancePipelineLayout,
+                irradiancePipelineLayout_,
                 VK_SHADER_STAGE_VERTEX_BIT,
                 0,
                 sizeof(glm::mat4),
@@ -547,7 +534,7 @@ void TriangleApplication::renderIrradianceCubemap()
         } });
 }
 
-void TriangleApplication::createPrefilterResources()
+void Environment::createPrefilterResources()
 {
     ImageDesc prefilterDesc{};
     prefilterDesc.extent = {
@@ -565,10 +552,10 @@ void TriangleApplication::createPrefilterResources()
     prefilterDesc.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
     prefilterDesc.debugName = "prefilter cubemap";
 
-    prefilterImage = context.createImage(prefilterDesc);
+    prefilterImage_ = context_->createImage(prefilterDesc);
 
-    prefilterImage.setView(context.createImageView(
-        prefilterImage.get(),
+    prefilterImage_.setView(context_->createImageView(
+        prefilterImage_.get(),
         prefilterFormat,
         prefilterMipLevels,
         VK_IMAGE_ASPECT_COLOR_BIT,
@@ -577,11 +564,10 @@ void TriangleApplication::createPrefilterResources()
 
     for (uint32_t mip = 0; mip < prefilterMipLevels; mip++)
     {
-        for (uint32_t face = 0; face < prefilterFaceImageViews[mip].size(); face++)
+        for (uint32_t face = 0; face < prefilterFaceImageViews_[mip].size(); face++)
         {
-            prefilterFaceImageViews[mip][face] = createPrefilterFaceImageView(context.device(), prefilterImage.get(), mip, face);
-            mainDeletionQueue.pushFunction([this, imageView = prefilterFaceImageViews[mip][face]]()
-                                           { vkDestroyImageView(context.device(), imageView, nullptr); });
+            prefilterFaceImageViews_[mip][face] = createPrefilterFaceImageView(context_->device(), prefilterImage_.get(), mip, face);
+
         }
     }
 
@@ -603,7 +589,7 @@ void TriangleApplication::createPrefilterResources()
     samplerDesc.maxLod = float(prefilterMipLevels - 1);
     samplerDesc.debugName = "prefilter sampler";
 
-    prefilterSampler = context.createSampler(samplerDesc);
+    prefilterSampler_ = context_->createSampler(samplerDesc);
 
     VkSubpassDependency prefilterDependency{};
     prefilterDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -619,28 +605,23 @@ void TriangleApplication::createPrefilterResources()
     prefilterRenderPassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     prefilterRenderPassDesc.dependency = prefilterDependency;
 
-    prefilterRenderpass = createSingleColorRenderPass(context.device(), prefilterRenderPassDesc);
-
-    mainDeletionQueue.pushFunction([this, renderPass = prefilterRenderpass]()
-                                   { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
+    prefilterRenderpass_ = createSingleColorRenderPass(context_->device(), prefilterRenderPassDesc);
 
     for (uint32_t mip = 0; mip < prefilterMipLevels; mip++)
     {
-        for (uint32_t face = 0; face < prefilterFramebuffers[mip].size(); face++)
+        for (uint32_t face = 0; face < prefilterFramebuffers_[mip].size(); face++)
         {
             const uint32_t mipDimension = prefilterDimension >> mip;
-            prefilterFramebuffers[mip][face] = createSingleAttachmentFramebuffer(
-                context.device(),
-                prefilterRenderpass,
-                prefilterFaceImageViews[mip][face],
+            prefilterFramebuffers_[mip][face] = createSingleAttachmentFramebuffer(
+                context_->device(),
+                prefilterRenderpass_,
+                prefilterFaceImageViews_[mip][face],
                 {
                     mipDimension,
                     mipDimension
                 }
             );
-            
-            mainDeletionQueue.pushFunction([this, framebuffer = prefilterFramebuffers[mip][face]]()
-                                           { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
+
         }
     }
 
@@ -655,9 +636,7 @@ void TriangleApplication::createPrefilterResources()
     descriptorLayoutInfo.bindingCount = 1;
     descriptorLayoutInfo.pBindings = &environmentMapBinding;
 
-    VK_CHECK(vkCreateDescriptorSetLayout(context.device(), &descriptorLayoutInfo, nullptr, &prefilterDescriptorSetLayout));
-    mainDeletionQueue.pushFunction([this, layout = prefilterDescriptorSetLayout]()
-                                   { vkDestroyDescriptorSetLayout(context.device(), layout, nullptr); });
+    VK_CHECK(vkCreateDescriptorSetLayout(context_->device(), &descriptorLayoutInfo, nullptr, &prefilterDescriptorSetLayout_));
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -669,31 +648,29 @@ void TriangleApplication::createPrefilterResources()
     descriptorPoolInfo.pPoolSizes = &poolSize;
     descriptorPoolInfo.maxSets = 1;
 
-    VK_CHECK(vkCreateDescriptorPool(context.device(), &descriptorPoolInfo, nullptr, &prefilterDescriptorPool));
-    mainDeletionQueue.pushFunction([this, pool = prefilterDescriptorPool]()
-                                   { vkDestroyDescriptorPool(context.device(), pool, nullptr); });
+    VK_CHECK(vkCreateDescriptorPool(context_->device(), &descriptorPoolInfo, nullptr, &prefilterDescriptorPool_));
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = prefilterDescriptorPool;
+    allocInfo.descriptorPool = prefilterDescriptorPool_;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &prefilterDescriptorSetLayout;
+    allocInfo.pSetLayouts = &prefilterDescriptorSetLayout_;
 
-    VK_CHECK(vkAllocateDescriptorSets(context.device(), &allocInfo, &prefilterDescriptorSet));
+    VK_CHECK(vkAllocateDescriptorSets(context_->device(), &allocInfo, &prefilterDescriptorSet_));
 
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.sampler = skyboxSampler.get();
-    imageInfo.imageView = skyboxImage.view();
+    imageInfo.sampler = skyboxSampler_.get();
+    imageInfo.imageView = skyboxImage_.view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkWriteDescriptorSet descriptorWrite{};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = prefilterDescriptorSet;
+    descriptorWrite.dstSet = prefilterDescriptorSet_;
     descriptorWrite.dstBinding = 0;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &imageInfo;
-    vkUpdateDescriptorSets(context.device(), 1, &descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context_->device(), 1, &descriptorWrite, 0, nullptr);
 
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -703,33 +680,29 @@ void TriangleApplication::createPrefilterResources()
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &prefilterDescriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &prefilterDescriptorSetLayout_;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &prefilterPipelineLayout));
-    mainDeletionQueue.pushFunction([this, layout = prefilterPipelineLayout]()
-                                   { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
+    VK_CHECK(vkCreatePipelineLayout(context_->device(), &pipelineLayoutInfo, nullptr, &prefilterPipelineLayout_));
 
     auto vertShaderCode = readBinaryFile(PREFILTER_VERTEX_SHADER_PATH);
     auto fragShaderCode = readBinaryFile(PREFILTER_FRAGMENT_SHADER_PATH);
 
-    UniqueShaderModule vertShaderModule = context.createShaderModule(vertShaderCode);
-    UniqueShaderModule fragShaderModule = context.createShaderModule(fragShaderCode);
+    UniqueShaderModule vertShaderModule = context_->createShaderModule(vertShaderCode);
+    UniqueShaderModule fragShaderModule = context_->createShaderModule(fragShaderCode);
 
     OffscreenPipelineDesc pipelineDesc{};
-    pipelineDesc.layout = prefilterPipelineLayout;
-    pipelineDesc.renderPass = prefilterRenderpass;
+    pipelineDesc.layout = prefilterPipelineLayout_;
+    pipelineDesc.renderPass = prefilterRenderpass_;
     pipelineDesc.vertexShader = vertShaderModule.get();
     pipelineDesc.fragmentShader = fragShaderModule.get();
     pipelineDesc.debugName = "vkCreateGraphicsPipelines(prefilter)";
 
-    prefilterPipeline = createNoVertexInputPipeline(context.device(), pipelineDesc);
-    mainDeletionQueue.pushFunction([this, pipeline = prefilterPipeline]()
-                                   { vkDestroyPipeline(context.device(), pipeline, nullptr); });
+    prefilterPipeline_ = createNoVertexInputPipeline(context_->device(), pipelineDesc);
 
     transitionImageLayout(
-        prefilterImage.get(),
+        prefilterImage_.get(),
         prefilterFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -739,7 +712,7 @@ void TriangleApplication::createPrefilterResources()
     renderPrefilterCubemap();
 
     transitionImageLayout(
-        prefilterImage.get(),
+        prefilterImage_.get(),
         prefilterFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -747,7 +720,7 @@ void TriangleApplication::createPrefilterResources()
         6);
 }
 
-void TriangleApplication::renderPrefilterCubemap()
+void Environment::renderPrefilterCubemap()
 {
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
     // captureProjection[1][1] *= -1.0f;
@@ -761,7 +734,7 @@ void TriangleApplication::renderPrefilterCubemap()
         glm::lookAt(glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
     };
 
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
+    renderer_->immediateSubmit([&](VkCommandBuffer commandBuffer)
                              {
                         VkViewport viewport{};
                         viewport.x = 0.0f;
@@ -785,12 +758,12 @@ void TriangleApplication::renderPrefilterCubemap()
                             viewport.height = static_cast<float>(mipSize);
                             scissor.extent = {mipSize, mipSize};
 
-                            for (uint32_t face = 0; face < prefilterFramebuffers[mip].size(); face++)
+                            for (uint32_t face = 0; face < prefilterFramebuffers_[mip].size(); face++)
                             {
                                 VkRenderPassBeginInfo renderPassInfo{};
                                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                                renderPassInfo.renderPass = prefilterRenderpass;
-                                renderPassInfo.framebuffer = prefilterFramebuffers[mip][face];
+                                renderPassInfo.renderPass = prefilterRenderpass_;
+                                renderPassInfo.framebuffer = prefilterFramebuffers_[mip][face];
                                 renderPassInfo.renderArea.offset = {0, 0};
                                 renderPassInfo.renderArea.extent = {mipSize, mipSize};
                                 renderPassInfo.clearValueCount = 1;
@@ -799,14 +772,14 @@ void TriangleApplication::renderPrefilterCubemap()
                                 vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                                 vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
                                 vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-                                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, prefilterPipeline);
+                                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, prefilterPipeline_);
                                 vkCmdBindDescriptorSets(
                                     commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    prefilterPipelineLayout,
+                                    prefilterPipelineLayout_,
                                     0,
                                     1,
-                                    &prefilterDescriptorSet,
+                                    &prefilterDescriptorSet_,
                                     0,
                                     nullptr);
 
@@ -816,7 +789,7 @@ void TriangleApplication::renderPrefilterCubemap()
                                 pushConstants.roughness = static_cast<float>(mip) / static_cast<float>(prefilterMipLevels - 1);
                                 vkCmdPushConstants(
                                     commandBuffer,
-                                    prefilterPipelineLayout,
+                                    prefilterPipelineLayout_,
                                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                                     0,
                                     sizeof(PrefilterPushConstants),
@@ -828,7 +801,7 @@ void TriangleApplication::renderPrefilterCubemap()
                         } });
 }
 
-void TriangleApplication::createBRDFLUTResources()
+void Environment::createBRDFLUTResources()
 {
     ImageDesc brdfLUTDesc{};
     brdfLUTDesc.extent = {
@@ -846,10 +819,10 @@ void TriangleApplication::createBRDFLUTResources()
     brdfLUTDesc.flags = 0;
     brdfLUTDesc.debugName = "BRDF LUT";
     // 创建BRDF LUT纹理
-    brdfLUTImage = context.createImage(brdfLUTDesc);
+    brdfLUTImage_ = context_->createImage(brdfLUTDesc);
 
-    brdfLUTImage.setView(context.createImageView(
-        brdfLUTImage.get(),
+    brdfLUTImage_.setView(context_->createImageView(
+        brdfLUTImage_.get(),
         brdfLUTFormat,
         1));
 
@@ -864,7 +837,7 @@ void TriangleApplication::createBRDFLUTResources()
     samplerDesc.maxLod = 0.0f;
     samplerDesc.debugName = "BRDF LUT sampler";
 
-    brdfLUTSampler = context.createSampler(samplerDesc);
+    brdfLUTSampler_ = context_->createSampler(samplerDesc);
 
     // 创建子通道依赖：这个子通道的执行依赖于哪些阶段、访问权限
     VkSubpassDependency brdfDependency{};
@@ -881,54 +854,45 @@ void TriangleApplication::createBRDFLUTResources()
     brdfRenderpassDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     brdfRenderpassDesc.dependency = brdfDependency;
 
-    brdfLUTRenderPass = createSingleColorRenderPass(
-        context.device(),
+    brdfLUTRenderPass_ = createSingleColorRenderPass(
+        context_->device(),
         brdfRenderpassDesc
     );
-    
-    mainDeletionQueue.pushFunction([this, renderPass = brdfLUTRenderPass]()
-                                   { vkDestroyRenderPass(context.device(), renderPass, nullptr); });
 
     // 创建帧缓冲：这个帧缓冲会使用哪些附件、渲染通道、尺寸
-    brdfLUTFramebuffer = createSingleAttachmentFramebuffer(
-        context.device(),
-        brdfLUTRenderPass,
-        brdfLUTImage.view(),
+    brdfLUTFramebuffer_ = createSingleAttachmentFramebuffer(
+        context_->device(),
+        brdfLUTRenderPass_,
+        brdfLUTImage_.view(),
         {
             brdfLUTDimension,
             brdfLUTDimension
         }
     );
-    mainDeletionQueue.pushFunction([this, framebuffer = brdfLUTFramebuffer]()
-                                   { vkDestroyFramebuffer(context.device(), framebuffer, nullptr); });
 
     // 创建管线布局：这个管线布局会使用哪些描述符集、推送常量
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    VK_CHECK(vkCreatePipelineLayout(context.device(), &pipelineLayoutInfo, nullptr, &brdfLUTPipelineLayout));
-    mainDeletionQueue.pushFunction([this, layout = brdfLUTPipelineLayout]()
-                                   { vkDestroyPipelineLayout(context.device(), layout, nullptr); });
+    VK_CHECK(vkCreatePipelineLayout(context_->device(), &pipelineLayoutInfo, nullptr, &brdfLUTPipelineLayout_));
 
     // 创建着色器
     const auto vertexCode = readBinaryFile(BRDF_LUT_VERTEX_SHADER_PATH);
     const auto fragmentCode = readBinaryFile(BRDF_LUT_FRAGMENT_SHADER_PATH);
-    UniqueShaderModule vertexShaderModule = context.createShaderModule(vertexCode);
-    UniqueShaderModule fragmentShaderModule = context.createShaderModule(fragmentCode);
+    UniqueShaderModule vertexShaderModule = context_->createShaderModule(vertexCode);
+    UniqueShaderModule fragmentShaderModule = context_->createShaderModule(fragmentCode);
 
     OffscreenPipelineDesc pipelineDesc{};
-    pipelineDesc.layout = brdfLUTPipelineLayout;
-    pipelineDesc.renderPass = brdfLUTRenderPass;
+    pipelineDesc.layout = brdfLUTPipelineLayout_;
+    pipelineDesc.renderPass = brdfLUTRenderPass_;
     pipelineDesc.vertexShader = vertexShaderModule.get();
     pipelineDesc.fragmentShader = fragmentShaderModule.get();
     pipelineDesc.debugName = "vkCreateGraphicsPipelines(brdf LUT)";
 
-    brdfLUTPipeline = createNoVertexInputPipeline(context.device(), pipelineDesc);
-    mainDeletionQueue.pushFunction([this, pipeline = brdfLUTPipeline]()
-                                   { vkDestroyPipeline(context.device(), pipeline, nullptr); });
+    brdfLUTPipeline_ = createNoVertexInputPipeline(context_->device(), pipelineDesc);
 
     // 上面创建好了pipeline，接下来把fragment的结果写入附件，先设置image的格式可以作为颜色附件写入
     transitionImageLayout(
-        brdfLUTImage.get(),
+        brdfLUTImage_.get(),
         brdfLUTFormat,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -937,16 +901,16 @@ void TriangleApplication::createBRDFLUTResources()
 
     // 切换成 Shader 只读布局，方便后续 PBR Shader 采样 LUT
     transitionImageLayout(
-        brdfLUTImage.get(),
+        brdfLUTImage_.get(),
         brdfLUTFormat,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         1);
 }
 
-void TriangleApplication::renderBRDFLUT()
+void Environment::renderBRDFLUT()
 {
-    renderer.immediateSubmit(
+    renderer_->immediateSubmit(
         [&](VkCommandBuffer commandBuffer)
         {
             VkViewport viewport{};
@@ -970,8 +934,8 @@ void TriangleApplication::renderBRDFLUT()
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = brdfLUTRenderPass;
-            renderPassInfo.framebuffer = brdfLUTFramebuffer;
+            renderPassInfo.renderPass = brdfLUTRenderPass_;
+            renderPassInfo.framebuffer = brdfLUTFramebuffer_;
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = {
                 brdfLUTDimension,
@@ -1000,7 +964,7 @@ void TriangleApplication::renderBRDFLUT()
             vkCmdBindPipeline(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                brdfLUTPipeline);
+                brdfLUTPipeline_);
 
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             vkCmdEndRenderPass(commandBuffer);

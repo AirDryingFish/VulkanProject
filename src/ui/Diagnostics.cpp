@@ -1,4 +1,4 @@
-#include "app/TriangleApplication.hpp"
+#include "app/Application.hpp"
 
 #include <algorithm>
 #include <array>
@@ -60,7 +60,7 @@ const char* debugViewName(DebugView view)
     return "Unknown";
 }
 
-void drawTimingConfig(const char* id, const GpuTimingConfig& config)
+void drawTimingConfig(const char* id, const FrameTimingConfig& config)
 {
     if (!beginMetricTable(id))
     {
@@ -96,7 +96,7 @@ void drawTimingConfig(const char* id, const GpuTimingConfig& config)
 template<std::size_t Count, typename GetValue>
 void drawBaselineStatistics(const char* id,
                             const std::array<const char*, Count>& names,
-                            const std::vector<BaselineGpuSample>& samples,
+                            const std::vector<BaselineSample>& samples,
                             GetValue getValue)
 {
     const bool compact = ImGui::GetContentRegionAvail().x < 360.0f;
@@ -120,7 +120,7 @@ void drawBaselineStatistics(const char* id,
         double sum = 0.0;
         double minimum = getValue(samples.front(), i);
         double maximum = minimum;
-        for (const BaselineGpuSample& sample : samples)
+        for (const BaselineSample& sample : samples)
         {
             const double value = getValue(sample, i);
             sum += value;
@@ -146,7 +146,7 @@ void drawBaselineStatistics(const char* id,
 }
 } // namespace
 
-void TriangleApplication::drawDiagnostics()
+void Application::drawDiagnostics()
 {
     if (!ImGui::BeginTabBar("DiagnosticsSections", ImGuiTabBarFlags_FittingPolicyScroll))
     {
@@ -183,9 +183,9 @@ void TriangleApplication::drawDiagnostics()
     ImGui::EndTabBar();
 }
 
-void TriangleApplication::drawDiagnosticsLive()
+void Application::drawDiagnosticsLive()
 {
-    const CpuFrameTimingSnapshot& cpu = latestCpuTiming;
+    const CpuFrameTimingSnapshot& cpu = diagnostics.latestCpuTiming;
     const GpuTimingSnapshot& gpu = renderer.gpuTimingSnapshot();
 
     ImGui::SeparatorText("Current renderer");
@@ -317,42 +317,42 @@ void TriangleApplication::drawDiagnosticsLive()
     }
 }
 
-void TriangleApplication::drawDiagnosticsBaseline()
+void Application::drawDiagnosticsBaseline()
 {
-    const bool hasAnimatedObjects = std::any_of(sceneObjects.begin(), sceneObjects.end(),
+    const bool hasAnimatedObjects = std::any_of(scene.objects.begin(), scene.objects.end(),
         [](const SceneObject& object) { return object.autoRotate; });
     const bool canStart = renderer.gpuTimingSnapshot().supported &&
-        debugView == DebugView::Lit && !pendingScenePreset.has_value() &&
-        !hasAnimatedObjects && !gpuBaseline.running && !baselineStartRequested;
+        display.debugView == DebugView::Lit && !pendingScenePreset.has_value() &&
+        !hasAnimatedObjects && !diagnostics.baseline.running && !diagnostics.startRequested;
 
     ImGui::SeparatorText("Capture");
     ImGui::BeginDisabled(!canStart);
     if (ImGui::Button("Start capture"))
     {
-        baselineStartRequested = true;
+        diagnostics.startRequested = true;
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    ImGui::BeginDisabled(!gpuBaseline.running && !baselineStartRequested);
+    ImGui::BeginDisabled(!diagnostics.baseline.running && !diagnostics.startRequested);
     if (ImGui::Button("Cancel"))
     {
-        baselineStartRequested = false;
-        gpuBaseline.cancel("Capture cancelled by user.");
+        diagnostics.startRequested = false;
+        diagnostics.baseline.cancel("Capture cancelled by user.");
     }
     ImGui::EndDisabled();
 
-    if (baselineStartRequested)
+    if (diagnostics.startRequested)
     {
         ImGui::TextUnformatted("Starting capture...");
     }
-    else if (gpuBaseline.running)
+    else if (diagnostics.baseline.running)
     {
-        ImGui::TextUnformatted(gpuBaseline.warmupDone < GpuBaselineCapture::warmupSubmissions
+        ImGui::TextUnformatted(diagnostics.baseline.warmupDone < BaselineCapture::warmupSubmissions
             ? "Warming up..." : "Collecting paired CPU / GPU samples...");
     }
-    else if (!gpuBaseline.message.empty())
+    else if (!diagnostics.baseline.message.empty())
     {
-        ImGui::TextWrapped("%s", gpuBaseline.message.c_str());
+        ImGui::TextWrapped("%s", diagnostics.baseline.message.c_str());
     }
     else
     {
@@ -363,7 +363,7 @@ void TriangleApplication::drawDiagnosticsBaseline()
     {
         ImGui::TextWrapped("GPU timestamps are unavailable on this device.");
     }
-    else if (debugView != DebugView::Lit)
+    else if (display.debugView != DebugView::Lit)
     {
         ImGui::TextWrapped("Select Lit in Display to start a baseline.");
     }
@@ -380,75 +380,75 @@ void TriangleApplication::drawDiagnosticsBaseline()
     ImGui::PushStyleColor(ImGuiCol_PlotHistogram,
                          ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
     ImGui::TextUnformatted("Warmup submissions");
-    std::snprintf(progress, sizeof(progress), "%u / %u", gpuBaseline.warmupDone,
-                  GpuBaselineCapture::warmupSubmissions);
-    ImGui::ProgressBar(static_cast<float>(gpuBaseline.warmupDone) /
-        GpuBaselineCapture::warmupSubmissions, ImVec2(-1.0f, 0.0f), progress);
+    std::snprintf(progress, sizeof(progress), "%u / %u", diagnostics.baseline.warmupDone,
+                  BaselineCapture::warmupSubmissions);
+    ImGui::ProgressBar(static_cast<float>(diagnostics.baseline.warmupDone) /
+        BaselineCapture::warmupSubmissions, ImVec2(-1.0f, 0.0f), progress);
     ImGui::TextUnformatted("Valid samples");
-    std::snprintf(progress, sizeof(progress), "%zu / %u", gpuBaseline.samples.size(),
-                  GpuBaselineCapture::targetSamples);
-    ImGui::ProgressBar(static_cast<float>(gpuBaseline.samples.size()) /
-        GpuBaselineCapture::targetSamples, ImVec2(-1.0f, 0.0f), progress);
+    std::snprintf(progress, sizeof(progress), "%zu / %u", diagnostics.baseline.samples.size(),
+                  BaselineCapture::targetSamples);
+    ImGui::ProgressBar(static_cast<float>(diagnostics.baseline.samples.size()) /
+        BaselineCapture::targetSamples, ImVec2(-1.0f, 0.0f), progress);
     ImGui::PopStyleColor();
-    ImGui::Text("Dropped samples: %u", gpuBaseline.droppedSamples);
+    ImGui::Text("Dropped samples: %u", diagnostics.baseline.droppedSamples);
 
     ImGui::Spacing();
     ImGui::SeparatorText("Export");
-    ImGui::BeginDisabled(!gpuBaseline.complete);
+    ImGui::BeginDisabled(!diagnostics.baseline.complete);
     ImGui::TextUnformatted("CSV path");
     ImGui::SetNextItemWidth(-1.0f);
-    if (ImGui::InputText("##BaselineCsvPath", baselineCsvPath, sizeof(baselineCsvPath)))
+    if (ImGui::InputText("##BaselineCsvPath", diagnostics.csvPath, sizeof(diagnostics.csvPath)))
     {
-        gpuBaseline.exportMessage.clear();
+        diagnostics.baseline.exportMessage.clear();
     }
     if (ImGui::Button("Export CSV"))
     {
-        gpuBaseline.exportMessage = gpuBaseline.saveCsv(baselineCsvPath)
+        diagnostics.baseline.exportMessage = diagnostics.baseline.saveCsv(diagnostics.csvPath)
             ? "CSV saved." : "CSV write failed.";
     }
     ImGui::EndDisabled();
-    if (!gpuBaseline.exportMessage.empty())
+    if (!diagnostics.baseline.exportMessage.empty())
     {
         const float contentRight = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
         const float messageRight = ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x +
-            ImGui::CalcTextSize(gpuBaseline.exportMessage.c_str()).x;
+            ImGui::CalcTextSize(diagnostics.baseline.exportMessage.c_str()).x;
         if (messageRight <= contentRight)
         {
             ImGui::SameLine();
         }
-        ImGui::TextWrapped("%s", gpuBaseline.exportMessage.c_str());
+        ImGui::TextWrapped("%s", diagnostics.baseline.exportMessage.c_str());
     }
-    if (!gpuBaseline.complete)
+    if (!diagnostics.baseline.complete)
     {
         ImGui::TextWrapped("Export becomes available when the capture is complete.");
     }
 
-    if (gpuBaseline.complete && !gpuBaseline.samples.empty())
+    if (diagnostics.baseline.complete && !diagnostics.baseline.samples.empty())
     {
         ImGui::Spacing();
         ImGui::SeparatorText("GPU statistics (ms)");
-        drawBaselineStatistics("BaselineGpuStatistics", gpuPassNames, gpuBaseline.samples,
-            [](const BaselineGpuSample& sample, std::size_t i) { return sample.milliseconds[i]; });
+        drawBaselineStatistics("BaselineGpuStatistics", gpuPassNames, diagnostics.baseline.samples,
+            [](const BaselineSample& sample, std::size_t i) { return sample.milliseconds[i]; });
         ImGui::SeparatorText("CPU statistics (ms)");
-        drawBaselineStatistics("BaselineCpuStatistics", cpuMetricNames, gpuBaseline.samples,
-            [](const BaselineGpuSample& sample, std::size_t i) { return sample.cpu.milliseconds[i]; });
+        drawBaselineStatistics("BaselineCpuStatistics", cpuMetricNames, diagnostics.baseline.samples,
+            [](const BaselineSample& sample, std::size_t i) { return sample.cpu.milliseconds[i]; });
     }
 
     ImGui::Spacing();
     if (ImGui::CollapsingHeader("Capture details"))
     {
         ImGui::TextWrapped("Keep the camera, lighting, materials and UI fixed while capturing. Editing these is not automatically blocked.");
-        if (gpuBaseline.firstSubmissionId != 0)
+        if (diagnostics.baseline.firstSubmissionId != 0)
         {
             ImGui::TextWrapped("First warmup submission: %llu",
-                static_cast<unsigned long long>(gpuBaseline.firstSubmissionId));
+                static_cast<unsigned long long>(diagnostics.baseline.firstSubmissionId));
             ImGui::TextWrapped("Configuration saved at capture start:");
-            drawTimingConfig("BaselineConfig", gpuBaseline.config);
+            drawTimingConfig("BaselineConfig", diagnostics.baseline.config);
         }
     }
 }
 
-void TriangleApplication::drawDiagnosticsResources()
+void Application::drawDiagnosticsResources()
 {
     ImGui::SeparatorText("Current scene");
     if (beginMetricTable("CurrentResources"))
@@ -456,9 +456,9 @@ void TriangleApplication::drawDiagnosticsResources()
         metricRow("Scene");
         ImGui::TextWrapped("%s", scenePresetInfo(activeScenePreset).id);
         metricRow("Objects");
-        ImGui::Text("%zu", sceneObjects.size());
+        ImGui::Text("%zu", scene.objects.size());
         metricRow("Point lights");
-        ImGui::Text("%zu / %u", pointLights.size(), MAX_POINT_LIGHTS);
+        ImGui::Text("%zu / %u", scene.pointLights.size(), MAX_POINT_LIGHTS);
         metricRow("Materials");
         ImGui::Text("%zu", materialLibrary.size());
         metricRow("Texture entries");
@@ -502,21 +502,21 @@ void TriangleApplication::drawDiagnosticsResources()
     ImGui::SeparatorText("VMA memory snapshot");
     if (ImGui::Button("Refresh VMA statistics") && context.allocator() != nullptr)
     {
-        vmaCalculateStatistics(context.allocator(), &cachedVmaStatistics);
-        vmaStatisticsSceneId = scenePresetInfo(activeScenePreset).id;
-        hasVmaStatistics = true;
+        vmaCalculateStatistics(context.allocator(), &diagnostics.cachedVmaStatistics);
+        diagnostics.vmaStatisticsSceneId = scenePresetInfo(activeScenePreset).id;
+        diagnostics.hasVmaStatistics = true;
     }
 
-    if (hasVmaStatistics)
+    if (diagnostics.hasVmaStatistics)
     {
-        ImGui::TextWrapped("Snapshot scene: %s", vmaStatisticsSceneId.c_str());
-        if (vmaStatisticsSceneId != scenePresetInfo(activeScenePreset).id)
+        ImGui::TextWrapped("Snapshot scene: %s", diagnostics.vmaStatisticsSceneId.c_str());
+        if (diagnostics.vmaStatisticsSceneId != scenePresetInfo(activeScenePreset).id)
         {
             ImGui::TextWrapped("The scene has changed since this snapshot. Refresh to update it.");
         }
         if (beginMetricTable("VmaStatistics"))
         {
-            const VmaStatistics& stats = cachedVmaStatistics.total.statistics;
+            const VmaStatistics& stats = diagnostics.cachedVmaStatistics.total.statistics;
             constexpr double bytesPerMiB = 1024.0 * 1024.0;
             metricRow("Allocation MiB");
             ImGui::Text("%.2f", static_cast<double>(stats.allocationBytes) / bytesPerMiB);

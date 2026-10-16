@@ -1,7 +1,7 @@
 #pragma once
 
-#include "render/RenderTypes.hpp"
-#include "core/AppConfig.hpp"
+#include "diagnostics/FrameTiming.hpp"
+#include "core/FrameConfig.hpp"
 
 #include <algorithm>
 #include <array>
@@ -26,7 +26,7 @@ struct BaselineCpuSample
     DrawStatistics draws{};
 };
 
-struct BaselineGpuSample
+struct BaselineSample
 {
     // 这份 gpu 耗时对应哪次提交
     std::uint64_t submissionId = 0;
@@ -37,7 +37,7 @@ struct BaselineGpuSample
     BaselineCpuSample cpu{};
 };
 
-struct GpuBaselineCapture
+struct BaselineCapture
 {
     // warmup 提交数
     static constexpr std::uint32_t warmupSubmissions = 120;
@@ -53,17 +53,17 @@ struct GpuBaselineCapture
     std::uint32_t warmupDone = 0;
     std::uint32_t droppedSamples = 0;
 
-    GpuTimingConfig config{};
-    std::vector<BaselineGpuSample> samples;
+    FrameTimingConfig config{};
+    std::vector<BaselineSample> samples;
     std::string message;
     std::string exportMessage;
 
     std::array<BaselineCpuSample, MAX_FRAMES_IN_FLIGHT> cpuByFrameSlot{};
 
-    void start(std::uint64_t firstId, const GpuTimingConfig& capturedConfig)
+    void start(std::uint64_t firstId, const FrameTimingConfig& capturedConfig)
     {
         // 用一个全新对象覆盖当前对象
-        *this = GpuBaselineCapture{};
+        *this = BaselineCapture{};
         firstSubmissionId = firstId;
         config = capturedConfig;
         samples.reserve(targetSamples);
@@ -83,7 +83,7 @@ struct GpuBaselineCapture
     }
 
     // 保证测试条件一致
-    bool matchesConfig(const GpuTimingConfig& other) const
+    bool matchesConfig(const FrameTimingConfig& other) const
     {
         return config.sceneId == other.sceneId &&
                config.extent.width == other.extent.width &&
@@ -150,7 +150,7 @@ struct GpuBaselineCapture
             }
         }
 
-        BaselineGpuSample sample{};
+        BaselineSample sample{};
         sample.submissionId = gpu.submissionId;
         sample.frameSlot = gpu.frameSlot;
         sample.cpu = cpu;
@@ -200,7 +200,7 @@ struct GpuBaselineCapture
                "cpu_record_ms,cpu_submit_ms,cpu_present_ms,"
                "scene_draws,scene_triangles,"
                "shadow_draws,shadow_triangles\n";
-        for (const BaselineGpuSample& sample : samples)
+        for (const BaselineSample& sample : samples)
         {
             file
                 << sample.submissionId << ','

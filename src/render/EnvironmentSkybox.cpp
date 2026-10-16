@@ -1,4 +1,8 @@
-#include "app/TriangleApplication.hpp"
+#include "render/Environment.hpp"
+#include "render/Renderer.hpp"
+#include "vulkan/VulkanContext.hpp"
+#include "vulkan/VulkanCheck.hpp"
+#include "core/AppConfig.hpp"
 #include "vulkan/UploadCommands.hpp"
 
 #include <stb_image.h>
@@ -11,7 +15,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
 
 #include <glm/gtc/packing.hpp>
 
@@ -268,9 +271,9 @@ SkyboxPixels loadLdrFaceSkybox()
 }
 }
 
-void TriangleApplication::createSkyboxImage()
+void Environment::createSkyboxImage()
 {
-    
+
     SkyboxPixels pixels = loadHdrSkybox(SKYBOX_HDR_PATH);
     if (pixels.empty())
     {
@@ -283,8 +286,8 @@ void TriangleApplication::createSkyboxImage()
     stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     stagingDesc.debugName = stagingDebugName.c_str();
-    
-    GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
+
+    GpuBuffer stagingBuffer = context_->createBuffer(stagingDesc);
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
     std::memcpy(data, pixels.pixels.data(), static_cast<size_t>(pixels.imageSize()));
@@ -307,29 +310,29 @@ void TriangleApplication::createSkyboxImage()
     skyboxDecs.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
     skyboxDecs.debugName = imageDebugName.c_str();
 
-    skyboxImage = context.createImage(skyboxDecs);
+    skyboxImage_ = context_->createImage(skyboxDecs);
 
     VkFormatProperties formatProperties{};
-    vkGetPhysicalDeviceFormatProperties(context.physicalDevice(), skyboxImage.format(), &formatProperties);
+    vkGetPhysicalDeviceFormatProperties(context_->physicalDevice(), skyboxImage_.format(), &formatProperties);
 
     if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
     {
         throw std::runtime_error("skybox image format does not support linear blitting");
     }
-    
-    const VkExtent3D skyboxExtent = skyboxImage.extent();
 
-    renderer.immediateSubmit([&](VkCommandBuffer commandBuffer) {
+    const VkExtent3D skyboxExtent = skyboxImage_.extent();
+
+    renderer_->immediateSubmit([&](VkCommandBuffer commandBuffer) {
 
         // 1. 6 个 face 的所有 mip 都先作为复制目标
         upload::recordImageTransition(
             commandBuffer,
-            skyboxImage.get(),
-            skyboxImage.format(),
+            skyboxImage_.get(),
+            skyboxImage_.format(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            skyboxImage.mipLevels(),
-            skyboxImage.arrayLayers()
+            skyboxImage_.mipLevels(),
+            skyboxImage_.arrayLayers()
         );
 
         // 2. 将 staging buffer 中的六张图片分别复制到 cubemap 的六个 array layer 的 mip 0
@@ -350,7 +353,7 @@ void TriangleApplication::createSkyboxImage()
         vkCmdCopyBufferToImage(
             commandBuffer,
             stagingBuffer.get(),
-            skyboxImage.get(),
+            skyboxImage_.get(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             static_cast<uint32_t>(regions.size()),
             regions.data());
@@ -358,18 +361,18 @@ void TriangleApplication::createSkyboxImage()
         // 3. 同时为 6 个 face 逐级生成 mipmap，最终将所有 face/mip 转成 shader read only
         upload::recordGenerateMipmaps(
             commandBuffer,
-            skyboxImage.get(),
+            skyboxImage_.get(),
             VkExtent2D{
                 skyboxExtent.width,
                 skyboxExtent.height
             },
-            skyboxImage.mipLevels(),
-            skyboxImage.arrayLayers()
+            skyboxImage_.mipLevels(),
+            skyboxImage_.arrayLayers()
         );
     });
 
-    skyboxImage.setView(context.createImageView(
-        skyboxImage.get(),
+    skyboxImage_.setView(context_->createImageView(
+        skyboxImage_.get(),
         skyboxFormat,
         skyboxMipLevels,
         VK_IMAGE_ASPECT_COLOR_BIT,
@@ -377,7 +380,7 @@ void TriangleApplication::createSkyboxImage()
         6));
 }
 
-void TriangleApplication::createSkyboxSampler()
+void Environment::createSkyboxSampler()
 {
     SamplerDesc samplerDesc{};
     samplerDesc.magFilter = VK_FILTER_LINEAR;
@@ -390,8 +393,8 @@ void TriangleApplication::createSkyboxSampler()
     samplerDesc.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     samplerDesc.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerDesc.minLod = 0.0f;
-    samplerDesc.maxLod = static_cast<float>(skyboxImage.mipLevels() - 1);
+    samplerDesc.maxLod = static_cast<float>(skyboxImage_.mipLevels() - 1);
     samplerDesc.debugName = "skybox sampler";
 
-    skyboxSampler = context.createSampler(samplerDesc);
+    skyboxSampler_ = context_->createSampler(samplerDesc);
 }

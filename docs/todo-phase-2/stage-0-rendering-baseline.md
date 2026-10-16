@@ -7,8 +7,9 @@
 本文是实施计划；新增的数据类型、字段和接口均为建议，尚未写入源码。本次只核对源码与文档，
 未执行构建、图形交互或性能测量，所有功能与运行验收保持待完成。
 
-> 目录说明：本文保留上述评估基线的实施叙述，源码导航链接已更新为当前目录，不改变完成状态。
-> 当前 Diagnostics 实现见 [Diagnostics.cpp](../../src/ui/Diagnostics.cpp)，由 [ImGuiLayer.cpp](../../src/ui/ImGuiLayer.cpp) 调用。
+> 目录说明：本文保留上述评估基线的实施叙述，旧类名和源码路径按 [README · 源码目录](../../README.md#源码目录) 定位，完成状态不变。
+> 当前 Diagnostics 实现见 [Diagnostics.cpp](../../src/ui/Diagnostics.cpp)，由 [EditorUI.cpp](../../src/ui/EditorUI.cpp) 调用。
+> 当前计时契约位于 [FrameTiming.hpp](../../src/diagnostics/FrameTiming.hpp)，基线采集位于 [BaselineCapture.hpp](../../src/diagnostics/BaselineCapture.hpp)；下文保留原实施顺序与类型建议。
 
 ## 1. 本阶段的目的与范围
 
@@ -33,10 +34,10 @@
 | `recordFrame()` 顺序录制 Shadow、HDR Scene、Present | 同上 | 在实际 Pass 边界写入 GPU timestamp |
 | 阴影关闭仅跳过绘制，仍执行深度清除 Pass | [ShadowMapping.cpp](../../src/render/ShadowMapping.cpp) 的 `recordShadowPass()` | 统计实际清除成本，不能把开关关闭直接视为 Pass 未执行 |
 | Present 包含 tone mapping、阴影预览与 ImGui | `Renderer::recordFrame()` | UI 名称使用 `Post + UI`，避免误称纯 tone mapping 时间 |
-| Diagnostics 仅显示 FPS 与 `1000 / FPS` 等信息 | [ImGuiLayer.cpp](../../src/ui/ImGuiLayer.cpp) | 增加最近一次完成的 GPU 结果和明确状态 |
-| 应用在 beginFrame 后构建 UI，再生成绘制快照与提交 | [TriangleApplication.cpp](../../src/app/TriangleApplication.cpp) | GPU 显示过去已完成的帧，CPU 当帧结果下一次 UI 再展示 |
-| Post push constants 已预留 EV 与 tone mapper 字段 | [RenderTypes.hpp](../../src/render/RenderTypes.hpp)、[tonemap.frag](../../assets/shaders/tonemap.frag) | 使用已有参数空间，不扩充已满 128 字节的 Draw push constants |
-| 逐帧 UBO 与材质 shader 已有阴影调试入口 | [VulkanTypes.hpp](../../src/vulkan/VulkanTypes.hpp)、[Buffers.cpp](../../src/app/Buffers.cpp)、[shader.frag](../../assets/shaders/shader.frag) | 扩展明确的 Debug View 模式，核对 CPU/GLSL 布局 |
+| Diagnostics 仅显示 FPS 与 `1000 / FPS` 等信息 | [EditorUI.cpp](../../src/ui/EditorUI.cpp) | 增加最近一次完成的 GPU 结果和明确状态 |
+| 应用在 beginFrame 后构建 UI，再生成绘制快照与提交 | [Application.cpp](../../src/app/Application.cpp) | GPU 显示过去已完成的帧，CPU 当帧结果下一次 UI 再展示 |
+| Post push constants 已预留 EV 与 tone mapper 字段 | [ShaderTypes.hpp](../../src/render/ShaderTypes.hpp)、[tonemap.frag](../../assets/shaders/tonemap.frag) | 使用已有参数空间，不扩充已满 128 字节的 Draw push constants |
+| 逐帧 UBO 与材质 shader 已有阴影调试入口 | [ShaderTypes.hpp](../../src/render/ShaderTypes.hpp)、[Buffers.cpp](../../src/app/Buffers.cpp)、[shader.frag](../../assets/shaders/shader.frag) | 扩展明确的 Debug View 模式，核对 CPU/GLSL 布局 |
 
 第一轮计时直接放在 Renderer 的现有边界内，不先搭建通用 Profiler 或 Render Graph。
 后续若文件过大再拆分实现；新增 `.cpp` 时才需要同步 [CMakeLists.txt](../../CMakeLists.txt)。

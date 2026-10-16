@@ -1,6 +1,6 @@
 #pragma once
 #include "vulkan/VulkanResources.hpp"
-#include "vulkan/VulkanTypes.hpp"
+#include "scene/Vertex.hpp"
 
 #include <cstdint>
 #include <vector>

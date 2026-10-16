@@ -60,8 +60,6 @@ public:
 
     std::size_t imageCount() const noexcept;
 
-    VkImage image(std::size_t index) const;
-    VkImageView imageView(std::size_t index) const;
     VkSemaphore renderFinishedSemaphore(std::size_t index) const;
 
     VkColorSpaceKHR colorSpace() const noexcept;

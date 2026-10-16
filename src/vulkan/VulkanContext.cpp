@@ -1,4 +1,5 @@
 #include "vulkan/VulkanContext.hpp"
+#include <GLFW/glfw3.h>
 
 #include "core/AppConfig.hpp"
 #include "vulkan/DebugUtils.hpp"
@@ -129,11 +130,6 @@ VkResult VulkanContext::waitIdle() const noexcept
 VkInstance VulkanContext::instance() const noexcept
 {
     return instance_;
-}
-
-VkDebugUtilsMessengerEXT VulkanContext::debugMessenger() const noexcept
-{
-    return debugMessenger_;
 }
 
 VkSurfaceKHR VulkanContext::surface() const noexcept
