@@ -1064,6 +1064,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     return needsRecreate ? FrameStatus::RecreateSwapchain : FrameStatus::Ready;
 }
 
+// 构建一份新快照，填入各 pass 的耗时，再替换之前保存的快照
 void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)
 {
     if (!gpuTimingSupported_ || !frame.timestampQueriesPending)

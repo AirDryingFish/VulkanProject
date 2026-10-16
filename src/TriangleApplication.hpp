@@ -13,6 +13,7 @@
 #include "SceneTypes.hpp"
 #include "GltfImportTypes.hpp"
 #include "ScenePresets.hpp"
+#include "GpuBaselineCapture.hpp"
 
 #include <array>
 #include <functional>
@@ -348,4 +349,8 @@ private:
 
     float exposureEv = 0.0f;
     ToneMapper toneMapper = ToneMapper::Reinhard;
+
+    GpuBaselineCapture gpuBaseline{};
+    bool baselineStartRequested = false;
+    char baselineCsvPath[256] = "gpu-baseline.csv";
 };

@@ -823,6 +823,87 @@ void TriangleApplication::drawImGui()
                     gpu.config.debugDepthNear,
                     gpu.config.debugDepthFar);
 
+                ImGui::SeparatorText("GPU baseline capture");
+                const bool hasAnimatedObjects = std::any_of(sceneObjects.begin(), sceneObjects.end(),
+                    [](const SceneObject& object){
+                        return object.autoRotate;
+                    }
+                );
+                const bool canStart =
+                    renderer.gpuTimingSnapshot().supported &&
+                    debugView == DebugView::Lit &&
+                    !pendingScenePreset.has_value() &&
+                    !hasAnimatedObjects &&
+                    !gpuBaseline.running &&
+                    !baselineStartRequested;
+
+                ImGui::BeginDisabled(!canStart);
+                if (ImGui::Button("Start GPU baseline"))
+                {
+                    baselineStartRequested = true;
+                }
+                ImGui::EndDisabled();
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel baseline"))
+                {
+                    baselineStartRequested = false;
+                    gpuBaseline.cancel("Capture cancelled by user.");
+                }
+
+                ImGui::Text("Warmup: %u / %u | Samples: %zu / %u | Dropped: %u",
+                    gpuBaseline.warmupDone,
+                    GpuBaselineCapture::warmupSubmissions,
+                    gpuBaseline.samples.size(),
+                    GpuBaselineCapture::targetSamples,
+                    gpuBaseline.droppedSamples
+                );
+                if (!gpuBaseline.message.empty())
+                {
+                    ImGui::TextUnformatted(gpuBaseline.message.c_str());
+                }
+
+                if (gpuBaseline.complete)
+                {
+                    const char* names[] = {
+                        "Shadow",
+                        "Scene",
+                        "Post + UI"
+                    };
+
+                    for (std::uint32_t i = 0; i < gpuPassCount; ++i)
+                    {
+                        double sum = 0.0;
+                        double minimum = gpuBaseline.samples.front().milliseconds[i];
+                        double maximum = minimum;
+
+                        for (const BaselineGpuSample& sample : gpuBaseline.samples)
+                        {
+                            const double value = sample.milliseconds[i];
+
+                            sum += value;
+                            minimum = std::min(minimum, value);
+                            maximum = std::max(maximum, value);
+                        }
+
+                        const double mean = sum / static_cast<double>(gpuBaseline.samples.size());
+
+                        ImGui::Text("%s: mean %.3f | min %.3f | max %.3f",
+                            names[i],
+                            mean,
+                            minimum,
+                            maximum
+                        );
+                    }
+                }
+
+                ImGui::BeginDisabled(!gpuBaseline.complete);
+                ImGui::InputText("Baseline CSV path", baselineCsvPath, sizeof(baselineCsvPath));
+                if (ImGui::Button("Export GPU CSV"))
+                {
+                    gpuBaseline.message = gpuBaseline.saveCsv(baselineCsvPath) ? "CSV saved." : "CSV write failed.";
+                }
+                ImGui::EndDisabled();
+
                 ImGui::BeginChild("DiagnosticsContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::Text("FPS: %.1f", io.Framerate);

@@ -27,6 +27,8 @@ void TriangleApplication::run(ScenePreset initialScene, std::uint32_t requestedF
     frameLimit = requestedFrameLimit;
     renderedFrameCount = 0;
     latestCpuTiming = {};
+    gpuBaseline = {};
+    baselineStartRequested = false;
     std::snprintf(importModelPath, sizeof(importModelPath), "%s", MODEL_PATH.c_str());
     InitWindow();
     InitVulkan();
@@ -238,11 +240,15 @@ void TriangleApplication::drawFrame()
 
     if (width == 0 || height == 0)
     {
+        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
+        baselineStartRequested = false;
         return;
     }
 
     if (framebufferResized)
     {
+        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
+        baselineStartRequested = false;
         recreateSwapChain();
         return;
     }
@@ -251,6 +257,10 @@ void TriangleApplication::drawFrame()
     processPendingScenePreset();
 
     const BeginFrameResult beginResult = renderer.beginFrame();
+
+    // 每次 beginFrame后消费一次 GPU 快照
+    gpuBaseline.consume(renderer.gpuTimingSnapshot());
+
     if (beginResult.status == FrameStatus::Skip)
     {
         return;
@@ -258,6 +268,8 @@ void TriangleApplication::drawFrame()
 
     if (beginResult.status == FrameStatus::RecreateSwapchain)
     {
+        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
+        baselineStartRequested = false;
         recreateSwapChain();
         return;
     }
@@ -352,12 +364,28 @@ void TriangleApplication::drawFrame()
 
     latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd), cpuElapsedMs(recordBegin, recordEnd)};
 
+    if (baselineStartRequested)
+    {
+        baselineStartRequested = false;
+
+        if (endStatus == FrameStatus::Ready && !framebufferResized)
+        {
+            gpuBaseline.start(
+                latestCpuTiming.renderer.submissionId,
+                latestCpuTiming.renderer.config
+            );
+        }
+    }
+
+
     ++renderedFrameCount;
     if (frameLimit != 0 && renderedFrameCount >= frameLimit)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
 
     if (endStatus == FrameStatus::RecreateSwapchain || framebufferResized)
     {
+        gpuBaseline.cancel("Capture cancelled: window or scene changed.");
+        baselineStartRequested = false;
         recreateSwapChain();
     }
 }
