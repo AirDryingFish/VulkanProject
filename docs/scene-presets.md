@@ -39,9 +39,11 @@ cmake --build --preset linux-debug --parallel
 | `metal-rough-spheres` | Khronos 纹理版 MetalRoughSpheres | 官方材质参考、多 primitive、材质共享与取景 |
 | `damaged-helmet` | 现有 DamagedHelmet GLB | 多纹理槽的实际资产 |
 | `box` | 现有官方 Box GLB | 最小导入、取景和切换回归 |
-| `sponza` | 完整建筑资产已下载，暂不可运行 | 待 alpha-mask / 双面材质在主 pass 和 shadow pass 中正确支持 |
-| `metal-rough-spheres-no-textures` | 官方无纹理版，暂不可运行 | 上游材质全部双面；保留原语义，不修改标志绕过校验 |
+| `sponza` | 建筑资产预设，当前注册表未禁用 | Mask / 双面支持已接入；复杂场景的专项视觉与性能验收仍需实际记录 |
+| `metal-rough-spheres-no-textures` | 官方无纹理版，当前注册表未禁用 | 双面材质参考；展示缩放为 1000，相机按缩放后边界取景 |
 
+当前导入器支持 Opaque、Alpha Mask 与双面材质，仍拒绝 Alpha Blend；预设未禁用不等于已经
+完成所有 GPU 视觉验收，实际加载还需资产完整且满足导入支持范围。
 所有可运行预设都用现有渲染路径，不隐含 CSM、延迟渲染或光追支持。
 Skybox 仍然是背景；阴影预设的 `IBL intensity = 0` 只关闭环境光照贡献。
 
@@ -62,9 +64,9 @@ Skybox 仍然是背景；阴影预设的 `IBL intensity = 0` 只关闭环境光�
   释放本次新增资源，恢复旧场景并在 UI 显示错误。
 - 成功后归还旧场景材质的 descriptor sets，再释放不再引用的网格、图像与 sampler。
   三个启动基础材质及环境图、IBL 资源保留；基础材质的 CPU 参数恢复初值。
-- 普通材质容量仍为 128。descriptor pool 额外保留 16 个仅场景替换事务可用的
-  slots，避免手动导入占满后无法重置。当前所有可运行预设新增材质均不超过 16；
-  新增大型预设时必须同步重新设计这个预算，不能直接移除检查。
+- 普通材质容量为 128；descriptor pool 额外预留 128 个仅场景替换事务可用的 slots，
+  允许新旧两套材质暂时共存。预设新增材质不得超出本次预留，普通导入也不能占用这部分预算。
+  新增大型预设时核对实际容量，不能直接移除检查。
 - 场景资源同步上传，切换大型资产时会短暂停顿；没有实现后台流式加载。
 
 ## 来源、许可与资源恢复

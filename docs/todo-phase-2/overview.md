@@ -2,17 +2,24 @@
 
 本文接续 [Phase 1 开发路线图](../todo-phase-1/overview.md)，作为后续手敲开发的大纲。
 
-规划日期：2026-09-23。源码评估基线：`98fd00f`（`Support mask material`）。
-本文记录目标与依赖关系，不表示下面的功能已经实现，也不替代运行验收记录。
+原规划日期：2026-09-23；原源码基线：`98fd00f`（`Support mask material`）。
+进度核对：2026-10-19，当前源码基线 `4655e94`（`Add comment`）。
+本文区分实现与运行验收；未来阶段仍是规划，不因写出指南而视为实现。
 
 > 当前类名和源码路径见 [README · 源码目录](../../README.md#源码目录)；下文保留规划基线的叙述，源码导航链接按当前结构维护。
 
 项目目标包含引擎图形工程师求职展示：逐步积累渲染算法、GPU 数据与同步管理、性能分析和技术
-表达能力。每个重点功能应有可运行的对照、可解释的取舍和实际测量结果；新增任务均保持待完成状态。
+表达能力。每个重点功能应有可运行的对照、可解释的取舍和实际测量结果。
+
+当前 Stage 0 的 A–F 主功能已实现，G 的采集/导出工具已完成且有功能验证；固定条件的截图、
+捕帧和硬件性能证据尚待收口。下一次代码任务是 **Stage 0.5 小组 A：版本与能力记录**，之后再进入 Stage 1 CSM。
+详见 [Stage 0 当前状态](stage-0-rendering-baseline.md#当前进度与证据边界)。
 
 分阶段手敲指南：
 
 - [阶段 0：可测量、可观察的渲染基线](stage-0-rendering-baseline.md)
+- [阶段 0.5：Vulkan 能力管理与现代化](stage-0-5-vulkan-modernization.md)
+- [阶段 1：四级 Cascaded Shadow Maps](stage-1-cascaded-shadow-maps.md)
 
 ## 1. 当前起点与 Phase 1 收尾边界
 
@@ -24,9 +31,10 @@
 | glTF、Mesh 共享、材质、节点变换 | 主链路已有，已补双面与 Alpha Mask | 作为光栅和光追的共同场景输入 |
 | 方向光阴影、PCF、深度预览 | 已有 | 扩展成 CSM，并作为光追阴影的对照 |
 | HDR Scene → Post → Present → ImGui | 已接通 | Deferred 和光追继续输出线性 HDR |
-| 曝光、ACES fitted | 尚未实现，当前只有固定 Reinhard | 纳入阶段 0 的显示基线 |
-| 材质与深度 Debug Views | 目前主要是阴影相关视图 | 补齐后检查 G-buffer、重投影和光追命中 |
-| GPU timestamp / pass 耗时 | 尚未实现 | 作为本阶段第一个手敲任务 |
+| 曝光、ACES fitted | 已有 EV、Reinhard 与 ACES fitted（Narkowicz） | 固定后续算法比较的显示条件 |
+| 材质与深度 Debug Views | 已有材质、法线、深度、HDR 亮度与光空间视图 | 后续扩展到 G-buffer、重投影和光追命中 |
+| GPU timestamp / pass 耗时 | 已有三个区间、状态、提交 ID 和延迟读回 | 保持测量契约，比较迁移/算法成本 |
+| CPU / draw / 资源 / CSV | 已有主机六区间、绘制量、VMA 与 300 行配对采集 | 固定条件归档仍待完善，CSV 本身不含完整环境设置 |
 | Bloom、FXAA | 尚未完成 | Bloom 纳入 A-2 显示收尾；FXAA 选做，主要抗锯齿目标为 TAA |
 | 多光源剔除、屏幕空间效果与绘制优化 | 尚未建立本大纲中的进阶路径 | 纳入阶段 2、A-1、A-3、A-4，逐项实现与测量 |
 | Vulkan API / 能力管理 | 当前请求 Vulkan 1.0，设备初始化主要使用旧式 features | 阶段 0.5 建立版本协商与 Features2，接入 Synchronization2 / Dynamic Rendering |
@@ -94,21 +102,21 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 
 **目的：每次增加算法后，都能说明画面改变了什么、时间花在哪里。**
 
-实施细节见 [Stage 0 手敲指南](stage-0-rendering-baseline.md)，按 A–G 分组推进；先完成 A–C 的 GPU 计时。
+实施细节与当前验收边界见 [Stage 0 手敲指南](stage-0-rendering-baseline.md)。A–F 实现已有，当前重点是 G 的证据收口。
 当前 Post 统计包括 tone mapping、阴影预览和 ImGui，界面应标为 `Post + UI`。
 
 ### 开发任务
 
-- [ ] 给 Shadow、Scene、Post pass 增加 GPU timestamp，ImGui 显示各 pass 毫秒数。
-- [ ] 查询时间戳支持能力和 `timestampValidBits`，用 `timestampPeriod` 换算；不支持时显示 unavailable。
-- [ ] 每个飞行帧管理自己的 query 区间，等待对应 fence 后读取和复用，避免立即等查询结果导致停顿。
-- [ ] 区分帧间隔、CPU 提交耗时和 GPU pass 耗时；`1 / FPS` 不命名为 CPU 或 GPU 独立耗时。
-- [ ] 增加 draw call、triangle 的基础统计，记录分辨率、MSAA、阴影分辨率与当前渲染模式。
-- [ ] 区分对象数、实例数、提交的绘制条目和实际 API 调用数；多 Pass 的三角形统计注明统计范围。
-- [ ] 记录主要 buffer/image 的分配开销；区分资源估算、分配器统计与设备内存预算，不混称实际驻留显存。
-- [ ] 接入 Exposure EV；保留 Reinhard，并增加明确命名的 ACES fitted 近似。
-- [ ] 保证场景先输出线性 HDR，再进行曝光、tone mapping 和一次 sRGB 编码；UI 不受曝光影响。
-- [ ] 增加 Depth、World Normal、Albedo、Metallic、Roughness、HDR luminance 调试显示。
+- [x] 给 Shadow、Scene、Post pass 增加 GPU timestamp，ImGui 显示各 pass 毫秒数。
+- [x] 查询时间戳支持能力和 `timestampValidBits`，用 `timestampPeriod` 换算；不支持时显示 unavailable（真实不支持设备待专门验收）。
+- [x] 每个飞行帧管理自己的 query 区间，等待对应 fence 后读取和复用，避免立即等查询结果导致停顿。
+- [x] 区分帧间隔、CPU 提交耗时和 GPU pass 耗时；`1 / FPS` 不命名为 CPU 或 GPU 独立耗时。
+- [x] 增加 draw call、triangle 的基础统计，记录分辨率、MSAA、阴影分辨率与当前渲染模式。
+- [x] 当前路径分别显示对象数与 Scene/Shadow 实际 mesh draw、提交三角形；引入实例化/批处理后在 A-3 扩展实例与批次统计。
+- [x] 记录主要 buffer/image 的分配开销；区分资源估算、分配器统计与设备内存预算，不混称实际驻留显存。
+- [x] 接入 Exposure EV；保留 Reinhard，并增加明确命名的 ACES fitted 近似。
+- [x] 实现线性 HDR → 曝光/tone mapping → 一次 sRGB 编码，UI 在显示端绘制（专项对照截图待归档）。
+- [x] 增加 Depth、World Normal、Albedo、Metallic、Roughness、HDR luminance 调试显示（专项视觉验收待补）。
 - [ ] 固定 Sponza、材质球和阴影实验场景的相机、灯光与窗口尺寸，保存对照条件。
 - [ ] 随功能加入多光源、重复实例、运动物体场景；保留随机种子与相机路线，便于复现。
 - [ ] 使用 RenderDoc 或可用的 GPU 分析工具记录一次关键帧，说明主要 pass 的输入、输出和瓶颈。
@@ -120,10 +128,14 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 显示问题。已有渲染链路无已知的资源生命周期或同步错误。
 
 本组不要求建立大型自动化测试框架；没有执行的运行检查明确记录为“待验收”。
+上面的勾选表示相应实现已有，不表示所有设备、显示视图和平台都已完成专项运行验收。
 
 ## 4. 阶段 0.5：Vulkan 能力管理与现代化
 
 **目的：建立明确的版本、扩展和 feature 契约，并在新增大量 Pass 前更新同步与渲染附件的表达方式。**
+
+详细分组、当前缺口和下一次最小手敲任务见 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md)。
+当前尚未实现该阶段；不要把支持 timestamp 或安装较新 SDK 当作已经完成能力管理。
 
 ### 版本目标与范围
 
@@ -233,6 +245,9 @@ Render Graph 是本项目的架构选择，不是升级 Vulkan 必须同时实�
 ## 5. 阶段 1：Cascaded Shadow Maps
 
 **目的：解决单张方向光阴影图覆盖大场景时，近处细节不足的问题。**
+
+详细数据契约、数学步骤、资源接入与验收见 [Stage 1 手敲指南](stage-1-cascaded-shadow-maps.md)。
+按本项目主线先完成 Stage 0.5 的主帧路径迁移，再接入 CSM；目前只有单张方向光阴影。
 
 ### 手敲顺序
 
@@ -584,29 +599,20 @@ ReSTIR DI 不是整套光追管线，也不自动提供间接光或完整降噪�
 
 ## 16. 下一次实际手敲任务
 
-**首先增加 Shadow / Scene / Post 的 GPU 时间统计。**
+**先做 Stage 0.5 小组 A：能力值对象、Loader 版本查询和选卡版本日志。**
 
-具体从 [Stage 0 手敲指南](stage-0-rendering-baseline.md) 的小组 A 开始：先做计时类型、能力查询与
-每帧 query pool，再用 B/C 接通时间戳、读回和 UI。下面五项是第一轮完整目标，可以分组完成。
+具体从 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md#4-小组-a先记录能力保持原有渲染) 开始。
+首组保持当前渲染行为，不修改 barrier、Submit、Pass 或 shader；先能解释头文件、Loader、Instance
+与 Device 的区别。之后按以下顺序保留可运行的小提交：
 
-首组仅做以下内容：
+1. 版本协商、Features2、支持/启用区分与 VMA/ImGui/shader 目标统一。
+2. Synchronization2：先明确资源依赖，再迁移 barrier 与 submit，保留帧槽和计时契约。
+3. Dynamic Rendering：Post/Present + ImGui → HDR Scene/MSAA → 单图 Shadow，明确暂留的 IBL 路径。
+4. 补齐 Stage 0 固定条件的 CSV/截图/捕帧档案与迁移回归记录。
+5. 按 [Stage 1 指南](stage-1-cascaded-shadow-maps.md) 做四级 CSM，再进入 Deferred。
 
-1. 查询当前 graphics queue family 的 timestamp 能力和设备 `timestampPeriod`。
-2. 为各飞行帧分配足够的 timestamp query 槽位。
-3. 在三个 pass 的开始/结束插入时间戳；未执行的 pass 显示 N/A。
-4. 在对应 fence 完成后读取结果，不在刚提交时阻塞等待。
-5. ImGui 显示每个 pass 的 GPU ms，并记录固定场景下的第一份基线。
-
-这一组完成后按以下顺序继续，每一组均保留可运行的结果：
-
-1. 完成阶段 0 的显示/调试基线。
-2. 阶段 0.5 第一组：版本协商、能力记录、VMA/ImGui/Shader 配置统一。
-3. 阶段 0.5 第二组：Synchronization2。
-4. 阶段 0.5 第三组：Dynamic Rendering，先 Post/Present，再 Scene/Shadow。
-5. 阶段 1 四级 CSM，再进入阶段 2 Deferred 与多光源剔除。
-
-GPU 测量不依赖先升级 API；Timeline、Bindless 与 RT 留在各自需要的阶段。后续独立实施指南
-按实际进度添加，本大纲不预设尚不存在的函数或文件已经实现。
+Stage 0 的 G 组证据可以与能力记录并行补齐。Timeline、Bindless 与 RT 留在需要它们的阶段；
+本大纲不预设尚不存在的函数或文件已经实现。
 
 ## 17. 参考资料
 

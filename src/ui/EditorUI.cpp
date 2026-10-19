@@ -227,7 +227,7 @@ void Application::initImGui()
     QueueFamilyIndices indices = context.queueFamilies();
 
     ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.ApiVersion = VK_API_VERSION_1_0;
+    initInfo.ApiVersion = context.capabilities().instanceVersion;
     initInfo.Instance = context.instance();
     initInfo.PhysicalDevice = context.physicalDevice();
     initInfo.Device = context.device();

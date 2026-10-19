@@ -14,6 +14,59 @@
 #include <stdexcept>
 #include <utility>
 
+namespace
+{
+    // 把编码后的版本号转换成人能读懂的文字，并安全查询 Loader
+    std::string apiVersionText(std::uint32_t version)
+    {
+        return std::to_string(VK_API_VERSION_MAJOR(version)) + "." +
+               std::to_string(VK_API_VERSION_MINOR(version)) + "." +
+               std::to_string(VK_API_VERSION_PATCH(version));
+    }
+
+    // 只保留 Vulkan 版本号的主版本和次版本，把 variant 和 patch 清零
+    // VK_MAKE_API_VERSION() 把四个字段重新打包成一个 uint32_t 版本号
+    std::uint32_t coreApiVersion(std::uint32_t version)
+    {
+        return VK_MAKE_API_VERSION(
+            0,
+            VK_API_VERSION_MAJOR(version),
+            VK_API_VERSION_MINOR(version),
+            0);
+    }
+
+    //
+    std::uint32_t selectInstanceApiVersion(std::uint32_t preferred, std::uint32_t minimum, std::uint32_t loader)
+    {
+        if (VK_API_VERSION_VARIANT(preferred) != 0 ||
+            VK_API_VERSION_VARIANT(minimum) != 0 ||
+            VK_API_VERSION_VARIANT(loader) != 0)
+        {
+            throw std::invalid_argument("Only standard Vulkan variant 0 is supported");
+        }
+
+        preferred = coreApiVersion(preferred);
+        minimum = coreApiVersion(minimum);
+        loader = coreApiVersion(loader);
+
+        if (minimum < VK_API_VERSION_1_0 ||
+            minimum > preferred ||
+            preferred > VK_API_VERSION_1_3)
+        {
+            throw std::invalid_argument("Expected Vulkan 1.0 <= minimum <= preferred <= 1.3");
+        }
+
+        const auto selected = std::min(preferred, loader);
+
+        if (selected < minimum)
+        {
+            throw std::runtime_error("Vulkan loader API is below the required minimum");
+        }
+
+        return selected;
+    };
+}
+
 VulkanContext::~VulkanContext() noexcept
 {
     shutdown();
@@ -32,15 +85,19 @@ void VulkanContext::initialize(GLFWwindow *window, const VulkanContextConfig &co
     }
 
     validationEnabled_ = config.enableValidation;
-    apiVersion_ = config.apiVersion;
+    capabilities_ = {};
 
     try{
+        queryLoaderVersion();
+
         createInstance(config);
         setupDebugMessenger();
         createSurface(window);
-        pickPhysicalDevice();
+        pickPhysicalDevice(config);
         createLogicalDevice();
         createAllocator();
+
+        logCapabilities();
     }
     catch (...)
     {
@@ -113,8 +170,9 @@ void VulkanContext::shutdown() noexcept
         instance_ = VK_NULL_HANDLE;
     }
 
+    capabilities_ = {};
+
     validationEnabled_ = false;
-    apiVersion_ = VK_API_VERSION_1_0;
 }
 
 VkResult VulkanContext::waitIdle() const noexcept
@@ -167,6 +225,11 @@ const QueueFamilyIndices &VulkanContext::queueFamilies() const noexcept
     return queueFamilies_;
 }
 
+const VulkanCapabilities &VulkanContext::capabilities() const noexcept
+{
+    return capabilities_;
+}
+
 VkSampleCountFlagBits VulkanContext::msaaSamples() const noexcept
 {
     return msaaSamples_;
@@ -205,8 +268,8 @@ VkFormat VulkanContext::findDepthFormat() const
 {
     return findSupportedFormat(
         {
-            VK_FORMAT_D32_SFLOAT, 
-            VK_FORMAT_D32_SFLOAT_S8_UINT, 
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
             VK_FORMAT_D24_UNORM_S8_UINT
         },
         VK_IMAGE_TILING_OPTIMAL,
@@ -381,8 +444,8 @@ GpuImage VulkanContext::createImage(const ImageDesc &desc) const
 
     return GpuImage(
         allocator_,
-        device_, 
-        image, 
+        device_,
+        image,
         allocation,
         desc.extent,
         desc.format,
@@ -455,7 +518,7 @@ UniqueShaderModule VulkanContext::createShaderModule(const std::vector<char> &co
     return UniqueShaderModule(device_, shaderModule);
 }
 
-void VulkanContext::createInstance(const VulkanContextConfig &config) 
+void VulkanContext::createInstance(const VulkanContextConfig &config)
 {
     if (validationEnabled_ && !checkValidationLayerSupport())
     {
@@ -467,7 +530,11 @@ void VulkanContext::createInstance(const VulkanContextConfig &config)
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = config.apiVersion;
+    appInfo.apiVersion = selectInstanceApiVersion(
+        config.apiVersion,
+        config.minimumApiVersion,
+        capabilities_.loaderVersion
+    );
 
     VkInstanceCreateInfo createInfo{};
     std::vector<const char *> extensions = getRequiredExtensions();
@@ -508,6 +575,9 @@ void VulkanContext::createInstance(const VulkanContextConfig &config)
     // 1. creation info 指针
     // 2. allocator callbacks，通常为nullptr
     // 3. 存储新对象handle的变量的指针
+
+    // 记录真正用于创建 Instance 的请求值
+    capabilities_.instanceVersion = appInfo.apiVersion;
 }
 
 void VulkanContext::setupDebugMessenger()
@@ -528,7 +598,7 @@ void VulkanContext::createSurface(GLFWwindow *window)
     VK_CHECK(glfwCreateWindowSurface(instance_, window, nullptr, &surface_));
 }
 
-void VulkanContext::pickPhysicalDevice()
+void VulkanContext::pickPhysicalDevice(const VulkanContextConfig &config)
 {
     uint32_t deviceCount = 0;
     VK_CHECK(vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr));
@@ -541,11 +611,43 @@ void VulkanContext::pickPhysicalDevice()
 
     for (const VkPhysicalDevice &candidate : devices)
     {
-        if (isDeviceSuitable(candidate))
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(candidate, &properties);
+
+        // properties.apiVersion 驱动的 api version
+        if (coreApiVersion(properties.apiVersion) < coreApiVersion(config.minimumApiVersion))
+        {
+            std::cout
+                << "GPU candidate: " << properties.deviceName
+                << " | device API: "
+                << apiVersionText(properties.apiVersion)
+                << " | rejected: below minimum "
+                << apiVersionText(
+                       coreApiVersion(config.minimumApiVersion))
+                << "; other checks not run\n";
+
+            continue;
+        }
+
+        const bool suitable = isDeviceSuitable(candidate);
+
+        std::cout << "GPU candidate: " << properties.deviceName <<
+                     " | device API: " << apiVersionText(properties.apiVersion) <<
+                     " | existing suitability checks: " << (suitable ? "passed" : "failed") << "\n";
+
+        if (suitable)
         {
             physicalDevice_ = candidate;
             queueFamilies_ = findQueueFamilies(candidate);
             msaaSamples_ = getMaxUsableSampleCount();
+
+            capabilities_.physicalDeviceVersion = properties.apiVersion;
+            capabilities_.deviceName = properties.deviceName;
+            capabilities_.deviceApiVersion = std::min(
+                coreApiVersion(capabilities_.instanceVersion),
+                coreApiVersion(properties.apiVersion)
+            );
+
             std::cout << "MSAA samples: " << msaaSamples_ << std::endl;
             break;
         }
@@ -643,8 +745,8 @@ void VulkanContext::createAllocator()
     allocatorInfo.instance = instance_;
     allocatorInfo.physicalDevice = physicalDevice_;
     allocatorInfo.device = device_;
-    allocatorInfo.vulkanApiVersion = apiVersion_;
-    
+    allocatorInfo.vulkanApiVersion = capabilities_.deviceApiVersion;
+
     VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator_));
 }
 
@@ -699,6 +801,7 @@ std::vector<const char *> VulkanContext::getRequiredExtensions() const
     return extensions;
 }
 
+// 检查一个候选物理设备（通常是一张 GPU）是否满足当前渲染祇的最低要求
 bool VulkanContext::isDeviceSuitable(VkPhysicalDevice candidate) const
 {
     QueueFamilyIndices indices = findQueueFamilies(candidate);
@@ -736,6 +839,7 @@ bool VulkanContext::checkDeviceExtensionSupport(VkPhysicalDevice candidate) cons
     return requiredExtensions.empty();
 }
 
+// 按顺序遍历不断更新符合条件（支持 graphics 和 present）的队列族，一旦找到了就立刻退出
 QueueFamilyIndices VulkanContext::findQueueFamilies(VkPhysicalDevice candidate) const
 {
     QueueFamilyIndices indices;
@@ -847,4 +951,37 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanContext::debugCallback(VkDebugUtilsMessageS
 {
     std::cerr << "---------------------\nvalidation layer: " << callbackData->pMessage << std::endl;
     return VK_FALSE;
+}
+
+void VulkanContext::queryLoaderVersion()
+{
+    // 老 loader 可能没有版本查询入口，此时按 1.0 处理
+    capabilities_.loaderVersion = VK_API_VERSION_1_0;
+
+    // 获取名为 vkEnumerateInstanceVersion 的函数地址
+    const auto enumerateVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
+    if (enumerateVersion != nullptr)
+    {
+        VK_CHECK(enumerateVersion(&capabilities_.loaderVersion));
+    }
+}
+
+void VulkanContext::logCapabilities() const
+{
+    const auto& info = capabilities();
+
+    std::cout
+        << "Vulkan capabilities\n"
+        << "  Header: "
+        << apiVersionText(info.headerVersion) << '\n'
+        << "  Loader supported: "
+        << apiVersionText(info.loaderVersion) << '\n'
+        << "  Instance requested: "
+        << apiVersionText(info.instanceVersion) << '\n'
+        << "  Selected GPU: "
+        << info.deviceName << '\n'
+        << "  Device supported: "
+        << apiVersionText(info.physicalDeviceVersion) << '\n'
+        << "  Device core ceiling: "
+        << apiVersionText(info.deviceApiVersion) << '\n';
 }

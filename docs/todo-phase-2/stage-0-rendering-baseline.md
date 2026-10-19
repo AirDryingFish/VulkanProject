@@ -3,13 +3,35 @@
 本文对应 [Phase 2 大纲](overview.md) 的阶段 0，接续已有 glTF/PBR、方向光阴影与 HDR 渲染链路。
 面向手敲学习：按下面的小组逐步完成，每组写清目的、改动位置、观察方法和完成标准。
 
-评估日期：2026-09-23。源码基线：`98fd00f`（`Support mask material`）及当前工作区。
-本文是实施计划；新增的数据类型、字段和接口均为建议，尚未写入源码。本次只核对源码与文档，
-未执行构建、图形交互或性能测量，所有功能与运行验收保持待完成。
+原规划日期：2026-09-23，原基线：`98fd00f`（`Support mask material`）。
+当前状态核对：2026-10-19，源码基线：`4655e94`（`Add comment`）。
 
-> 目录说明：本文保留上述评估基线的实施叙述，旧类名和源码路径按 [README · 源码目录](../../README.md#源码目录) 定位，完成状态不变。
-> 当前 Diagnostics 实现见 [Diagnostics.cpp](../../src/ui/Diagnostics.cpp)，由 [EditorUI.cpp](../../src/ui/EditorUI.cpp) 调用。
-> 当前计时契约位于 [FrameTiming.hpp](../../src/diagnostics/FrameTiming.hpp)，基线采集位于 [BaselineCapture.hpp](../../src/diagnostics/BaselineCapture.hpp)；下文保留原实施顺序与类型建议。
+**结论：A–F 的主要实现已经完成，G 的采集/导出工具已有并经过功能验证；完整基线证据仍待收口。**
+不需要重新从小组 A 开发。下一次手敲从 [Stage 0.5：Vulkan 能力管理与现代化](stage-0-5-vulkan-modernization.md)
+的小组 A 开始，之后进入 [Stage 1：CSM](stage-1-cascaded-shadow-maps.md)。
+
+### 当前进度与证据边界
+
+| 分组 | 当前实现 | 验证/剩余事项 |
+|---|---|---|
+| A–C：GPU 计时与展示 | 每帧 query pool、三个 GPU 区间、提交 ID、fence 后读回、状态与来源展示 | 已有功能运行记录；不支持 timestamp 的真实设备路径仍待专门验证 |
+| D：CPU/绘制/资源统计 | Wait/Acquire/Update/Record/Submit/Present、Scene/Shadow draw/triangle、VMA、目标 payload 估算 | 已有测试与功能检查；固定配置下的性能/资源对照待归档 |
+| E：显示链路 | EV、Reinhard、ACES fitted（Narkowicz）、数据视图 bypass | 实现已有；曝光/显示编码/UI 的专项对照截图待归档 |
+| F：Debug Views | Albedo、World Normal、Metallic、Roughness、Linear Depth、HDR Luminance、Shadow Projection | 实现已有；各视图及 Mask/双面的专项视觉验收不能只用编译通过代替 |
+| G：固定基线 | 120 次提交预热、300 个有效 CPU/GPU 配对、取消/丢样/统计/CSV | 工具已验证；材质/阴影/复杂场景的配置档案、截图、捕帧说明与硬件性能记录待补 |
+
+- [STD-008 验证记录](../standardization-log.md#std-008--explicit-application-scene-environment-and-shader-boundaries)
+  记载 Linux Debug/Release 与五项测试通过，以及 Xvfb/lavapipe 场景、resize、Diagnostics、VMA、
+  120 次预热后 300 行配对、0 drop 和正常退出检查。软件渲染耗时用于功能验证，不作为真实 GPU 性能结论。
+- 仓库已有 [gpu-baseline.csv](../../gpu-baseline.csv)：本次静态核对为 300 行、16 列，ID 620–919 唯一递增，
+  CPU/GPU ID 一致，耗时有限且非负。该文件不含采集环境/配置元数据，不能据此确定硬件来源，
+  也不能擅自把它归为 STD-008 的同一次采集。
+- 原生最小化/恢复、Windows/macOS 的本轮图形运行、完整 Debug View 对照和 GPU 捕帧仍待验收。
+  当前可以推进 Stage 0.5 的能力记录，同时补齐 G 组档案；最终完成基线验收时仍需回到第 11/12 节。
+
+> 下文保留 A–G 的学习顺序作为实现复盘和验收清单，不再代表“这些接口尚未写入源码”。
+> 当前计时契约位于 [FrameTiming.hpp](../../src/diagnostics/FrameTiming.hpp)，采集位于
+> [BaselineCapture.hpp](../../src/diagnostics/BaselineCapture.hpp)，界面位于 [Diagnostics.cpp](../../src/ui/Diagnostics.cpp)。
 
 ## 1. 本阶段的目的与范围
 
@@ -25,7 +47,7 @@
 留到阶段 0.5；Bloom 留到 A-2，TAA/GTAO/CSM/Deferred 不在本阶段实现。
 不要求先建立自动化测试框架；每组保留必要的构建和手动观察，未执行的检查标为待验收。
 
-## 2. 当前代码与接入位置
+## 2. 原实施起点与当前接入位置
 
 | 当前情况 | 代码位置 | 本阶段的接入方向 |
 |---|---|---|
@@ -34,9 +56,9 @@
 | `recordFrame()` 顺序录制 Shadow、HDR Scene、Present | 同上 | 在实际 Pass 边界写入 GPU timestamp |
 | 阴影关闭仅跳过绘制，仍执行深度清除 Pass | [ShadowMapping.cpp](../../src/render/ShadowMapping.cpp) 的 `recordShadowPass()` | 统计实际清除成本，不能把开关关闭直接视为 Pass 未执行 |
 | Present 包含 tone mapping、阴影预览与 ImGui | `Renderer::recordFrame()` | UI 名称使用 `Post + UI`，避免误称纯 tone mapping 时间 |
-| Diagnostics 仅显示 FPS 与 `1000 / FPS` 等信息 | [EditorUI.cpp](../../src/ui/EditorUI.cpp) | 增加最近一次完成的 GPU 结果和明确状态 |
+| Diagnostics 已拆为 Live / Baseline / Resources | [Diagnostics.cpp](../../src/ui/Diagnostics.cpp)，由 [EditorUI.cpp](../../src/ui/EditorUI.cpp) 调用 | 复盘 CPU/GPU 来源、采集与导出反馈的独立状态 |
 | 应用在 beginFrame 后构建 UI，再生成绘制快照与提交 | [Application.cpp](../../src/app/Application.cpp) | GPU 显示过去已完成的帧，CPU 当帧结果下一次 UI 再展示 |
-| Post push constants 已预留 EV 与 tone mapper 字段 | [ShaderTypes.hpp](../../src/render/ShaderTypes.hpp)、[tonemap.frag](../../assets/shaders/tonemap.frag) | 使用已有参数空间，不扩充已满 128 字节的 Draw push constants |
+| Post push constants 已接入 EV 与 tone mapper 字段 | [ShaderTypes.hpp](../../src/render/ShaderTypes.hpp)、[tonemap.frag](../../assets/shaders/tonemap.frag) | 复盘已有参数空间，不扩充已满 128 字节的 Draw push constants |
 | 逐帧 UBO 与材质 shader 已有阴影调试入口 | [ShaderTypes.hpp](../../src/render/ShaderTypes.hpp)、[Buffers.cpp](../../src/app/Buffers.cpp)、[shader.frag](../../assets/shaders/shader.frag) | 扩展明确的 Debug View 模式，核对 CPU/GLSL 布局 |
 
 第一轮计时直接放在 Renderer 的现有边界内，不先搭建通用 Profiler 或 Render Graph。
@@ -54,8 +76,8 @@
 | F：Debug Views | 分开检查几何、材质与光照 | UBO、材质 shader、Post、ImGui | Depth/Normal/Albedo/Metallic/Roughness/HDR luminance |
 | G：固定基线记录 | 为后续改造提供证据 | 现有场景预设与记录 | 可复现的配置、截图、捕帧与测量结果 |
 
-**A–C 是第一轮目标。** 每组可以继续拆成更小的手敲提交；仅声明结构或分配 query pool，
-不能标记“GPU 计时完成”。D–G 完成后才形成完整 Stage 0 基线。
+原实施顺序以 A–C 为第一轮目标，目前已接通。每组仍可作为代码阅读单元；仅声明结构或分配
+query pool，不能标记“GPU 计时完成”。D–G 完成实现与证据归档后才形成完整 Stage 0 基线。
 
 ## 4. 先约定测量含义
 
@@ -81,12 +103,12 @@ GPU 时间来自命令流中的两个 timestamp。第一版使用 Pass 开始前
 
 ### 5.1 建议的数据划分
 
-以下名字是拟新增设计，不是已有接口：
+原建议已经落实为当前接口；计时类型已从 RenderTypes 归入 diagnostics：
 
 | 数据 | 所有者 | 内容 |
 |---|---|---|
-| `GpuPass` | RenderTypes | 固定 Shadow、Scene、PostAndUi 三项及数量 |
-| `GpuPassTiming` / `GpuTimingSnapshot` | RenderTypes，Renderer 保存最近结果 | 各 Pass 的有效状态、ms、提交序号及本次测量配置 |
+| `GpuPass` | FrameTiming | 固定 Shadow、Scene、PostAndUi 三项及数量 |
+| `GpuPassTiming` / `GpuTimingSnapshot` | FrameTiming，Renderer 保存最近结果 | 各 Pass 的有效状态、ms、提交序号及本次测量配置 |
 | 时间戳能力 | Renderer | supported、graphics queue family、`timestampValidBits`、`timestampPeriod` |
 | 每帧查询资源 | `FrameContext` | `VkQueryPool`，默认 `VK_NULL_HANDLE` |
 | 本次录制记录 | `FrameContext` | 哪些 Pass 的两端 query 确实写入、对应设置快照 |
@@ -377,23 +399,29 @@ cmake --build --preset windows-mingw-debug --parallel
 
 ## 12. 阶段完成标准与下一步
 
-- [ ] A–C：三组 GPU 计时、状态和延迟读回完整；未执行与有效零耗时不混淆。
-- [ ] D：CPU/绘制/资源统计含义明确，能够区分等待、录制、提交与 GPU 工作。
-- [ ] E：曝光和 ACES fitted 可切换，默认 Reinhard 可作旧画面对照。
-- [ ] F：基础 Debug Views 能检查材质、法线、深度和 HDR 输入。
+- [x] A–C 实现：三组 GPU 计时、状态和延迟读回完整；未执行与有效零耗时不混淆。
+- [x] D 实现：CPU/绘制/资源统计含义明确，能够区分等待、录制、提交与 GPU 工作。
+- [x] E 实现：曝光和 ACES fitted 可切换，默认 Reinhard 可作旧画面对照。
+- [x] F 实现：基础 Debug Views 能检查材质、法线、深度和 HDR 输入。
 - [ ] G：至少保存材质、阴影和复杂场景的固定基线；缺失资源或不可用工具明确记录，不冒充验证。
-- [ ] 已执行的构建/运行检查有结果，未执行项保持待验收，没有已知 query 生命周期或同步错误。
+- [ ] 补齐专项画面对照、捕帧与目标平台运行记录；已执行项与待执行项分别记载。
 
 具备这些基线后进入阶段 0.5：版本与能力管理 → Synchronization2 → Dynamic Rendering。
 迁移期间使用本阶段的同一场景、计时范围和显示设置，比较正确性与成本。
 
 ## 13. 下一次实际手敲范围
 
-**先做小组 A：计时类型、能力查询、每帧 query pool 与清理。**
+**当前下一组：Stage 0.5 的小组 A，记录 Loader / Instance / Device 版本与设备能力。**
 
-下一组只涉及 RenderTypes、Renderer 的类型声明与初始化/销毁；完成后应能编译运行并看到能力
-日志，画面保持原状。之后再按小组 B 接通记录/提交/读回，最后用小组 C 加入 Diagnostics。
-尚未产生 GPU 结果时显示 pending 即可，不填入估计耗时。
+具体执行 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md#4-小组-a先记录能力保持原有渲染)。
+首次只增加能力值对象、Loader 版本查询与选卡日志，保留现有渲染路径，再逐组迁移。
+之后才进入 [Stage 1：CSM](stage-1-cascaded-shadow-maps.md)，不跳过大纲已有的阶段 0.5。
+
+G 组归档可同时补齐：为一次新采集保存 CSV、截图及一份设置记录，至少包含 GPU/驱动、commit、
+Debug/Release、Validation、场景、framebuffer extent、MSAA、阴影分辨率/PCF/bias、相机、灯光/IBL、
+EV/tone mapper、UI/预览开关、VSync/限帧、预热数和有效样本数。相机、材质、灯光与 PCF 等编辑
+没有全部进入自动配置匹配，采集时仍需手动固定。首次捕帧说明写清 Shadow → HDR → Present 的输入输出，
+没有执行 GPU 分析时不要填写瓶颈结论。
 
 ## 14. 参考资料
 

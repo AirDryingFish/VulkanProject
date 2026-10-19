@@ -21,6 +21,8 @@ macOS；macOS 通过 MoltenVK 将 Vulkan 指令映射到 Metal。
 - [Phase 1：基础渲染器与资产管线](docs/todo-phase-1/overview.md)
 - [Phase 2：现代 Vulkan、高级光栅与 ReSTIR](docs/todo-phase-2/overview.md)
 - [Phase 2 · Stage 0 手敲指南：渲染基线与 GPU 计时](docs/todo-phase-2/stage-0-rendering-baseline.md)
+- [Phase 2 · Stage 0.5 手敲指南：能力管理与 Vulkan 现代化](docs/todo-phase-2/stage-0-5-vulkan-modernization.md)
+- [Phase 2 · Stage 1 手敲指南：四级 CSM](docs/todo-phase-2/stage-1-cascaded-shadow-maps.md)
 
 ## 技术栈
 
@@ -230,7 +232,8 @@ Debug 默认开启 Vulkan Validation Layers。
 
 默认启动 Shadow Playground。在 Scene 标签的 Scene Presets 中可切换或重置场景，
 也可使用 `./build/linux-debug/vulkan --scene metal-rough-spheres`。
-`--list-scenes` 列出全部预设；已下载但尚不支持材质语义的 Sponza 会明确标为不可用。
+`--list-scenes` 列出全部预设；当前已接入 Mask 与双面材质，Sponza 预设未禁用。
+复杂场景的专项视觉/性能验收状态见 [场景说明](docs/scene-presets.md)。
 
 ### 5. Release 构建
 

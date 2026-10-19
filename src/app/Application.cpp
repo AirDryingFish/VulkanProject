@@ -67,7 +67,8 @@ void Application::initializeRendering()
     VulkanContextConfig contextConfig{};
     contextConfig.applicationName = "VulkanProject";
     contextConfig.enableValidation = enableValidationLayers;
-    contextConfig.apiVersion = VK_API_VERSION_1_0;
+    contextConfig.apiVersion = VK_API_VERSION_1_3;
+    contextConfig.minimumApiVersion = VK_API_VERSION_1_0;
 
     // 从底层依赖开始建立：device -> 交换链 -> render pass/pipeline -> framebuffer。
     context.initialize(window, contextConfig);
