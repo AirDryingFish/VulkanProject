@@ -12,6 +12,7 @@ namespace
 {
 bool intersectRayAabb(const glm::vec3 &origin, const glm::vec3 &direction, const glm::vec3 &boundsMin, const glm::vec3 &boundsMax, float &hitDistance)
 {
+    // slab 法：分别求射线位于 X/Y/Z 区间内的 t 范围，三个范围有交集才命中。
     float tMin = 0.0f;
     float tMax = std::numeric_limits<float>::max();
 
@@ -100,6 +101,8 @@ void Application::processModelPicking()
     glm::mat4 projection = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
 
 
+    // 反投影 Vulkan NDC 的近/远点（深度 0/1），透视除法后得到世界空间射线。
+    // projection 已在 Camera 内翻转 Y，这里不再套用 OpenGL 的 Y/深度转换。
     const glm::mat4 inverseViewProjection = glm::inverse(projection * view);
     glm::vec4 nearPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, 0.0f, 1.0f);
     glm::vec4 farPoint = inverseViewProjection * glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
@@ -127,6 +130,7 @@ void Application::processModelPicking()
 
         glm::vec3 worldBoundsMin;
         glm::vec3 worldBoundsMax;
+        // 与绘制共用 modelMatrix；当前仅测试世界空间 AABB，属于粗略拾取而非逐三角形命中。
         transformAabb(object.modelMatrix(), mesh.boundsMin, mesh.boundsMax, worldBoundsMin, worldBoundsMax);
 
         float hitDistance = 0.0f;

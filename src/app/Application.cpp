@@ -69,6 +69,7 @@ void Application::initializeRendering()
     contextConfig.enableValidation = enableValidationLayers;
     contextConfig.apiVersion = VK_API_VERSION_1_0;
 
+    // 从底层依赖开始建立：device -> 交换链 -> render pass/pipeline -> framebuffer。
     context.initialize(window, contextConfig);
     swapchain.initializeCore(context, window);
 
@@ -78,7 +79,7 @@ void Application::initializeRendering()
 
     initImGui();
 
-    // 创建材质时就要给slot赋sampler，默认sampler必须提前存在
+    // 先创建实际资源，再让 descriptor set 引用它们；描述符本身不拥有纹理/缓冲区。
     createTextureSampler();
     createMaterialResources();
     builtinMaterialCount = materialLibrary.size();
@@ -114,6 +115,7 @@ void Application::mainLoop()
 
 void Application::cleanup() noexcept
 {
+    // 正常退出和析构（包括初始化中途抛异常）共用此入口，因此必须允许重复调用。
     if (cleanedUp)
     {
         return;
@@ -121,6 +123,7 @@ void Application::cleanup() noexcept
     cleanedUp = true;
     rendererReady = false;
 
+    // RAII 只能自动释放 CPU 持有的句柄，不会自动等待 GPU 停止使用这些资源。
     const VkResult result = context.waitIdle();
     if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
     {
@@ -131,8 +134,8 @@ void Application::cleanup() noexcept
             static_cast<int>(result));
     }
 
-    // Destroy raw Vulkan objects which may reference the RAII buffers/images
-    // before releasing the VMA-owned resources themselves.
+    // 先关闭 ImGui、销毁应用的 descriptor pool，再释放其引用的 UBO/纹理。
+    // DeletionQueue 按注册的逆序执行；这里的 GPU 等待由上方统一完成。
     mainDeletionQueue.flush();
 
     uniformBufferMapped.clear();
@@ -158,6 +161,7 @@ void Application::cleanup() noexcept
 
     environment.shutdown();
 
+    // 先清理交换链 framebuffer，再关闭 Renderer，保持本项目的集中清理顺序。
     swapchain.destroyFramebuffers();
 
     renderer.shutdown();
@@ -194,6 +198,7 @@ void Application::recreateSwapchain()
         return;
     }
 
+    // 当前重建路径只更新尺寸相关资源；格式/图像数量变化还需要重建 pipeline/ImGui 等。
     if (oldFormat != swapchain.format() ||
         oldColorSpace != swapchain.colorSpace() ||
         oldMinImageCount != swapchain.minImageCount() ||
@@ -212,6 +217,7 @@ void Application::recreateSwapchain()
 
 void Application::framebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
+    // 回调只记下事件；实际重建留到 drawFrame() 的安全边界处理。
     auto app = reinterpret_cast<Application *>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
 }
@@ -219,6 +225,7 @@ void Application::framebufferResizeCallback(GLFWwindow *window, int width, int h
 
 void Application::drawFrame()
 {
+    // 每帧阅读顺序：处理延迟变更 -> beginFrame 等待资源 -> 更新/UI -> 录制 -> 提交/呈现。
     if (!rendererReady || renderer.hasActiveFrame())
     {
         return;
@@ -251,12 +258,13 @@ void Application::drawFrame()
         diagnostics.startRequested = false;
     }
 
-    // UI queues changes; retire the old scene before acquiring an active frame.
+    // 整场景替换要求没有活动帧，并在内部等待旧提交完成，因此要在 beginFrame 前处理。
     processPendingScenePreset();
 
     const BeginFrameResult beginResult = renderer.beginFrame();
 
-    // 每次 beginFrame后消费一次 GPU 快照
+    // beginFrame 会在帧槽 fence 完成后回收旧提交的 GPU 计时。
+    // 即使随后 acquire 要求重建交换链，这份已经完成的快照仍应先被消费。
     diagnostics.baseline.consume(renderer.gpuTimingSnapshot());
 
     if (beginResult.status == FrameStatus::Skip)
@@ -272,16 +280,18 @@ void Application::drawFrame()
         return;
     }
 
+    // frameIndex 是可复用资源槽；imageIndex 才是本次 acquire 获得的交换链图像。
     const FrameToken &frame = beginResult.frame;
 
     const float now = static_cast<float>(glfwGetTime());
     float deltaTime = now - lastFrameTime;
     lastFrameTime = now;
+    // 调试暂停或窗口阻塞后限制移动步长，避免相机/动画突然跳跃。
     deltaTime = std::min(deltaTime, 0.05f);
 
     const auto updateBegin = CpuClock::now();
 
-    // 应用层更新
+    // UI 在 UBO 写入前修改场景参数，使这次录制能使用本帧编辑结果。
     cameraController.update(camera, window, deltaTime);
 
     ImGui_ImplVulkan_NewFrame();
@@ -292,6 +302,7 @@ void Application::drawFrame()
     processModelPicking();
     ImGui::Render();
 
+    // 将场景对象整理成渲染所需的只读视图，renderer 无需依赖编辑器或资产导入细节。
     std::vector<RenderObjectView> renderObjects;
     renderObjects.reserve(scene.objects.size());
 
@@ -320,6 +331,7 @@ void Application::drawFrame()
         renderObjects.push_back(view);
     }
 
+    // objects/ImGui 数据只在 recordFrame() 同步读取；底层 GPU 资源则必须活到提交完成。
     RenderFrameData renderData{};
     renderData.objects = &renderObjects;
     renderData.frameDescriptorSet = frameDescriptorSets.at(frame.frameIndex);
@@ -346,6 +358,7 @@ void Application::drawFrame()
     renderData.debugDepthFar = std::max(display.debugDepthFar, camera.nearPlane + 0.001f);
 
 
+    // 调试视图的数值/颜色已有专门含义，不能再经过正常画面的曝光和色调映射。
     renderData.bypassToneMapping = display.debugView != DebugView::Lit;
     renderData.sceneId = scenePresetInfo(activeScenePreset).id;
     renderData.exposureEv = display.exposureEv;
@@ -357,11 +370,12 @@ void Application::drawFrame()
     renderer.recordFrame(frame, renderData);
     const auto recordEnd = CpuClock::now();
 
-    // 上面录制完毕后，endFrame 实际发送给 GPU 执行绘制
+    // recordFrame 只录制命令；endFrame 提交并请求呈现，返回时 GPU 未必已完成。
     const FrameStatus endStatus = renderer.endFrame(frame);
 
     diagnostics.latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd), cpuElapsedMs(recordBegin, recordEnd)};
 
+    // 按钮只设置请求；等成功提交后再取真实 submissionId/config 作为采集起点。
     if (diagnostics.startRequested)
     {
         diagnostics.startRequested = false;
@@ -375,6 +389,8 @@ void Application::drawFrame()
         }
     }
 
+    // start() 会清空 CPU 缓存，所以必须先 start 再记本次 CPU 数据。
+    // 同一帧槽的旧 GPU 数据已在本帧开头消费，之后才能覆盖该槽的 CPU 样本。
     diagnostics.baseline.rememberCpu(diagnostics.latestCpuTiming);
 
     ++renderedFrameCount;

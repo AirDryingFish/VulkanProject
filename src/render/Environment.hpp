@@ -8,9 +8,9 @@
 class Renderer;
 class VulkanContext;
 
-// Owns the environment maps and the resources used to precompute them.
-// The VulkanContext/device must outlive this object. Application descriptor
-// sets borrow the returned views and samplers; they do not own these resources.
+// 持有天空盒及 IBL 贴图；预计算的 pipeline/framebuffer 等只在初始化期间使用。
+// 返回的 descriptor info 只是借用 image view/sampler，真正的所有权仍在 Environment。
+// VulkanContext/device 必须比这里持有的 GPU 资源活得更久。
 class Environment final
 {
 public:
@@ -23,9 +23,8 @@ public:
     Environment& operator=(Environment&&) = delete;
 
     void initialize(VulkanContext& context, Renderer& renderer);
-    // The caller must wait for outstanding GPU work before releasing these
-    // borrowed resources, and call before shutting down the VulkanContext.
-    // Repeated calls are harmless; shutdown itself does not wait for the device.
+    // 调用方先等待使用贴图的 GPU 工作完成，并处理借用这些资源的 descriptor set。
+    // 可重复调用，不在内部等待 device；必须在 VulkanContext 关闭前执行。
     void shutdown() noexcept;
 
     VkDescriptorImageInfo skyboxDescriptorInfo() const noexcept;
@@ -36,7 +35,7 @@ public:
 private:
     static constexpr std::uint32_t prefilterMipLevels = 5;
 
-    // These two collaborators are needed only while initialize() is running.
+    // 初始化时借用设备分配/上传能力，预计算成功后不再保留这两个指针。
     VulkanContext* context_ = nullptr;
     Renderer* renderer_ = nullptr;
     VkDevice device_ = VK_NULL_HANDLE;
@@ -50,6 +49,7 @@ private:
     GpuImage brdfLUTImage_;
     GpuSampler brdfLUTSampler_;
 
+    // 以下为预计算临时资源；烘焙完成即可销毁，上方贴图/采样器留给逐帧渲染使用。
     VkRenderPass irradianceRenderPass_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout irradianceDescriptorSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool irradianceDescriptorPool_ = VK_NULL_HANDLE;

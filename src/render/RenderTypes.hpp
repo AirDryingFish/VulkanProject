@@ -16,6 +16,7 @@ inline constexpr std::uint32_t directionalShadowResolution = 2048;
 
 struct ImDrawData;
 
+// 只借用 GPU 句柄；生成绘制快照不会延长底层 Mesh/Material 的生命周期。
 struct RenderObjectView
 {
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
@@ -28,6 +29,8 @@ struct RenderObjectView
     bool doubleSided = false;
 };
 
+// objects/ImDrawData 只在 recordFrame 中同步读取；录制期间不能使指针失效。
+// 录制完成后，句柄对应的 GPU 资源仍需保留到使用它们的提交完成。
 struct RenderFrameData
 {
     const std::vector<RenderObjectView>* objects = nullptr;
@@ -64,7 +67,8 @@ enum class FrameStatus
     RecreateSwapchain // Swapchain 已失效或不再匹配窗口，需要重建
 };
 
-// 描述已经开始的这一帧
+// 同时携带两个独立索引：frameIndex 选择可复用的命令/逐帧资源，
+// imageIndex 选择本次获准写入的交换链图像；两者不能互相替代。
 struct FrameToken
 {
     uint32_t frameIndex = 0; // 使用哪个 FrameContext

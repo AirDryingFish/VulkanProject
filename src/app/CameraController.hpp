@@ -3,8 +3,8 @@
 struct GLFWwindow;
 class Camera;
 
-// Window input and cursor ownership stay out of the camera's scene math.
-// No window is retained: reset while it is alive when changing scenes.
+// 将 GLFW/ImGui 输入解释为 Camera 操作，相机数学本身无需依赖窗口或 UI。
+// 不持有窗口；切换场景时须在窗口仍有效时 reset()，清除拖动并恢复光标。
 class CameraController
 {
 public:
@@ -20,6 +20,7 @@ private:
         Pan,
     };
 
+    // 这些是跨帧的输入状态，不属于场景，也不能由 UI 直接修改。
     MouseMode mouseMode_ = MouseMode::None;
     bool firstMouse_ = true;
     float lastMouseX_ = 0.0f;

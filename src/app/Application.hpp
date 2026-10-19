@@ -24,8 +24,8 @@
 #include <unordered_map>
 #include <vector>
 
-// Coordinates the window, scene, renderer and editor. Resource owners are
-// declared after the VulkanContext and explicitly released before its device.
+// 应用编排入口：连接窗口输入、场景、编辑器和渲染器；GPU 资产上传与描述符发布也由这里协调。
+// 阅读主线：run() -> initializeRendering() -> drawFrame() -> cleanup()。
 class Application final
 {
 public:
@@ -126,6 +126,8 @@ private:
     bool glfwInitialized = false;
     bool cleanedUp = false;
     GLFWwindow* window = nullptr;
+    // 成员按声明的逆序析构，context 必须比依赖它的 GPU 资源活得更久。
+    // cleanup() 还会先等待 GPU，并显式处理 framebuffer/render pass 等跨对象依赖。
     VulkanContext context;
     Swapchain swapchain;
     Renderer renderer;
@@ -144,11 +146,12 @@ private:
     std::uint32_t renderedFrameCount = 0;
     float lastFrameTime = 0.0f;
     ScenePreset activeScenePreset = ScenePreset::ShadowPlayground;
+    // UI 只提交切换意图；下一次 beginFrame() 前才执行，避免录制途中替换资源。
     std::optional<ScenePreset> pendingScenePreset;
     bool preparingScenePreset = false;
 
-    // Scene upload and descriptor publication stay together: importing a scene
-    // reserves a complete replacement before retiring the old scene.
+    // 弱缓存只负责复用，不延长资源寿命；对象/资源库中的强引用才负责持有资源。
+    // 场景切换需让新旧资源短暂共存，准备成功后才能释放旧场景及其描述符。
     std::unordered_map<std::string, std::weak_ptr<Mesh>> meshCache;
     GltfImageCache gltfImageCache;
     std::vector<ImageHandle> textureLibrary;
@@ -165,10 +168,12 @@ private:
     std::size_t builtinMaterialCount = 0;
     std::vector<Material> builtinMaterialDefaults;
     static constexpr std::uint32_t maxMaterialCount = 128;
+    // 切换期间额外预留一整套材质容量，使导入失败时仍能回滚到旧场景。
     static constexpr std::uint32_t sceneSwitchMaterialReserve = maxMaterialCount;
     static constexpr std::uint32_t materialPoolCapacity = maxMaterialCount + sceneSwitchMaterialReserve;
     std::uint32_t allocatedMaterialSetCount = 0;
 
+    // UBO 和 frame/skybox set 按飞行帧资源槽分配，不按交换链图像编号分配。
     std::vector<GpuBuffer> uniformBuffers;
     std::vector<void*> uniformBufferMapped;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;

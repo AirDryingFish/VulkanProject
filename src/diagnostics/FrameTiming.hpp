@@ -32,10 +32,12 @@ enum class GpuTimingState
 
 struct GpuPassTiming
 {
+    // 只有 Ready 时数值才有效；不能用是否等于 0 判断查询状态。
     GpuTimingState state = GpuTimingState::Pending;
     double milliseconds = 0.0;
 };
 
+// 配置跟随提交复制，延迟回来的 GPU 样本不能套用此刻 UI 的设置。
 struct FrameTimingConfig
 {
     std::string sceneId;
@@ -59,6 +61,7 @@ struct GpuTimingSnapshot
     bool supported = false;
     bool hasSample = false;
 
+    // Renderer 本次运行中的成功提交序号，CPU/GPU 基线按它配对，而非按刷新次数。
     std::uint64_t submissionId = 0;
     std::uint32_t frameSlot = 0;
 
@@ -67,7 +70,7 @@ struct GpuTimingSnapshot
 };
 // ----
 
-// 统计实际 scene/shadow 绘制量
+// 统计实际提交的 scene/shadow mesh 绘制量，不代表通过裁剪或最终可见的三角形。
 struct DrawStatistics
 {
     std::uint64_t sceneDraws = 0;
@@ -77,7 +80,8 @@ struct DrawStatistics
     std::uint64_t shadowTriangles = 0;
 };
 
-// -- CPU 计时--
+// CPU 结果在主机调用结束后发布，GPU 结果在之后复用帧槽时读回。
+// 因此分别读取的最新快照可能属于不同提交，配对时必须核对 submissionId。
 struct RendererCpuTimingSnapshot
 {
     bool valid = false;

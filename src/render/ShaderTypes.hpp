@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <glm/glm.hpp>
 
+// CPU 与 GLSL 共享的二进制布局：字段顺序、类型、对齐都属于接口约定。
+// 修改时同步检查使用这些结构的 shader；下方 static_assert 只能验证 C++ 一侧的布局。
 struct GpuPointLight
 {
     alignas(16) glm::vec4 position;
@@ -33,11 +35,11 @@ struct alignas(16) UniformBufferObject
     alignas(16) glm::vec4 directionalDirectionEnabled{}; // xyz: 归一化传播方向 w: enabled
     alignas(16) glm::vec4 directionalColorIntensity{}; // xyz: 光的颜色 w: 强度
 
-    // 光空间矩阵，用颜色显示它的覆盖范围
+    // 世界坐标 -> 光源裁剪空间，供阴影深度生成、比较以及覆盖范围调试共同使用。
     alignas(16) glm::mat4 lightViewProjection{1.0f};
 
     // xy: shadow map 单个像素的 UV 尺寸
-    // z: 后续使用的深度比较 bias
+    // z: 深度比较时的 receiver bias
     // w: 预留
     alignas(16) glm::vec4 shadowParams{};
 
@@ -62,7 +64,7 @@ static_assert(offsetof(UniformBufferObject, shadowParams) == 1056);
 static_assert(offsetof(UniformBufferObject, shadowFlags) == 1072);
 static_assert(sizeof(UniformBufferObject) == 1088);
 
-// 服务于模型绘制，包含模型矩阵和材质参数
+// 每个 draw 单独推送模型矩阵和材质参数；相机/灯光等整帧共享数据放在 UBO。
 struct alignas(16) DrawPushConstants
 {
     alignas(16) glm::mat4 model{1.0f};
@@ -80,7 +82,7 @@ struct alignas(16) DrawPushConstants
         1.0f
     };
 
-    // rgb: 继续保存 emissive
+    // rgb: emissive factor
     // w: alphaCutoff
     alignas(16) glm::vec4 emissiveFactor{0.0f};
 
@@ -96,35 +98,17 @@ struct alignas(16) DrawPushConstants
 // 后处理只需要少量显示参数，不需要模型数据
 struct alignas(16) PostPushConstants
 {
-    // x 后续用于曝光 EV: 目前 reserve
+    // x: 曝光 EV；y/z: HDR 亮度调试的 log2 范围；w: 预留。
     glm::vec4 params{};
 
-    // x 后续用于 tone mapper 选择
-    // y 表示是否跳过 tone mapping, 用于数据调试视图
+    // x: ToneMapper；y: 跳过曝光/色调映射；z: DebugView；w: 预留。
     glm::ivec4 modes{0};
 };
 static_assert(offsetof(PostPushConstants, params) == 0);
 static_assert(offsetof(PostPushConstants, modes) == 16);
 static_assert(sizeof(PostPushConstants) == 32);
-// offset
-// 0
-// │
-// ├── model                    64 bytes
-// │   offset 0 ~ 63
-// │
-// 64
-// ├── baseColorFactor          16 bytes
-// │   offset 64 ~ 79
-// │
-// 80
-// ├── materialFactors          16 bytes
-// │   offset 80 ~ 95
-// │
-// 96
-// ├── emissiveFactor           16 bytes
-// │   offset 96 ~ 111
-// │
-// 112
+// model 占 64 字节，其余四组 vec4 各占 16 字节，共 128 字节。
+// 这是 Vulkan 保证支持的最小 push constant 容量，新增字段需重新评估布局与设备限制。
 static_assert(offsetof(DrawPushConstants, baseColorFactor) == 64);
 static_assert(offsetof(DrawPushConstants, materialFactors) == 80);
 static_assert(offsetof(DrawPushConstants, emissiveFactor) == 96);

@@ -72,7 +72,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
             //     vkDestroySemaphore(context.device(), imageAvailable, nullptr);
             // });
 
-            // 创建带 SIGNALED_BIT 的 frame.renderFence
+            // 首次复用槽位时还没有 GPU 提交，因此 fence 初始为 signaled，避免首帧永久等待。
             VkFenceCreateInfo fenceInfo{};
             fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
             fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
@@ -489,7 +489,7 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
 
     VK_CHECK(vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, uploadContext_.fence));
 
-    // 提交后立即等待
+    // 同步提交刻意等到命令执行完成；调用方的临时 staging 不能在 GPU 仍读取时析构。
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
 }
 
@@ -567,7 +567,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadReq
         destinationBuffers.push_back(context_->createBuffer(destinationDesc));
     }
 
-    // 6. 一次 immediateSubmit
+    // 一批复制共用一次提交/等待；成功返回后 staging 可销毁，目标 buffer 移交给调用方。
     immediateSubmit([&](VkCommandBuffer commandBuffer){
         // 7. callback 中循环调用 upload::recoredBufferCopy()
         for (std::size_t index = 0; index < requests.size(); ++index)
@@ -587,7 +587,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadReq
 
 BeginFrameResult Renderer::beginFrame()
 {
-    // framInProgress 为 true 代表beginFrame已经成功开始了一帧，但还没有调用endFrame来完成提交和呈现。
+    // 同一 Renderer 只允许一个活动 token；上一帧必须先完成录制与提交。
     if (!initialized_ || context_ == nullptr || swapchain_ == nullptr || hasActiveFrame_)
     {
         return {
@@ -606,7 +606,8 @@ BeginFrameResult Renderer::beginFrame()
     currentCpuTiming_.fenceWaitMs = cpuElapsedMs(waitBegin, CpuClock::now());
     VK_CHECK_RESULT(waitResult, "vkWaitForFences");
 
-    collectGpuTimings(frame, currentFrame_); // 读取这个 frameSlot 上一次提交的结果，wait fence 确保 gpu 已经执行完那次任务
+    // fence 已证明旧提交完成：先读旧 query，再 acquire，避免 out-of-date 时漏读或重复发布。
+    collectGpuTimings(frame, currentFrame_);
 
     // 2. clear掉帧的buffer，fence已经完成，GPU不再使用这些旧的buffer
     frame.retiredBuffers.clear();
@@ -637,7 +638,7 @@ BeginFrameResult Renderer::beginFrame()
         VK_CHECK_RESULT(acquireResult, "vkAcquireNextImageKHR");
     }
 
-    // 4. 重置当前帧 command pool
+    // 此时旧提交已结束，才能重置槽内命令。这里仍不 reset fence：acquire 失败时没有新提交来 signal。
     VK_CHECK(vkResetCommandPool(context_->device(), frame.commandPool, 0));
 
     // 5. 返回 FrameToken
@@ -653,6 +654,8 @@ BeginFrameResult Renderer::beginFrame()
 
 void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 {
+    // 绘制主线：Shadow 写光源深度 -> Scene 写 HDR 颜色 -> Post 采样 HDR 写交换链并叠加 UI。
+    // 此处只把这些操作录入 command buffer，真正提交由 endFrame() 完成。
 
     if (!initialized_ || !hasActiveFrame_)
     {
@@ -704,6 +707,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     if (gpuTimingSupported_)
     {
+        // 重置 command pool 不会重置 query；query reset 必须单独录制在 RenderPass 外。
         vkCmdResetQueryPool(token.commandBuffer, frame.timestampQueryPool, 0, gpuTimestampQueryCount);
     }
 
@@ -719,7 +723,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
             token.commandBuffer,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             frame.timestampQueryPool,
-            passIndex * 2 // 相当于移位 passIndex 位
+            passIndex * 2 // 每个 Pass 占两个连续 query：开始 2*i，结束 2*i+1。
         );
     };
 
@@ -945,19 +949,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     hasRecordedFrame_ = true;
 }
 
-// CPU 已经录完 commandBuffer
-//         ↓
-// 等待 imageAvailable semaphore
-//         ↓
-// GPU 执行 frame.commandBuffer
-//         ↓
-// 执行完成
-//         ↓
-// signal renderFinished semaphore
-//         ↓
-// Present 等 renderFinished
-//         ↓
-// vkQueuePresentKHR()
+// endFrame 负责提交与请求呈现，返回不代表 GPU 或屏幕显示已经完成。
+// imageAvailable/renderFinished 协调 GPU 与呈现；renderFence 供 CPU 下次安全复用帧槽。
 FrameStatus Renderer::endFrame(const FrameToken &token)
 {
 
@@ -983,6 +976,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
         throw std::logic_error("FrameToken contains invalid command buffer");
     }
 
+    // 呈现用的完成信号量按交换链图像管理；不能与 frameIndex 下的帧槽资源混用索引。
     const VkSemaphore renderFinished = swapchain_->renderFinishedSemaphore(token.imageIndex);
 
     const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -997,7 +991,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &renderFinished;
 
-    // 1. 重置 fence。
+    // 紧邻提交才 reset fence；若 submit 失败，异常路径退出，不能继续等待这个无人 signal 的 fence。
     VK_CHECK(vkResetFences(context_->device(), 1, &frame.renderFence));
 
     const auto submitBegin = CpuClock::now();
@@ -1008,7 +1002,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     currentCpuTiming_.draws = frame.recordedDraws;
     VK_CHECK_RESULT(submitResult, "vkQueueSubmit");
 
-    // 从这里开始命令已经提交
+    // submit 成功才生成 ID/发布 pending；即使随后 Present 要求重建，这份 GPU 工作仍真实存在。
     const std::uint64_t submissionId = ++gpuSubmissionCounter_;
 
     currentCpuTiming_.submissionId = submissionId;
@@ -1080,7 +1074,7 @@ void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)
             continue;
         }
 
-        // 开始和结束
+        // 已由槽位 fence 等待完成，不再加 WAIT_BIT；只读提交 mask 中确实写过的一对 query。
         std::uint64_t ticks[2]{};
         const VkResult result = vkGetQueryPoolResults(
             context_->device(),
@@ -1094,6 +1088,7 @@ void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)
         );
         if (result == VK_NOT_READY)
         {
+            // fence 后仍不可用属于异常样本：保留状态/日志，不用未定义 ticks 计算，也不忙等。
             timing.state = GpuTimingState::NotReady;
             std::cerr << "GPU timestamp not ready: submission="
             << snapshot.submissionId
@@ -1111,7 +1106,7 @@ void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)
         // GPU 时间戳可能只有 timestampValidBits_(N) 个有效位，计数值达到 2^N - 1 后会重新从 0 开始
         if (timestampValidBits_ < 64)
         {
-            // GPU 计时的最大值
+            // 差值在有效位范围内取模；64 位单独跳过，避免执行未定义的 1ULL << 64。
             const std::uint64_t mask = (std::uint64_t{1} << timestampValidBits_) - 1;
             deltaTicks &= mask;
         }
@@ -1120,5 +1115,6 @@ void Renderer::collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot)
     }
 
     latestGpuTiming_ = std::move(snapshot);
+    // 一份提交只消费一次；acquire 随后失败或 UI 多次刷新都不能重复累计这个样本。
     frame.timestampQueriesPending = false;
 }

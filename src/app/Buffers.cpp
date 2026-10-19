@@ -26,7 +26,7 @@ Mesh Application::createMesh(const MeshBuildData &meshData)
     const VkDeviceSize vertexBufferSize = sizeof(meshData.vertices[0]) * meshData.vertices.size();
     const VkDeviceSize indexBufferSize = sizeof(meshData.indices[0]) * meshData.indices.size();
 
-    // 一次上传vertex and index buffer
+    // 顶点和索引共用一次批量上传提交，避免每个 buffer 都单独提交并等待。
     std::vector<BufferUploadRequest> requests;
     requests.reserve(2);
     BufferUploadRequest vertexRequest{};
@@ -65,6 +65,8 @@ Mesh Application::createMesh(const MeshBuildData &meshData)
 
 void Application::createUniformBuffer()
 {
+    // 每个飞行帧槽独占一份 UBO，CPU 写当前槽时不会覆盖其他在途帧的数据。
+    // 持久映射避免逐帧 map/unmap；HOST_COHERENT 使这里的写入无需额外 flush。
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
     uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     uniformBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
@@ -84,6 +86,8 @@ void Application::createUniformBuffer()
 
 void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
 {
+    // currentImage 在这里实际是 frameIndex（帧资源槽），不是交换链 imageIndex。
+    // 调用前 beginFrame() 已等待该槽的 fence，当前槽的 UBO 才可以安全覆写。
     scene.updateAnimations(deltaTime);
 
     UniformBufferObject ubo{};
@@ -95,7 +99,7 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
     ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
     ubo.renderParams = glm::vec4(scene.iblIntensity, camera.nearPlane, std::max(display.debugDepthFar, camera.nearPlane + 0.001f), 0.0f);
 
-    // -- 计算方向光方向 --
+    // UI 可能输入零向量或无效值；先兜底再归一化，防止 NaN 传播到整个阴影矩阵。
     glm::vec3 direction = scene.directionalLight.direction;
     float lengthSquared = glm::dot(direction, direction);
     if (!std::isfinite(lengthSquared) || lengthSquared < 1e-8f)
@@ -104,12 +108,11 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
         lengthSquared = glm::dot(direction, direction);
     }
     direction /= std::sqrt(lengthSquared);
-    // ----
 
     ubo.directionalDirectionEnabled = glm::vec4(direction, scene.directionalLight.enabled ? 1.0f : 0.0f);
     ubo.directionalColorIntensity = glm::vec4(scene.directionalLight.color, std::max(scene.directionalLight.intensity, 0.0f));
 
-    // -- 计算 shadow 相关
+    // 把方向光视为一台正交相机：从光的视角写深度，再供主场景做遮挡比较。
     const float halfExtent = shadows.halfExtent;
     const float lighDistance = 2.0f * halfExtent + 1.0f;
     constexpr float shadowNear = 0.1f;
@@ -125,19 +128,8 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
         -halfExtent, halfExtent, -halfExtent, halfExtent,
         shadowNear, shadowFar
     );
-    // OpenGL framebuffer
-    // (0,H) -------- (W,H)
-    // |               |
-    // |               |
-    // |               |
-    // (0,0) -------- (W,0)
-
-    // Vulkan framebuffer
-    // (0,0) --------→ +X
-    // |
-    // |
-    // ↓
-    // +Y
+    // 阴影投影在这里独立构造，也要适配 Vulkan 的 Y 方向。
+    // 主相机的投影已在 Camera::projection() 内翻转，调用处不能重复翻转。
     lightProjection[1][1] *= -1.0f;
     // 世界坐标系变换到 光源裁剪空间中
     ubo.lightViewProjection = lightProjection * lightView;
@@ -157,7 +149,6 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
         display.debugView == DebugView::ShadowProjection ? 1 : 0,
         shadows.pcfEnabled ? 1 : 0,
         static_cast<std::uint32_t>(display.debugView));
-    // ----
 
     for (size_t i = 0; i < std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS); i++)
     {
@@ -167,6 +158,7 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
         ubo.pointLights[i].params = glm::vec4(light.range, light.enabled ? 1.0f : 0.0f, 0.0f, 0.0f);
     }
 
+    // 一次拷贝整份 CPU/GLSL 共享布局；字段偏移和总大小由 ShaderTypes.hpp 的断言约束。
     memcpy(uniformBufferMapped[currentImage], &ubo, sizeof(ubo));
 }
 
@@ -177,6 +169,8 @@ void Application::releaseMesh(MeshHandle& mesh)
         return;
     }
 
+    // 其他对象可能复用同一 Mesh；只有最后一个强引用释放时才转交 buffer 的所有权。
+    // retireBuffer 把销毁延后到帧槽安全复用时，避免 UI 删除后 GPU 还在访问已释放的内存。
     if (mesh.use_count() == 1)
     {
         destroyBufferDeferred(mesh->indexBuffer);

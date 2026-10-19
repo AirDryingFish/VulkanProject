@@ -16,24 +16,12 @@ void Application::createDescriptorPool()
     const uint32_t frameCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // 每个飞行帧：一个 Frame UBO + 一个 Skybox UBO。
+    // 每个飞行帧槽有两个 UBO 描述符，frame/skybox set 引用该槽同一份 UBO。
     poolSizes[0].descriptorCount = frameCount * descriptorSetGroupCount;
 
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    // imageDescriptor
-    // 1  Base Color
-    // 2  Normal
-    // 3  Metallic
-    // 4  Roughness
-    // 5  AO
-    // 6  Environment
-    // 7  Irradiance
-    // 8  Prefilter
-    // 9  BRDF LUT
-    // skyboxDescriptor
-    // 1  Skybox cubemap
-    // 每帧 3 个 Frame IBL 图片、1 个 Skybox 图片，
-    // 每个 Material 6 张纹理。
+    // pool 容量按描述符数量计算：每帧槽 3 张 IBL + 2 个阴影采样绑定 + 1 张天空盒，
+    // 每个材质另需 5 张纹理；maxSets 则单独约束能够分配多少个 set。
     poolSizes[1].descriptorCount =
         frameCount *
         static_cast<uint32_t>(frameImageDescriptorCount + skyboxImageDescriptorCount) +
@@ -41,7 +29,7 @@ void Application::createDescriptorPool()
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    // 后续导入失败时，可以调用 vkFreeeDescriptorSets() 归还尚未发布的材质 set
+    // 允许单独 vkFreeDescriptorSets，以便导入失败回滚和场景切换时回收材质 set。
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
@@ -56,6 +44,8 @@ void Application::createDescriptorPool()
 
 void Application::createFrameDescriptorSets()
 {
+    // set=0 提供整帧共享数据；每个槽绑定自己的 UBO/阴影资源，IBL 贴图跨槽共享。
+    // 这里的 binding 顺序必须与 GraphicsPipeline.cpp 和 shader 中的声明一致。
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, renderer.frameDescriptorSetLayout());
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -106,11 +96,7 @@ void Application::createMaterialDescriptorSets()
     allocateMaterialDescriptorSets(materialLibrary);
 }
 
-// 启动时：为 library 中尚未分配 Set 的默认材质创建 descriptor
-// allocateMaterialDescriptorSets(materialLibrary);
-
-// 后续导入时：只为本次新创建的材质分配 descriptor
-// allocateMaterialDescriptorSets(materialUpload.materials);
+// 启动时传入默认材质，导入时只传入本次新增材质；整批分配/写入失败时统一回收。
 void Application::allocateMaterialDescriptorSets(const std::vector<MaterialHandle> &materials)
 {
     if (materials.empty())
@@ -192,7 +178,7 @@ void Application::allocateMaterialDescriptorSets(const std::vector<MaterialHandl
 
 void Application::writeMaterialDescriptorSet(Material &material)
 {
-    // 一个 Material 只能创建一次 DescriptorSet
+    // 本函数只写入已分配的 set，分配与异常回收统一由 allocateMaterialDescriptorSets 管理。
     if (material.descriptorSet == VK_NULL_HANDLE)
     {
         throw std::logic_error("material descriptor set has not been allocated");
@@ -234,12 +220,8 @@ void Application::writeMaterialDescriptorSet(Material &material)
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL // shader 读取时要求 image 已经被转换到这个 layout
         };
     }
-    // 3. 从 DescriptorPool 中申请一个 DescripotrSet
-    // DescripotrSetLayout 描述这个 set 的结构: binding 0/1 是什么类型
-
-    // 4. 准备 DescriptorSet 的写入
-    // DescriptorSet 现在虽然 allocate 出来了，但里面还没有绑定具体的 texture
-    // VkWriteDescriptorSet 就是在描述： “把哪个资源写到哪个 binding”
+    // 3. 把具体 image view/sampler 写到 set=1 的各个 binding。
+    // 更新描述符不会上传图片或执行布局转换，这些工作必须已在资源上传阶段完成。
     std::array<VkWriteDescriptorSet, materialImageDescriptorCount> descriptorWrites{};
     for (uint32_t binding = 0; binding < static_cast<uint32_t>(descriptorWrites.size()); binding++)
     {
@@ -256,6 +238,7 @@ void Application::writeMaterialDescriptorSet(Material &material)
 
 void Application::ensureMaterialDescriptorCapacity(std::size_t additionalCount) const
 {
+    // 普通导入遵守常驻上限；切换事务可暂用额外预留，直到旧场景描述符被释放。
     const std::uint32_t capacity = preparingScenePreset ? materialPoolCapacity : maxMaterialCount;
     if (allocatedMaterialSetCount > capacity || additionalCount > capacity - allocatedMaterialSetCount)
     {

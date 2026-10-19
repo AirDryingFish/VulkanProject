@@ -40,6 +40,7 @@ private:
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
     };
 
+    // 帧槽按 CPU 提交顺序循环复用；其索引与 acquire 返回的交换链图像索引独立。
     struct FrameContext
     {
         VkCommandPool commandPool = VK_NULL_HANDLE;
@@ -55,7 +56,7 @@ private:
         // 第 0 位：shadow。第 1 位：scene。第 2 位：postAndUi
         // ----
         std::uint32_t recordedGpuPassMask = 0;
-        // 录制命令时使用的的计时配置
+        // 录制与提交分开保存：录完命令不代表 vkQueueSubmit 已经成功。
         FrameTimingConfig recordedTimingConfig{};
         // 成功提交的命令里，哪些 pass 实际录入了有效时间戳
         std::uint32_t submittedGpuPassMask = 0;
@@ -66,6 +67,7 @@ private:
 
         DrawStatistics recordedDraws{};
 
+        // 持有被移出场景的 buffer，等此槽的 fence 完成后再真正析构。
         std::vector<GpuBuffer> retiredBuffers;
     };
 
@@ -224,9 +226,10 @@ public:
     Renderer &operator=(Renderer &&) = delete;
 
     void initialize(VulkanContext &context, Swapchain &swapchain);
+    // 调用方先保证 GPU 不再使用这些资源，并在 VulkanContext 关闭之前调用。
     void shutdown() noexcept;
 
-    // 让 FrameContext 保持为 Renderer 的私有实现，同时给 Application 提供完成一帧所需的最少信息
+    // 只有 beginFrame 返回 Ready 才能 record，再 end；重建/跳帧不能提交旧 token。
     BeginFrameResult beginFrame();
     void recordFrame(const FrameToken &token, const RenderFrameData &data);
     FrameStatus endFrame(const FrameToken &token);
@@ -246,6 +249,7 @@ public:
     VkDescriptorSetLayout skyboxDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout materialDescriptorSetLayout() const noexcept;
 
+    // 同步上传辅助：成功返回时 GPU 已完成回调录制的命令，临时 staging 才可释放。
     void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
 
     std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferUploadRequest>& requests);

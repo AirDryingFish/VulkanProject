@@ -41,7 +41,7 @@ MaterialHandle Application::createPresetMaterial(
     material->roughnessFactor = roughness;
     material->normalScale = 0.0f;
 
-    // Reserve before allocating the raw descriptor handle, so publication cannot fail.
+    // 先完成可能抛异常的 vector 扩容，再分配裸 descriptor handle，避免发布时泄漏。
     materialLibrary.reserve(materialLibrary.size() + 1);
     allocateMaterialDescriptorSets({material});
     materialLibrary.push_back(material);
@@ -157,12 +157,14 @@ void Application::pruneSceneCaches()
 
 void Application::loadScenePreset(ScenePreset preset)
 {
+    // 整体按“准备 -> 验证 -> 提交”处理：准备失败时，旧对象和描述符仍可恢复。
     if (renderer.hasActiveFrame())
         throw std::logic_error("Scene replacement requires an idle frame boundary");
     const std::string unavailable = scenePresetUnavailableReason(preset);
     if (!unavailable.empty())
         throw std::runtime_error(unavailable);
 
+    // 切换会释放旧资源，必须等所有在途帧结束；这不是普通每帧都要做的等待。
     renderer.waitForAllFrames();
     const std::size_t previousMaterialCount = materialLibrary.size();
     const std::size_t previousSamplerCount = samplerLibrary.size();
@@ -170,6 +172,7 @@ void Application::loadScenePreset(ScenePreset preset)
     const int previousLightSelection = editor.pointLightIndex;
     const auto previousSelectionType = editor.selection;
     std::vector<SceneObject> previousObjects;
+    // 旧对象移入局部容器继续持有资源，新对象暂时构建在 scene.objects 中。
     previousObjects.swap(scene.objects);
     glm::vec3 minimum{}, maximum{};
     glm::vec3 center{};
@@ -185,8 +188,7 @@ void Application::loadScenePreset(ScenePreset preset)
         if (materialLibrary.size() - previousMaterialCount > sceneSwitchMaterialReserve)
             throw std::runtime_error("Scene preset exceeds its reserved material budget");
 
-        // Fit and validate without touching the live camera. A failed fit must
-        // roll back while the old scene and its descriptors are still alive.
+        // 在相机副本上适配包围盒并验证矩阵；数值无效也要在释放旧描述符之前失败。
         center = minimum + (maximum - minimum) * 0.5f;
         radius = std::max(glm::length(maximum - minimum) * 0.5f, 0.1f);
         const float aspect = swapchain.extent().width / static_cast<float>(swapchain.extent().height);
@@ -213,8 +215,8 @@ void Application::loadScenePreset(ScenePreset preset)
                 if (!std::isfinite(preparedView[column][row]) || !std::isfinite(preparedProjection[column][row]))
                     throw std::runtime_error("Scene camera exceeds the supported numeric range");
 
-        // Keep startup materials, replace all scene-specific/imported materials.
-        // Both scenes remain alive until construction succeeds (including descriptors).
+        // 提交点：先组好新材质列表，保留公共默认材质，再释放旧场景专属的描述符。
+        // 到这里之前，新旧两套资源同时存活，因此 descriptor pool 需预留切换容量。
         std::vector<MaterialHandle> nextMaterials;
         nextMaterials.reserve(builtinMaterialCount + materialLibrary.size() - previousMaterialCount);
         nextMaterials.insert(nextMaterials.end(), materialLibrary.begin(), materialLibrary.begin() + builtinMaterialCount);
@@ -224,6 +226,7 @@ void Application::loadScenePreset(ScenePreset preset)
     }
     catch (...)
     {
+        // 回滚只撤销本次追加的对象/材质/采样器，恢复旧场景和编辑器选择。
         preparingScenePreset = false;
         releaseSceneMaterialDescriptors(previousMaterialCount, materialLibrary.size());
         scene.objects.clear();
@@ -242,8 +245,7 @@ void Application::loadScenePreset(ScenePreset preset)
     camera = preparedCamera;
     cameraController.reset(window);
 
-    // The editor exposes these shared startup materials too. Reset their factors
-    // without reallocating or modifying descriptor sets.
+    // 默认材质被多个场景共享；重置编辑过的数值即可，这些参数随 push constants 传递。
     for (std::size_t i = 0; i < builtinMaterialCount; ++i)
     {
         auto& material = *materialLibrary[i];
@@ -289,6 +291,7 @@ void Application::loadScenePreset(ScenePreset preset)
 
 void Application::processPendingScenePreset()
 {
+    // UI 不直接调用 loadScenePreset：drawFrame 在 beginFrame 前统一处理此请求。
     if (!pendingScenePreset)
         return;
     const ScenePreset requested = *pendingScenePreset;

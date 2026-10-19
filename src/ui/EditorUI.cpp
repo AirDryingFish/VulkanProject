@@ -190,9 +190,8 @@ const char *axisLabel(int axis)
 
 void Application::initImGui()
 {
-    // 为什么Imgui需要descriptor？
-    // descriptor是渲染的时候需要渲染UI，渲染一个Image或者Text的时候
-    // 每张纹理用一个descriptor，Imgui内部维护VkImageView->VkDescriptorSet的映射
+    // ImGui Vulkan 后端也要通过描述符采样字体/UI 纹理；独立的 pool 避免占用场景材质预算。
+    // 后端关闭必须早于 pool 销毁，因此下方按依赖顺序注册到逆序执行的 DeletionQueue。
     const std::array<VkDescriptorPoolSize, 3> poolSizes{{
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
         {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
@@ -252,6 +251,7 @@ void Application::initImGui()
 void Application::drawImGui()
 {
     ImGuiIO &io = ImGui::GetIO();
+    // 每帧重新仲裁点击：UI/灯光覆盖层/gizmo 消费后，Picking 不应再选中背后的模型。
     editor.sceneClickConsumed = false;
 
     const ImGuiViewport* mainViewport = ImGui::GetMainViewport();

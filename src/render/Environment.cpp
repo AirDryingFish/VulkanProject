@@ -50,8 +50,8 @@ void Environment::initialize(VulkanContext& context, Renderer& renderer)
         createPrefilterResources();
         createBRDFLUTResources();
 
-        // Every immediateSubmit waits for its fence, including the final image
-        // transition. The bake-only objects are no longer used by the GPU.
+        // 每次 immediateSubmit 都等待自己的 fence，包括最后的布局转换。
+        // 因此预计算结束后可立即释放临时 pipeline/framebuffer，不必保留到程序退出。
         destroyPrecomputeResources();
 
         context_ = nullptr;
@@ -59,8 +59,7 @@ void Environment::initialize(VulkanContext& context, Renderer& renderer)
     }
     catch (...)
     {
-        // A submission may have succeeded before an immediateSubmit fence wait
-        // failed. Only the exceptional initialization path needs an extra wait.
+        // 可能已经提交成功、却在等待 fence 时失败；异常路径先等待，再清理部分创建的资源。
         (void)context.waitIdle();
         shutdown();
         throw;
@@ -74,6 +73,7 @@ void Environment::destroyPrecomputeResources() noexcept
         return;
     }
 
+    // 预计算命令已完成；这里只销毁临时对象，结果贴图留到 shutdown() 再释放。
     destroyHandle(device_, irradiancePipeline_, vkDestroyPipeline);
     destroyHandle(device_, prefilterPipeline_, vkDestroyPipeline);
     destroyHandle(device_, brdfLUTPipeline_, vkDestroyPipeline);

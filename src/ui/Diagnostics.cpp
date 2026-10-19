@@ -329,6 +329,7 @@ void Application::drawDiagnosticsBaseline()
     ImGui::BeginDisabled(!canStart);
     if (ImGui::Button("Start capture"))
     {
+        // UI 阶段还没有本帧提交 ID；先记请求，Application::drawFrame 在成功提交后启动。
         diagnostics.startRequested = true;
     }
     ImGui::EndDisabled();
@@ -393,6 +394,7 @@ void Application::drawDiagnosticsBaseline()
     ImGui::Text("Dropped samples: %u", diagnostics.baseline.droppedSamples);
 
     ImGui::Spacing();
+    // 采集状态使用 message，导出反馈使用 exportMessage，二者各自显示在对应区域。
     ImGui::SeparatorText("Export");
     ImGui::BeginDisabled(!diagnostics.baseline.complete);
     ImGui::TextUnformatted("CSV path");
