@@ -74,6 +74,18 @@ namespace
         }
         return supported ? "yes" : "no";
     }
+
+    template<typename Function> Function loadDeviceFunction(VkDevice device, const char* name)
+    {
+        const auto function = reinterpret_cast<Function>(vkGetDeviceProcAddr(device, name));
+
+        if (function == nullptr)
+        {
+            throw std::runtime_error(std::string("Required Vulkan device function unavailable ") + name);
+        }
+
+        return function;
+    }
 }
 
 VulkanContext::~VulkanContext() noexcept
@@ -104,6 +116,7 @@ void VulkanContext::initialize(GLFWwindow *window, const VulkanContextConfig &co
         createSurface(window);
         pickPhysicalDevice(config);
         createLogicalDevice();
+        loadDeviceFunctions();
         createAllocator();
 
         logCapabilities();
@@ -137,6 +150,8 @@ void VulkanContext::shutdown() noexcept
         vmaDestroyAllocator(allocator_);
         allocator_ = nullptr;
     }
+
+    deviceFunctions_ = {};
 
     if (device_ != VK_NULL_HANDLE)
     {
@@ -237,6 +252,11 @@ const QueueFamilyIndices &VulkanContext::queueFamilies() const noexcept
 const VulkanCapabilities &VulkanContext::capabilities() const noexcept
 {
     return capabilities_;
+}
+
+const VulkanDeviceFunctions VulkanContext::deviceFunctions() const noexcept
+{
+    return deviceFunctions_;
 }
 
 VkSampleCountFlagBits VulkanContext::msaaSamples() const noexcept
@@ -788,6 +808,32 @@ void VulkanContext::createLogicalDevice()
     vkGetDeviceQueue(device_, queueFamilies_.presentFamily.value(), 0, &presentQueue_);
 }
 
+
+// 实现 vulkan 1.3 核心逻辑
+void VulkanContext::loadDeviceFunctions()
+{
+    const bool needsCore13 = capabilities_.synchronization2Enabled || capabilities_.dynamicRenderingEnabled;
+    if (needsCore13 && capabilities_.deviceApiVersion < VK_API_VERSION_1_3)
+    {
+        throw std::logic_error("Core Vulkan 1.3 functions require device API 1.3");
+    }
+
+    VulkanDeviceFunctions functions{};
+    if (capabilities_.synchronization2Enabled)
+    {
+        functions.cmdPipelineBarrier2 = loadDeviceFunction<PFN_vkCmdPipelineBarrier2>(device_, "vkCmdPipelineBarrier2");
+        functions.queueSubmit2 = loadDeviceFunction<PFN_vkQueueSubmit2>(device_, "vkCmdQueueSubmit2");
+        functions.cmdWriteTimestamp2 = loadDeviceFunction<PFN_vkCmdWriteTimestamp2>(device_, "vkCmdWriteTimestamp2");
+    }
+    if (capabilities_.dynamicRenderingEnabled)
+    {
+        functions.cmdBeginRendering = loadDeviceFunction<PFN_vkCmdBeginRendering>(device_, "vkCmdBeginRendering");
+        functions.cmdEndRendering = loadDeviceFunction<PFN_vkCmdEndRendering>(device_, "vkCmdEndRendering");
+    }
+
+    deviceFunctions_ = functions;
+}
+
 void VulkanContext::createAllocator()
 {
     VmaAllocatorCreateInfo allocatorInfo{};
@@ -1152,5 +1198,13 @@ void VulkanContext::logCapabilities() const
 
         << "  Dynamic rendering enabled: "
         << (info.dynamicRenderingEnabled ? "yes" : "no")
+        << '\n';
+
+    std::cout
+        << "  Synchronization2 functions loaded: "
+        << (deviceFunctions_.synchronization2Loaded() ? "yes" : "no")
+        << '\n'
+        << "  Dynamic rendering functions loaded: "
+        << (deviceFunctions_.dynamicRenderingLoaded() ? "yes" : "no")
         << '\n';
 }

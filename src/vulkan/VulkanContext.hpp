@@ -66,6 +66,29 @@ struct VulkanCapabilities
     std::string deviceName;
 };
 
+// 保存本项目现代渲染路径所需的设备函数入口
+struct VulkanDeviceFunctions
+{
+    PFN_vkCmdPipelineBarrier2 cmdPipelineBarrier2 = nullptr;  // 表达资源访问依赖和布局转换
+    PFN_vkQueueSubmit2 queueSubmit2 = nullptr;                // 提交命令缓冲及信号量等待通知
+    PFN_vkCmdWriteTimestamp2 cmdWriteTimestamp2 = nullptr;    // 记录 GPU 时间戳
+
+    PFN_vkCmdBeginRendering cmdBeginRendering = nullptr;      // 开始动态渲染
+    PFN_vkCmdEndRendering cmdEndRendering = nullptr;          // 结束动态渲染
+
+    bool synchronization2Loaded() const noexcept
+    {
+        return cmdPipelineBarrier2 != nullptr &&
+               queueSubmit2 != nullptr &&
+               cmdWriteTimestamp2 != nullptr;
+    }
+
+    bool dynamicRenderingLoaded() const noexcept
+    {
+        return cmdBeginRendering != nullptr && cmdEndRendering != nullptr;
+    }
+};
+
 class VulkanContext final
 {
 private:
@@ -96,6 +119,7 @@ private:
     void createSurface(GLFWwindow* window);
     void pickPhysicalDevice(const VulkanContextConfig& config);
     void createLogicalDevice();
+    void loadDeviceFunctions();
     void createAllocator();
 
     bool checkValidationLayerSupport() const;
@@ -127,6 +151,7 @@ private:
     bool validationEnabled_ = false;
 
     VulkanCapabilities capabilities_{};
+    VulkanDeviceFunctions deviceFunctions_{};
 
     VkInstance instance_ = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT debugMessenger_ = VK_NULL_HANDLE;
@@ -168,6 +193,8 @@ public:
     const QueueFamilyIndices& queueFamilies() const noexcept;
 
     const VulkanCapabilities& capabilities() const noexcept;
+
+    const VulkanDeviceFunctions deviceFunctions() const noexcept;
 
     VkSampleCountFlagBits msaaSamples() const noexcept;
 
