@@ -51,12 +51,32 @@ struct VulkanCapabilities
     // 本项目采用的设备核心上限，不代表所有 feature 已启用
     std::uint32_t deviceApiVersion = 0;
 
+    bool features2QueryUsed = false;            // 选中的设备是否通过核心 Features2 查询
+    bool samplerAnisotropySupported = false;    // 设备是否支持各向异性过滤
+    bool samplerAnisotropyEnabled = false;      // 本次成功创建的 Device 是否启用了它
+
     std::string deviceName;
 };
 
 class VulkanContext final
 {
 private:
+
+    struct DeviceCandidateInfo
+    {
+        VkPhysicalDeviceProperties properties{};
+        QueueFamilyIndices queueFamilies{};
+        VkPhysicalDeviceFeatures features{};
+
+        bool queriedWithFeatures2 = false;
+        std::vector<std::string> rejectionReasons;
+
+        bool suitable() const noexcept
+        {
+            return rejectionReasons.empty();
+        }
+    };
+
     void createInstance(const VulkanContextConfig& config);
 
     void setupDebugMessenger();
@@ -69,9 +89,11 @@ private:
 
     std::vector<const char*> getRequiredExtensions() const;
 
-    bool isDeviceSuitable(VkPhysicalDevice candidate) const;
-    bool checkDeviceExtensionSupport(VkPhysicalDevice candidate) const;
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice candidate) const;
+
+    DeviceCandidateInfo inspectDevice(VkPhysicalDevice candidate, const VulkanContextConfig& config) const;
+
+    std::vector<std::string> findMissingDeviceExtensions(VkPhysicalDevice candidate) const;
 
     SwapChainSupportDetails querySwapchainSupport(VkPhysicalDevice candidate) const;
 

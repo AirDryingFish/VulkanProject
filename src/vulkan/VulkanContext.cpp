@@ -611,46 +611,42 @@ void VulkanContext::pickPhysicalDevice(const VulkanContextConfig &config)
 
     for (const VkPhysicalDevice &candidate : devices)
     {
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(candidate, &properties);
+        // VkPhysicalDeviceProperties properties{};
+        // vkGetPhysicalDeviceProperties(candidate, &properties);
 
-        // properties.apiVersion 驱动的 api version
-        if (coreApiVersion(properties.apiVersion) < coreApiVersion(config.minimumApiVersion))
+        const auto info = inspectDevice(candidate, config);
+
+        std::cout
+            << "GPU candidate: " << info.properties.deviceName
+            << " | device API: "
+            << apiVersionText(info.properties.apiVersion)
+            << '\n';
+
+        if (!info.suitable())
         {
-            std::cout
-                << "GPU candidate: " << properties.deviceName
-                << " | device API: "
-                << apiVersionText(properties.apiVersion)
-                << " | rejected: below minimum "
-                << apiVersionText(
-                       coreApiVersion(config.minimumApiVersion))
-                << "; other checks not run\n";
+            for (const auto& reason : info.rejectionReasons)
+            {
+                std::cout << "  rejected: " << reason << '\n';
+            }
 
             continue;
         }
+        physicalDevice_ = candidate;
+        queueFamilies_ = info.queueFamilies;
 
-        const bool suitable = isDeviceSuitable(candidate);
+        capabilities_.physicalDeviceVersion = info.properties.apiVersion;
+        capabilities_.deviceName = info.properties.deviceName;
+        capabilities_.deviceApiVersion = std::min(
+            coreApiVersion(capabilities_.instanceVersion),
+            coreApiVersion(info.properties.apiVersion)
+        );
+        capabilities_.features2QueryUsed = info.queriedWithFeatures2;
+        capabilities_.samplerAnisotropySupported = info.features.samplerAnisotropy == VK_TRUE;
 
-        std::cout << "GPU candidate: " << properties.deviceName <<
-                     " | device API: " << apiVersionText(properties.apiVersion) <<
-                     " | existing suitability checks: " << (suitable ? "passed" : "failed") << "\n";
+        msaaSamples_ = getMaxUsableSampleCount();
 
-        if (suitable)
-        {
-            physicalDevice_ = candidate;
-            queueFamilies_ = findQueueFamilies(candidate);
-            msaaSamples_ = getMaxUsableSampleCount();
-
-            capabilities_.physicalDeviceVersion = properties.apiVersion;
-            capabilities_.deviceName = properties.deviceName;
-            capabilities_.deviceApiVersion = std::min(
-                coreApiVersion(capabilities_.instanceVersion),
-                coreApiVersion(properties.apiVersion)
-            );
-
-            std::cout << "MSAA samples: " << msaaSamples_ << std::endl;
-            break;
-        }
+        std::cout << "MSAA samples: " << msaaSamples_ << std::endl;
+        break;
     }
     if (physicalDevice_ == VK_NULL_HANDLE)
     {
@@ -722,19 +718,48 @@ void VulkanContext::createLogicalDevice()
         queueInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos.push_back(queueInfo);
     }
-    VkPhysicalDeviceFeatures features{};
-    features.samplerAnisotropy = VK_TRUE;
+    // VkPhysicalDeviceFeatures features{};
+    // features.samplerAnisotropy = VK_TRUE;
+
+    // VkDeviceCreateInfo createInfo{};
+    // createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    // createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    // createInfo.pQueueCreateInfos = queueCreateInfos.data();
+    // createInfo.pEnabledFeatures = &features;
+    // createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    // createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    // createInfo.enabledLayerCount = 0;
+
+    // VK_CHECK(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_));
+
+    VkPhysicalDeviceFeatures2 enabled{};
+    enabled.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    enabled.features.samplerAnisotropy = VK_TRUE;
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.queueCreateInfoCount = static_cast<std::uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    createInfo.pEnabledFeatures = &features;
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    createInfo.enabledExtensionCount = static_cast<std::uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
     createInfo.enabledLayerCount = 0;
 
+    if (capabilities_.deviceApiVersion >= VK_API_VERSION_1_1)
+    {
+        createInfo.pNext = &enabled;
+        createInfo.pEnabledFeatures = nullptr;
+    }
+    else
+    {
+        createInfo.pNext = nullptr;
+        createInfo.pEnabledFeatures = &enabled.features;
+    }
+
     VK_CHECK(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_));
+
+    capabilities_.samplerAnisotropyEnabled = true;
+
+
     vkGetDeviceQueue(device_, queueFamilies_.graphicsFamily.value(), 0, &graphicsQueue_);
     vkGetDeviceQueue(device_, queueFamilies_.presentFamily.value(), 0, &presentQueue_);
 }
@@ -801,44 +826,6 @@ std::vector<const char *> VulkanContext::getRequiredExtensions() const
     return extensions;
 }
 
-// 检查一个候选物理设备（通常是一张 GPU）是否满足当前渲染祇的最低要求
-bool VulkanContext::isDeviceSuitable(VkPhysicalDevice candidate) const
-{
-    QueueFamilyIndices indices = findQueueFamilies(candidate);
-    bool extensionsSupported = checkDeviceExtensionSupport(candidate);
-
-    bool swapChainAdequate = false;
-    if (extensionsSupported)
-    {
-        SwapChainSupportDetails swapChainSupport = querySwapchainSupport(candidate);
-        swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-    }
-
-    VkPhysicalDeviceFeatures supportedFeatures;
-    vkGetPhysicalDeviceFeatures(candidate, &supportedFeatures);
-
-    return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
-}
-
-bool VulkanContext::checkDeviceExtensionSupport(VkPhysicalDevice candidate) const
-{
-    // step 1: 查询显卡支持哪些拓展，存到 availableExtensions 中。
-    uint32_t extensionCount;
-    VK_CHECK(vkEnumerateDeviceExtensionProperties(candidate, nullptr, &extensionCount, nullptr));
-    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    VK_CHECK(vkEnumerateDeviceExtensionProperties(candidate, nullptr, &extensionCount, availableExtensions.data()));
-
-    // step 2: 把需要的拓展，比如这里的Swap Chain的拓展 "VK_KHR_swapchain"，放入一个set中
-    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
-
-    // step 3: 遍历显卡支持的拓展，每找到一个就从set中删除一个，最后如果set是空的，说明显卡支持我们需要的所有拓展。
-    for (const auto &extension : availableExtensions)
-    {
-        requiredExtensions.erase(extension.extensionName);
-    }
-    return requiredExtensions.empty();
-}
-
 // 按顺序遍历不断更新符合条件（支持 graphics 和 present）的队列族，一旦找到了就立刻退出
 QueueFamilyIndices VulkanContext::findQueueFamilies(VkPhysicalDevice candidate) const
 {
@@ -875,6 +862,106 @@ QueueFamilyIndices VulkanContext::findQueueFamilies(VkPhysicalDevice candidate) 
     }
 
     return indices;
+}
+
+// 集中检查候选设备，并建立 Features2 查询路径
+VulkanContext::DeviceCandidateInfo VulkanContext::inspectDevice(VkPhysicalDevice candidate, const VulkanContextConfig &config) const
+{
+    DeviceCandidateInfo info{};
+
+    vkGetPhysicalDeviceProperties(candidate, &info.properties);
+    if (coreApiVersion(info.properties.apiVersion) < coreApiVersion(config.minimumApiVersion))
+    {
+        info.rejectionReasons.push_back("device API is below the minimum");
+    }
+
+    info.queueFamilies = findQueueFamilies(candidate);
+    if (!info.queueFamilies.graphicsFamily.has_value())
+    {
+        info.rejectionReasons.push_back("missing graphics queue");
+    }
+    if (!info.queueFamilies.presentFamily.has_value())
+    {
+        info.rejectionReasons.push_back("missing presentation queue");
+    }
+
+    const auto missing = findMissingDeviceExtensions(candidate);
+    for (const auto& name : missing)
+    {
+        info.rejectionReasons.push_back("missing device extension: " + name);
+    }
+    if (missing.empty())
+    {
+        const auto support = querySwapchainSupport(candidate);
+
+        if (support.formats.empty())
+        {
+            info.rejectionReasons.push_back("no surface formats");
+        }
+
+        if (support.presentModes.empty())
+        {
+            info.rejectionReasons.push_back("no presentation modes");
+        }
+    }
+
+    const auto candidateApiVersion = std::min(
+        coreApiVersion(capabilities_.instanceVersion),
+        coreApiVersion(info.properties.apiVersion)
+    );
+    if (candidateApiVersion >= VK_API_VERSION_1_1)
+    {
+        const auto getFeature2 = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
+            vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceFeatures2")
+        );
+        if (getFeature2 == nullptr)
+        {
+            throw std::runtime_error("Core Features2 entry point is unavailable");
+        }
+
+        VkPhysicalDeviceFeatures2 supported{};
+        supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        getFeature2(candidate, &supported);
+
+        info.features = supported.features;
+        info.queriedWithFeatures2 = true;
+    }
+    else
+    {
+        vkGetPhysicalDeviceFeatures(candidate, &info.features);
+    }
+
+    if (info.features.samplerAnisotropy != VK_TRUE)
+    {
+        info.rejectionReasons.push_back("samplerAnisotropy is unsupported");
+    }
+
+    return info;
+}
+
+// 检查具体缺少哪个扩展
+std::vector<std::string> VulkanContext::findMissingDeviceExtensions(VkPhysicalDevice candidate) const
+{
+    std::uint32_t count = 0;
+
+    VK_CHECK(vkEnumerateDeviceExtensionProperties(candidate, nullptr, &count, nullptr));
+
+    std::vector<VkExtensionProperties> available(count);
+
+    VK_CHECK(vkEnumerateDeviceExtensionProperties(candidate, nullptr, &count, available.data()));
+
+    available.resize(count);
+
+    // 初始化，missing 为所有的所需的 extension
+    std::set<std::string> missing(deviceExtensions.begin(), deviceExtensions.end());
+
+    // 在查询到的 extension 找到支持的，就从 missing 中删除
+    for (const auto &extentsion : available)
+    {
+        missing.erase(extentsion.extensionName);
+    }
+
+    return std::vector<std::string>(missing.begin(), missing.end());
 }
 
 SwapChainSupportDetails VulkanContext::querySwapchainSupport(VkPhysicalDevice candidate) const
@@ -983,5 +1070,16 @@ void VulkanContext::logCapabilities() const
         << "  Device supported: "
         << apiVersionText(info.physicalDeviceVersion) << '\n'
         << "  Device core ceiling: "
-        << apiVersionText(info.deviceApiVersion) << '\n';
+        << apiVersionText(info.deviceApiVersion) << '\n'
+        << "  Feature query: "
+        << (info.features2QueryUsed
+                ? "core Features2"
+                : "legacy Features")
+        << '\n'
+        << "  Anisotropy supported: "
+        << (info.samplerAnisotropySupported ? "yes" : "no")
+        << '\n'
+        << "  Anisotropy enabled: "
+        << (info.samplerAnisotropyEnabled ? "yes" : "no")
+        << '\n';
 }
