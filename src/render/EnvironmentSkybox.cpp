@@ -322,18 +322,33 @@ void Environment::createSkyboxImage()
 
     const VkExtent3D skyboxExtent = skyboxImage_.extent();
 
+    const bool useSync2 = context_->capabilities().synchronization2Enabled;
+    const auto pipelineBarrier2 = useSync2 ? context_->deviceFunctions().cmdPipelineBarrier2 : nullptr;
+
     renderer_->immediateSubmit([&](VkCommandBuffer commandBuffer) {
 
-        // 1. 6 个 face 的所有 mip 都先作为复制目标
-        upload::recordImageTransition(
-            commandBuffer,
-            skyboxImage_.get(),
-            skyboxImage_.format(),
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            skyboxImage_.mipLevels(),
-            skyboxImage_.arrayLayers()
-        );
+        if (useSync2)
+        {
+            upload::recordPrepareImageForUpload(
+                commandBuffer,
+                skyboxImage_.get(),
+                skyboxImage_.mipLevels(),
+                skyboxImage_.arrayLayers(),
+                pipelineBarrier2
+            );
+        }
+        else
+        {
+            // 1. 6 个 face 的所有 mip 都先作为复制目标
+            upload::recordImageTransition(
+                commandBuffer,
+                skyboxImage_.get(),
+                skyboxImage_.format(),
+                VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                skyboxImage_.mipLevels(),
+                skyboxImage_.arrayLayers());
+        }
 
         // 2. 将 staging buffer 中的六张图片分别复制到 cubemap 的六个 array layer 的 mip 0
         std::array<VkBufferImageCopy, 6> regions{};
@@ -364,11 +379,10 @@ void Environment::createSkyboxImage()
             skyboxImage_.get(),
             VkExtent2D{
                 skyboxExtent.width,
-                skyboxExtent.height
-            },
+                skyboxExtent.height},
             skyboxImage_.mipLevels(),
-            skyboxImage_.arrayLayers()
-        );
+            skyboxImage_.arrayLayers(),
+            pipelineBarrier2);
     });
 
     skyboxImage_.setView(context_->createImageView(

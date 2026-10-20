@@ -12,6 +12,16 @@ namespace upload
         VkDeviceSize size
     );
 
+    // 用于“此前 gpu 尚未访问”的新建颜色图像。
+    // mipLevels、layerCount 必须大于 0；所属 Device 必须已启用 synchronization2。
+    void recordPrepareImageForUpload(
+        VkCommandBuffer commandBuffer,
+        VkImage image,
+        uint32_t mipLevels,
+        uint32_t layerCount,
+        PFN_vkCmdPipelineBarrier2 pipelineBarrier2
+    );
+
     void recordImageTransition(
         VkCommandBuffer commandBuffer,
         VkImage image,
@@ -35,6 +45,7 @@ namespace upload
         VkImage image,
         VkExtent2D baseExtent,
         uint32_t mipLevels,
-        uint32_t layerCount = 1
+        uint32_t layerCount = 1,
+        PFN_vkCmdPipelineBarrier2 pipelineBarrier2 = nullptr
     );
 }

@@ -166,18 +166,33 @@ GpuImage Application::uploadTexture2D(const DecodedImageData &decoded, VkFormat 
 
     const VkExtent3D imageExtent = image.extent();
 
+    const bool useSync2 = context.capabilities().synchronization2Enabled;
+    const auto pipelineBarrier2 = useSync2 ? context.deviceFunctions().cmdPipelineBarrier2 : nullptr;
+
     // 连续录制
     renderer.immediateSubmit([&](VkCommandBuffer commandBuffer)
-                             {
-        upload::recordImageTransition(
-            commandBuffer,
-            image.get(),
-            image.format(),
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            image.mipLevels(),
-            image.arrayLayers()
-        );
+    {
+
+        if (useSync2)
+        {
+            upload::recordPrepareImageForUpload(
+                commandBuffer,
+                image.get(),
+                image.mipLevels(),
+                image.arrayLayers(),
+                pipelineBarrier2);
+        }
+        else
+        {
+            upload::recordImageTransition(
+                commandBuffer,
+                image.get(),
+                image.format(),
+                VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                image.mipLevels(),
+                image.arrayLayers());
+        }
 
         upload::recordBufferToImageCopy(
             commandBuffer,
@@ -191,11 +206,12 @@ GpuImage Application::uploadTexture2D(const DecodedImageData &decoded, VkFormat 
             image.get(),
             VkExtent2D{
                 imageExtent.width,
-                imageExtent.height
-            },
+                imageExtent.height},
             image.mipLevels(),
-            image.arrayLayers()
-        ); });
+            image.arrayLayers(),
+            pipelineBarrier2
+        );
+    });
 
     image.setView(context.createImageView(image.get(), image.format(), image.mipLevels()));
 

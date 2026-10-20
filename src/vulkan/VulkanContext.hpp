@@ -194,7 +194,7 @@ public:
 
     const VulkanCapabilities& capabilities() const noexcept;
 
-    const VulkanDeviceFunctions deviceFunctions() const noexcept;
+    const VulkanDeviceFunctions& deviceFunctions() const noexcept;
 
     VkSampleCountFlagBits msaaSamples() const noexcept;
 

@@ -254,7 +254,7 @@ const VulkanCapabilities &VulkanContext::capabilities() const noexcept
     return capabilities_;
 }
 
-const VulkanDeviceFunctions VulkanContext::deviceFunctions() const noexcept
+const VulkanDeviceFunctions& VulkanContext::deviceFunctions() const noexcept
 {
     return deviceFunctions_;
 }
@@ -822,7 +822,7 @@ void VulkanContext::loadDeviceFunctions()
     if (capabilities_.synchronization2Enabled)
     {
         functions.cmdPipelineBarrier2 = loadDeviceFunction<PFN_vkCmdPipelineBarrier2>(device_, "vkCmdPipelineBarrier2");
-        functions.queueSubmit2 = loadDeviceFunction<PFN_vkQueueSubmit2>(device_, "vkCmdQueueSubmit2");
+        functions.queueSubmit2 = loadDeviceFunction<PFN_vkQueueSubmit2>(device_, "vkQueueSubmit2");
         functions.cmdWriteTimestamp2 = loadDeviceFunction<PFN_vkCmdWriteTimestamp2>(device_, "vkCmdWriteTimestamp2");
     }
     if (capabilities_.dynamicRenderingEnabled)
