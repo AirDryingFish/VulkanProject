@@ -65,6 +65,15 @@ namespace
 
         return selected;
     };
+
+    const char* featureSupportText(bool queried, bool supported)
+    {
+        if (!queried)
+        {
+            return "not queried";
+        }
+        return supported ? "yes" : "no";
+    }
 }
 
 VulkanContext::~VulkanContext() noexcept
@@ -641,7 +650,11 @@ void VulkanContext::pickPhysicalDevice(const VulkanContextConfig &config)
             coreApiVersion(info.properties.apiVersion)
         );
         capabilities_.features2QueryUsed = info.queriedWithFeatures2;
+
         capabilities_.samplerAnisotropySupported = info.features.samplerAnisotropy == VK_TRUE;
+        capabilities_.vulkan13FeaturesQueried = info.queredVulkan13Features;
+        capabilities_.synchronization2Supported = info.synchronization2Supported;
+        capabilities_.dynamicRenderingSupported = info.dynamicRenderingSupported;
 
         msaaSamples_ = getMaxUsableSampleCount();
 
@@ -736,6 +749,16 @@ void VulkanContext::createLogicalDevice()
     enabled.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     enabled.features.samplerAnisotropy = VK_TRUE;
 
+    VkPhysicalDeviceVulkan13Features enabled13{};
+    enabled13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+    if (capabilities_.vulkan13FeaturesQueried)
+    {
+        enabled13.synchronization2 = capabilities_.synchronization2Supported ? VK_TRUE : VK_FALSE;
+        enabled13.dynamicRendering = capabilities_.dynamicRenderingSupported ? VK_TRUE : VK_FALSE;
+        enabled.pNext = &enabled13;
+    }
+
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.queueCreateInfoCount = static_cast<std::uint32_t>(queueCreateInfos.size());
@@ -758,7 +781,8 @@ void VulkanContext::createLogicalDevice()
     VK_CHECK(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_));
 
     capabilities_.samplerAnisotropyEnabled = true;
-
+    capabilities_.synchronization2Enabled = enabled13.synchronization2 == VK_TRUE;
+    capabilities_.dynamicRenderingEnabled = enabled13.dynamicRendering == VK_TRUE;
 
     vkGetDeviceQueue(device_, queueFamilies_.graphicsFamily.value(), 0, &graphicsQueue_);
     vkGetDeviceQueue(device_, queueFamilies_.presentFamily.value(), 0, &presentQueue_);
@@ -919,12 +943,36 @@ VulkanContext::DeviceCandidateInfo VulkanContext::inspectDevice(VkPhysicalDevice
             throw std::runtime_error("Core Features2 entry point is unavailable");
         }
 
+        // VkPhysicalDeviceFeatures2 supported{};
+        // supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        // getFeature2(candidate, &supported);
+
+        // info.features = supported.features;
+        // info.queriedWithFeatures2 = true;
+
+        VkPhysicalDeviceVulkan13Features supported13{};
+        supported13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
         VkPhysicalDeviceFeatures2 supported{};
         supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+        const bool queryVulkan13 = candidateApiVersion >= VK_API_VERSION_1_3;
+        if (queryVulkan13)
+        {
+            supported.pNext = & supported13;
+        }
+
         getFeature2(candidate, &supported);
 
         info.features = supported.features;
         info.queriedWithFeatures2 = true;
+
+        if (queryVulkan13)
+        {
+            info.queredVulkan13Features = true;
+            info.synchronization2Supported = supported13.synchronization2 == VK_TRUE;
+            info.dynamicRenderingSupported = supported13.dynamicRendering == VK_TRUE;
+        }
     }
     else
     {
@@ -1081,5 +1129,28 @@ void VulkanContext::logCapabilities() const
         << '\n'
         << "  Anisotropy enabled: "
         << (info.samplerAnisotropyEnabled ? "yes" : "no")
+        << '\n'
+        << "  Vulkan 1.3 features queried: "
+        << (info.vulkan13FeaturesQueried ? "yes" : "no")
+        << '\n'
+
+        << "  Synchronization2 supported: "
+        << featureSupportText(
+               info.vulkan13FeaturesQueried,
+               info.synchronization2Supported)
+        << '\n'
+
+        << "  Synchronization2 enabled: "
+        << (info.synchronization2Enabled ? "yes" : "no")
+        << '\n'
+
+        << "  Dynamic rendering supported: "
+        << featureSupportText(
+               info.vulkan13FeaturesQueried,
+               info.dynamicRenderingSupported)
+        << '\n'
+
+        << "  Dynamic rendering enabled: "
+        << (info.dynamicRenderingEnabled ? "yes" : "no")
         << '\n';
 }

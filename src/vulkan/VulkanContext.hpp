@@ -55,6 +55,14 @@ struct VulkanCapabilities
     bool samplerAnisotropySupported = false;    // 设备是否支持各向异性过滤
     bool samplerAnisotropyEnabled = false;      // 本次成功创建的 Device 是否启用了它
 
+    bool vulkan13FeaturesQueried = false;
+
+    bool synchronization2Supported = false;
+    bool synchronization2Enabled = false;
+
+    bool dynamicRenderingSupported = false;
+    bool dynamicRenderingEnabled = false;
+
     std::string deviceName;
 };
 
@@ -70,6 +78,11 @@ private:
 
         bool queriedWithFeatures2 = false;
         std::vector<std::string> rejectionReasons;
+
+        // 让每个候选 gpu 独立保存新功能的查询结果
+        bool queredVulkan13Features = false;
+        bool synchronization2Supported = false;
+        bool dynamicRenderingSupported = false;
 
         bool suitable() const noexcept
         {
