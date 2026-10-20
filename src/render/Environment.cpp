@@ -139,10 +139,24 @@ void Environment::transitionImageLayout(VkImage image, VkFormat format,
                                        VkImageLayout oldLayout, VkImageLayout newLayout,
                                        std::uint32_t mipLevels, std::uint32_t layerCount)
 {
+    const bool useSync2 = context_->capabilities().synchronization2Enabled;
+    const auto pipelineBarrier2 = useSync2 ? context_->deviceFunctions().cmdPipelineBarrier2 : nullptr;
+    if (useSync2 && pipelineBarrier2 == nullptr)
+    {
+        throw std::logic_error("Environment image transitions require vkCmdPipelineBarrier2");
+    }
+
     renderer_->immediateSubmit([&](VkCommandBuffer commandBuffer)
     {
-        upload::recordImageTransition(commandBuffer, image, format, oldLayout,
-                                      newLayout, mipLevels, layerCount);
+        upload::recordImageTransition(
+            commandBuffer,
+            image,
+            format,
+            oldLayout,
+            newLayout,
+            mipLevels,
+            layerCount,
+            pipelineBarrier2);
     });
 }
 

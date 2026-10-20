@@ -62,9 +62,14 @@ void recordPrepareImageForUpload(VkCommandBuffer commandBuffer, VkImage image, u
     pipelineBarrier2(commandBuffer, &dependency);
 }
 
-void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount)
+void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount, PFN_vkCmdPipelineBarrier2 pipelineBarrier2)
 {
     static_cast<void>(format);
+
+    VkPipelineStageFlags2 sourceStage2{};
+    VkPipelineStageFlags2 destinationStage2{};
+    VkAccessFlags2 sourceAccess2{};
+    VkAccessFlags2 destinationAccess2{};
 
     VkPipelineStageFlags sourceStage;
     VkPipelineStageFlags destinationStage;
@@ -86,6 +91,11 @@ void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkForma
     // 准备把数据copy到image：上传纹理
     if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
     {
+        sourceStage2 = VK_PIPELINE_STAGE_2_NONE;
+        sourceAccess2 = VK_ACCESS_2_NONE;
+        destinationStage2 = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+        destinationAccess2 = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+
         barrier.srcAccessMask = 0; // 不关心 image 原来的内容
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; // 接下来 transfer 阶段准备往 image 写数据
         sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -94,6 +104,11 @@ void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkForma
     // 新创建了一个 image, 不上传图片而是把它当作 render target (当作颜色附件)
     else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
     {
+        sourceStage2 = VK_PIPELINE_STAGE_2_NONE;
+        sourceAccess2 = VK_ACCESS_2_NONE;
+        destinationStage2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        destinationAccess2 = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+
         barrier.srcAccessMask = 0;
         barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -102,6 +117,11 @@ void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkForma
     // 纹理上传完成后，例如加载 roughness.png albedo.png
     else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
     {
+        sourceStage2 = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+        sourceAccess2 = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        destinationStage2 = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        destinationAccess2 = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -110,6 +130,11 @@ void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkForma
     // render结束后
     else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
     {
+        sourceStage2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        sourceAccess2 = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        destinationStage2 = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        destinationAccess2 = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+
         barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -118,6 +143,31 @@ void recordImageTransition(VkCommandBuffer commandBuffer, VkImage image, VkForma
     else
     {
         throw std::invalid_argument("unsupported layout transition");
+    }
+
+    if (pipelineBarrier2 != nullptr)
+    {
+        VkImageMemoryBarrier2 barrier2{};
+        barrier2.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+        barrier2.srcStageMask = sourceStage2;
+        barrier2.srcAccessMask = sourceAccess2;
+        barrier2.dstStageMask = destinationStage2;
+        barrier2.dstAccessMask = destinationAccess2;
+
+        barrier2.oldLayout = barrier.oldLayout;
+        barrier2.newLayout = barrier.newLayout;
+        barrier2.srcQueueFamilyIndex = barrier.srcQueueFamilyIndex;
+        barrier2.dstQueueFamilyIndex = barrier.dstQueueFamilyIndex;
+        barrier2.image = barrier.image;
+        barrier2.subresourceRange = barrier.subresourceRange;
+
+        VkDependencyInfo dependency{};
+        dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+        dependency.imageMemoryBarrierCount = 1;
+        dependency.pImageMemoryBarriers = &barrier2;
+
+        pipelineBarrier2(commandBuffer, &dependency);
+        return;
     }
 
     vkCmdPipelineBarrier(

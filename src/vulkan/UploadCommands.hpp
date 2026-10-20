@@ -29,7 +29,8 @@ namespace upload
         VkImageLayout oldLayout,
         VkImageLayout newLayout,
         uint32_t mipLevels,
-        uint32_t layerCount = 1
+        uint32_t layerCount = 1,
+        PFN_vkCmdPipelineBarrier2 pipelineBarrier2 = nullptr
     );
 
     void recordBufferToImageCopy(
