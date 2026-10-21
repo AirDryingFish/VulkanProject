@@ -462,6 +462,13 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
         throw std::logic_error("Renderer upload context is not initialized");
     }
 
+    const bool useSync2 = context_->capabilities().synchronization2Enabled;
+    const auto queueSubmit2 = useSync2 ? context_->deviceFunctions().queueSubmit2 : nullptr;
+    if (useSync2 && queueSubmit2 == nullptr)
+    {
+        throw std::logic_error("Immediate submit requires vkQueueSubmit2");
+    }
+
     // 确认上一次使用的UploadContext已经完成
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
 
@@ -478,16 +485,41 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)> &&function)
 
     VK_CHECK(vkEndCommandBuffer(uploadContext_.commandBuffer));
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &uploadContext_.commandBuffer;
+    if (useSync2)
+    {
+        VkCommandBufferSubmitInfo commandInfo{};
+        commandInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandInfo.commandBuffer = uploadContext_.commandBuffer;
+        commandInfo.deviceMask = 1;
 
-    // Fence必须回到 unsignaled 才能交给下一次 submit
-    VK_CHECK(vkResetFences(context_->device(), 1, &uploadContext_.fence));
+        VkSubmitInfo2 submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+        submitInfo.commandBufferInfoCount = 1;
+        submitInfo.pCommandBufferInfos = &commandInfo;
 
+        VK_CHECK(vkResetFences(
+            context_->device(),
+            1,
+            &uploadContext_.fence
+        ));
+        VK_CHECK(queueSubmit2(
+            context_->graphicsQueue(),
+            1,
+            &submitInfo,
+            uploadContext_.fence
+        ));
+    }
+    else
+    {
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &uploadContext_.commandBuffer;
 
-    VK_CHECK(vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, uploadContext_.fence));
+        // Fence必须回到 unsignaled 才能交给下一次 submit
+        VK_CHECK(vkResetFences(context_->device(), 1, &uploadContext_.fence));
+        VK_CHECK(vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, uploadContext_.fence));
+    }
 
     // 同步提交刻意等到命令执行完成；调用方的临时 staging 不能在 GPU 仍读取时析构。
     VK_CHECK(vkWaitForFences(context_->device(), 1, &uploadContext_.fence, VK_TRUE, UINT64_MAX));
@@ -998,6 +1030,7 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
 
     // 2. vkQueueSubmit()。
     VkResult submitResult = vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, frame.renderFence);
+
     currentCpuTiming_.submitMs = cpuElapsedMs(submitBegin, CpuClock::now());
     currentCpuTiming_.draws = frame.recordedDraws;
     VK_CHECK_RESULT(submitResult, "vkQueueSubmit");
