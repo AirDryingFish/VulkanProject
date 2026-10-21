@@ -792,7 +792,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         {
             cmdWriteTimestamp2(
                 token.commandBuffer,
-                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
                 frame.timestampQueryPool,
                 query);
         }

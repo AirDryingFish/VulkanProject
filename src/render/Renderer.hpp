@@ -85,6 +85,12 @@ private:
 
         VkPipelineLayout layout = VK_NULL_HANDLE;
         VkRenderPass renderPass = VK_NULL_HANDLE;
+
+        bool useDynamicRendering = false;
+        VkFormat colorAttachmentFormat = VK_FORMAT_UNDEFINED;
+        VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+        VkFormat stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
         VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 
         bool useVertexInput = true;

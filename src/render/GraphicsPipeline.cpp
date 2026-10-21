@@ -182,7 +182,29 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
         throw std::logic_error("graphics pipeline requires a Vulkan context");
     }
 
-    if (config.renderPass == VK_NULL_HANDLE)
+    if (config.useDynamicRendering)
+    {
+        if (!context_->capabilities().dynamicRenderingEnabled)
+        {
+            throw std::invalid_argument("Dynamic rendering was not enabled on this device");
+        }
+
+        if (config.renderPass != VK_NULL_HANDLE)
+        {
+            throw std::invalid_argument("graphics pipeline requires an explicit render pass");
+        }
+
+        if (config.colorAttachmentFormat == VK_FORMAT_UNDEFINED)
+        {
+            throw std::invalid_argument("This pipeline factory requires one color attachment format");
+        }
+
+        if ((config.depthTest || config.depthWrite) && config.depthAttachmentFormat == VK_FORMAT_UNDEFINED)
+        {
+            throw std::invalid_argument("Dynamic depth configuration requires a depth attachment format");
+        }
+    }
+    else if (config.renderPass == VK_NULL_HANDLE)
     {
         throw std::invalid_argument("graphics pipeline requires an explicit render pass");
     }
@@ -278,8 +300,19 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
+
+    VkPipelineRenderingCreateInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachmentFormats = &config.colorAttachmentFormat;
+    renderingInfo.depthAttachmentFormat = config.depthAttachmentFormat;
+    renderingInfo.stencilAttachmentFormat = config.stencilAttachmentFormat;
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+
+    pipelineInfo.pNext = config.useDynamicRendering ? &renderingInfo : nullptr;
+
     pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineInfo.pStages = shaderStages.data();
     pipelineInfo.pVertexInputState = &vertexInput;
@@ -291,7 +324,8 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = config.layout;
-    pipelineInfo.renderPass = config.renderPass;
+    // pipelineInfo.renderPass = config.renderPass;
+    pipelineInfo.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : config.renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;

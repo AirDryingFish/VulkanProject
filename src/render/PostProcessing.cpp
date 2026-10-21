@@ -670,6 +670,24 @@ void Renderer::createTonemapPipeline()
     config.depthTest = false;
     config.depthWrite = false;
     tonemapPipeline_ = createGraphicsPipelineFromConfig(config);
+
+    // F1 临时验证：只创建、销毁，不替换正式使用的 pipeline。
+    if (context_->capabilities().dynamicRenderingEnabled)
+    {
+        GraphicsPipelineConfig probeConfig = config;
+        probeConfig.useDynamicRendering = true;
+        probeConfig.renderPass = VK_NULL_HANDLE;
+        probeConfig.colorAttachmentFormat = swapchain_->format();
+
+        const VkPipeline probe =
+            createGraphicsPipelineFromConfig(probeConfig);
+
+        vkDestroyPipeline(context_->device(), probe, nullptr);
+
+        std::cout
+            << "Dynamic rendering pipeline creation verified.\n";
+    }
+
     std::cout << "Tone mapping pipeline prepared!\n";
 }
 
