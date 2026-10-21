@@ -1008,6 +1008,13 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
         throw std::logic_error("FrameToken contains invalid command buffer");
     }
 
+    const bool useSync2 = context_->capabilities().synchronization2Enabled;
+    const auto queueSubmit2 = useSync2 ? context_->deviceFunctions().queueSubmit2 : nullptr;
+    if (useSync2 && queueSubmit2 == nullptr)
+    {
+        throw std::logic_error("Immediate submit requires vkQueueSubmit2");
+    }
+
     // 呈现用的完成信号量按交换链图像管理；不能与 frameIndex 下的帧槽资源混用索引。
     const VkSemaphore renderFinished = swapchain_->renderFinishedSemaphore(token.imageIndex);
 
@@ -1023,17 +1030,58 @@ FrameStatus Renderer::endFrame(const FrameToken &token)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &renderFinished;
 
+    VkSemaphoreSubmitInfo waitInfo{};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    waitInfo.semaphore = frame.imageAvailable;
+    waitInfo.value = 0;
+    waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT; // 之后受等待的 stage
+    waitInfo.deviceIndex = 0;
+
+    VkSemaphoreSubmitInfo signalInfo{};
+    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    signalInfo.semaphore = renderFinished;
+    signalInfo.value = 0;
+    signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;         // 之前必须完成的stage
+    signalInfo.deviceIndex = 0;
+
+    VkCommandBufferSubmitInfo commandInfo{};
+    commandInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    commandInfo.commandBuffer = frame.commandBuffer;
+    commandInfo.deviceMask = 1;
+
+    VkSubmitInfo2 submitInfo2{};
+    submitInfo2.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo2.waitSemaphoreInfoCount = 1;
+    submitInfo2.pWaitSemaphoreInfos = &waitInfo;
+    submitInfo2.signalSemaphoreInfoCount = 1;
+    submitInfo2.pSignalSemaphoreInfos = &signalInfo;
+    submitInfo2.commandBufferInfoCount = 1;
+    submitInfo2.pCommandBufferInfos = &commandInfo;
+
     // 紧邻提交才 reset fence；若 submit 失败，异常路径退出，不能继续等待这个无人 signal 的 fence。
     VK_CHECK(vkResetFences(context_->device(), 1, &frame.renderFence));
 
     const auto submitBegin = CpuClock::now();
 
     // 2. vkQueueSubmit()。
-    VkResult submitResult = vkQueueSubmit(context_->graphicsQueue(), 1, &submitInfo, frame.renderFence);
+    VkResult submitResult = useSync2 ?
+        queueSubmit2(
+            context_->graphicsQueue(),
+            1,
+            &submitInfo2,
+            frame.renderFence
+        )
+        :
+        vkQueueSubmit(
+            context_->graphicsQueue(),
+            1,
+            &submitInfo,
+            frame.renderFence
+        );
 
     currentCpuTiming_.submitMs = cpuElapsedMs(submitBegin, CpuClock::now());
     currentCpuTiming_.draws = frame.recordedDraws;
-    VK_CHECK_RESULT(submitResult, "vkQueueSubmit");
+    VK_CHECK_RESULT(submitResult, useSync2 ? "vkQueueSubmit2" : "vkQueueSubmit");
 
     // submit 成功才生成 ID/发布 pending；即使随后 Present 要求重建，这份 GPU 工作仍真实存在。
     const std::uint64_t submissionId = ++gpuSubmissionCounter_;
