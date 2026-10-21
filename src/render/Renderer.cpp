@@ -716,6 +716,13 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         throw std::out_of_range("FrameToken contains invalid swapchain image index");
     }
 
+    const bool useTimestamp2 = gpuTimingSupported_ && context_->capabilities().synchronization2Enabled;
+    const auto cmdWriteTimestamp2 = useTimestamp2 ? context_->deviceFunctions().cmdWriteTimestamp2 : nullptr;
+    if (useTimestamp2 && cmdWriteTimestamp2 == nullptr)
+    {
+        throw std::logic_error("GPU timing requires vkCmdWriteTimestamp2");
+    }
+
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -751,12 +758,24 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         }
 
         const std::uint32_t passIndex = static_cast<std::uint32_t>(pass);
-        vkCmdWriteTimestamp(
-            token.commandBuffer,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            frame.timestampQueryPool,
-            passIndex * 2 // 每个 Pass 占两个连续 query：开始 2*i，结束 2*i+1。
-        );
+        const std::uint32_t query = passIndex * 2;
+        if (useTimestamp2)
+        {
+            cmdWriteTimestamp2(
+                token.commandBuffer,
+                VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                frame.timestampQueryPool,
+                query
+            );
+        }
+        else{
+            vkCmdWriteTimestamp(
+                token.commandBuffer,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                frame.timestampQueryPool,
+                query // 每个 Pass 占两个连续 query：开始 2*i，结束 2*i+1。
+            );
+        }
     };
 
     const auto endGpuPass = [&](GpuPass pass)
@@ -767,12 +786,25 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         }
 
         const std::uint32_t passIndex = static_cast<uint32_t>(pass);
-        vkCmdWriteTimestamp(
-            token.commandBuffer,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-            frame.timestampQueryPool,
-            passIndex * 2 + 1
-        );
+        const std::uint32_t query = passIndex * 2 + 1;
+
+        if (useTimestamp2)
+        {
+            cmdWriteTimestamp2(
+                token.commandBuffer,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                frame.timestampQueryPool,
+                query);
+        }
+        else
+        {
+            vkCmdWriteTimestamp(
+                token.commandBuffer,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                frame.timestampQueryPool,
+                query // 每个 Pass 占两个连续 query：开始 2*i，结束 2*i+1。
+            );
+        }
 
         frame.recordedGpuPassMask |= (1u << passIndex);
     };
