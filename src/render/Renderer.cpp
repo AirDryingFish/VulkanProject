@@ -110,7 +110,10 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createHdrFramebuffers();
 
         createPostDescriptors();
-        createPresentRenderPass();
+        if (!useDynamicRenderingForPresent())
+        {
+            createPresentRenderPass();
+        }
         createPostPipelineLayout();
 
         // -- 创建 pipeline --
@@ -118,6 +121,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createSkyboxPipeline();
         createShadowPreviewPipeline();
         createTonemapPipeline();
+
+        std::cout << "Present path: " << (useDynamicRenderingForPresent() ? "Dynamic Rendering" : "RenderPass") << "\n";
 
         initialized_ = true;
     }
@@ -415,6 +420,16 @@ bool Renderer::hasActiveFrame() const noexcept
     return hasActiveFrame_;
 }
 
+bool Renderer::useDynamicRenderingForPresent() const noexcept
+{
+    if (context_ == nullptr)
+    {
+        return false;
+    }
+    const auto& capabilities = context_->capabilities();
+
+    return capabilities.dynamicRenderingEnabled && capabilities.synchronization2Enabled;
+}
 
 VkDescriptorSetLayout Renderer::frameDescriptorSetLayout() const noexcept
 {
@@ -951,18 +966,22 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     VkClearValue presentClear{};
     presentClear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
-    VkRenderPassBeginInfo presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    presentInfo.renderPass = presentRenderPass_;
-    presentInfo.framebuffer = swapchain_->framebuffer(token.imageIndex);
-    presentInfo.renderArea.offset = {0, 0};
-    presentInfo.renderArea.extent = swapchain_->extent();
-    presentInfo.clearValueCount = 1;
-    presentInfo.pClearValues = &presentClear;
+    // VkRenderPassBeginInfo presentInfo{};
+    // presentInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    // presentInfo.renderPass = presentRenderPass_;
+    // presentInfo.framebuffer = swapchain_->framebuffer(token.imageIndex);
+    // presentInfo.renderArea.offset = {0, 0};
+    // presentInfo.renderArea.extent = swapchain_->extent();
+    // presentInfo.clearValueCount = 1;
+    // presentInfo.pClearValues = &presentClear;
 
-    // -- 开启 present 并打点 --
+    // // -- 开启 present 并打点 --
+    // beginGpuPass(GpuPass::PostAndUi);
+    // vkCmdBeginRenderPass(token.commandBuffer, &presentInfo, VK_SUBPASS_CONTENTS_INLINE);
+
     beginGpuPass(GpuPass::PostAndUi);
-    vkCmdBeginRenderPass(token.commandBuffer, &presentInfo, VK_SUBPASS_CONTENTS_INLINE);
+    beginPresentPass(token, presentClear);
+
     // 使用前面已设置好的全窗口 viewport/scissor
     vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
@@ -1004,7 +1023,9 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     {
         ImGui_ImplVulkan_RenderDrawData(data.imguiDrawData, token.commandBuffer);
     }
-    vkCmdEndRenderPass(token.commandBuffer);
+    // vkCmdEndRenderPass(token.commandBuffer);
+
+    endPresentPass(token);
     endGpuPass(GpuPass::PostAndUi);
     // ----
 

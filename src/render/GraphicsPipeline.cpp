@@ -163,8 +163,12 @@ void Renderer::createShadowPreviewPipeline()
     config.fragShaderPath = SHADOW_DEBUG_FRAGMENT_SHADER_PATH;
 
     config.layout = scenePipelineLayout_;
+
+    config.useDynamicRendering = useDynamicRenderingForPresent();
     // 预览属于显示段叠图，不参与场景 tone mapping
-    config.renderPass = presentRenderPass_;
+    config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : presentRenderPass_;
+    config.colorAttachmentFormat = swapchain_->format();
+
     config.samples = VK_SAMPLE_COUNT_1_BIT;
 
     config.useVertexInput = false;
@@ -191,7 +195,7 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
 
         if (config.renderPass != VK_NULL_HANDLE)
         {
-            throw std::invalid_argument("graphics pipeline requires an explicit render pass");
+            throw std::invalid_argument("Dynamic rendering pipeline requires a null render pass");
         }
 
         if (config.colorAttachmentFormat == VK_FORMAT_UNDEFINED)

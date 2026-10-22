@@ -156,6 +156,16 @@ std::size_t Swapchain::imageCount() const noexcept
     return images_.size();
 }
 
+VkImage Swapchain::image(std::size_t index) const
+{
+    return images_.at(index);
+}
+
+VkImageView Swapchain::imageView(std::size_t index) const
+{
+    return imageViews_.at(index);
+}
+
 VkSemaphore Swapchain::renderFinishedSemaphore(std::size_t index) const
 {
     return renderFinishedSemaphores_.at(index);

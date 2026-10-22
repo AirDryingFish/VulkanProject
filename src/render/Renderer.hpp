@@ -208,6 +208,17 @@ private:
 
     void createPostPipelineLayout();
     void createTonemapPipeline();
+
+    enum class PresentImageTransition
+    {
+        ToColorAttachment,
+        ToPresent
+    };
+
+    void recordPresentImageTransition(const FrameToken& token, PresentImageTransition transition);
+    void beginPresentPass(const FrameToken& token, const VkClearValue& value);
+    void endPresentPass(const FrameToken& token);
+
     // ----
 
     // -- shadow --
@@ -245,6 +256,8 @@ public:
 
 
     bool hasActiveFrame() const noexcept;
+
+    bool useDynamicRenderingForPresent() const noexcept;
 
     VkRenderPass presentRenderPass() const noexcept;
     VkSampleCountFlagBits sceneSamples() const noexcept;

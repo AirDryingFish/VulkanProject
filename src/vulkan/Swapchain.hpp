@@ -60,6 +60,11 @@ public:
 
     std::size_t imageCount() const noexcept;
 
+    // 目的：让 renderer 可以获取本次 acquire 到的图像和视图
+    // 借用 sawpchain 资源，handle 只在当前 swapchain 声明周期内有效
+    VkImage image(std::size_t index) const;
+    VkImageView imageView(std::size_t index) const;
+
     VkSemaphore renderFinishedSemaphore(std::size_t index) const;
 
     VkColorSpaceKHR colorSpace() const noexcept;

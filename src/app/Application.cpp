@@ -76,7 +76,10 @@ void Application::initializeRendering()
 
     renderer.initialize(context, swapchain);
 
-    swapchain.createFramebuffers(renderer.presentRenderPass());
+    if (!renderer.useDynamicRenderingForPresent())
+    {
+        swapchain.createFramebuffers(renderer.presentRenderPass());
+    }
 
     initImGui();
 
@@ -211,8 +214,10 @@ void Application::recreateSwapchain()
             "resources must be rebuilt");
     }
     renderer.recreateHdrTargets();
-    swapchain.createFramebuffers(renderer.presentRenderPass());
-
+    if (!renderer.useDynamicRenderingForPresent())
+    {
+        swapchain.createFramebuffers(renderer.presentRenderPass());
+    }
     framebufferResized = false;
 }
 

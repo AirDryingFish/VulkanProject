@@ -226,6 +226,9 @@ void Application::initImGui()
 
     QueueFamilyIndices indices = context.queueFamilies();
 
+    const VkFormat presentFormat = swapchain.format();
+    const bool useDynamicPresent = renderer.useDynamicRenderingForPresent();
+
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.ApiVersion = context.capabilities().instanceVersion;
     initInfo.Instance = context.instance();
@@ -234,10 +237,25 @@ void Application::initImGui()
     initInfo.QueueFamily = indices.graphicsFamily.value();
     initInfo.Queue = context.graphicsQueue();
     initInfo.DescriptorPool = imguiDescriptorPool;
-    initInfo.PipelineInfoMain.RenderPass = renderer.presentRenderPass();
+
+    initInfo.UseDynamicRendering = useDynamicPresent;
+    initInfo.PipelineInfoMain.RenderPass = useDynamicPresent ? VK_NULL_HANDLE : renderer.presentRenderPass();
+
     initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.MinImageCount = std::max(2u, swapchain.minImageCount());
     initInfo.ImageCount = static_cast<uint32_t>(swapchain.imageCount());
+
+    if (useDynamicPresent)
+    {
+        auto& renderingInfo = initInfo.PipelineInfoMain.PipelineRenderingCreateInfo;
+
+        renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+        renderingInfo.viewMask = 0;
+        renderingInfo.colorAttachmentCount = 1;
+        renderingInfo.pColorAttachmentFormats = &presentFormat;
+        renderingInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+        renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+    }
 
     if (!ImGui_ImplVulkan_Init(&initInfo))
     {
