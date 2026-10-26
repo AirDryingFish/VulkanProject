@@ -12,6 +12,24 @@
 
 namespace
 {
+    // 集中填写图像和子资源范围，让每条 barrier 的同步含义更容易阅读
+    VkImageMemoryBarrier2 makeSceneImageBarrier(const GpuImage& image, VkImageAspectFlags aspect)
+    {
+        VkImageMemoryBarrier2 barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image.get();
+
+        barrier.subresourceRange.aspectMask = aspect;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+
+        return barrier;
+    }
+
     // 图像格式 -> 每个样本的理论字节数
     std::optional<std::uint64_t> nominalBytesPerSample(VkFormat format) noexcept
     {
@@ -233,6 +251,226 @@ void Renderer::createHdrTargets()
         << ", RGBA16F, scene samples="
         << static_cast<unsigned int>(sceneSamples_)
         << '\n';
+}
+
+// 在 scene 绘制前，把图片准备成“渲染目标”
+void Renderer::recordSceneAttachmentsBegin(const FrameToken &token)
+{
+    if (!initialized_ || context_ == nullptr)
+    {
+        throw std::logic_error("Scene barriers require an initialized renderer");
+    }
+
+    const auto cmdPipelineBarrier2 = context_->deviceFunctions().cmdPipelineBarrier2;
+    if (!context_->capabilities().synchronization2Enabled || cmdPipelineBarrier2 == nullptr)
+    {
+        throw std::logic_error("Scene barriers require Synchronization2");
+    }
+
+    const HdrFrameTarget& target = hdrTargets_.at(token.frameIndex);
+
+    std::array<VkImageMemoryBarrier2, 3> barriers{};
+    std::uint32_t barrierCount = 0;
+
+    // 1x 时直接绘制，MSAA 时接收 resolve
+    // 两条路径最终都由 Post 采样 hdrColor
+    auto& hdr = barriers[barrierCount++];
+    hdr = makeSceneImageBarrier(target.hdrColor, VK_IMAGE_ASPECT_COLOR_BIT);
+    hdr.srcStageMask =
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |           // post 读取 hdrColor
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;    // Scene 或 附件 resolve 写入 hdrColor
+    hdr.srcAccessMask =
+        VK_ACCESS_2_SHADER_SAMPLED_READ_BIT |
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    hdr.dstStageMask =
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    hdr.dstAccessMask =
+        VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT |
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    hdr.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    hdr.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    if (sceneSamples_ != VK_SAMPLE_COUNT_1_BIT)
+    {
+        auto& msaa = barriers[barrierCount++];
+        msaa = makeSceneImageBarrier(target.msaaColor, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        msaa.srcStageMask =
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        msaa.srcAccessMask =
+            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        msaa.dstStageMask =
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        msaa.dstAccessMask =
+            VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT |
+            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+
+        msaa.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        msaa.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
+
+    VkImageAspectFlags depthAspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    const VkFormat depthFormat = target.depth.format();
+    if (depthFormat == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+        depthFormat == VK_FORMAT_D24_UNORM_S8_UINT)
+    {
+        depthAspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+
+    // 深度 模板附件会在哪些阶段被访问，以及会发生哪些读写
+    const VkPipelineStageFlags2 depthStages =
+        VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |  // 提前做深度/模板测试，例如尽早剔除被遮挡的片元
+        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;    // 在片元着色后做深度/模板测试及相关操作
+    // 以普通深度测试为例，假设深度附件里某个位置保存着 0.6，新片元的深度是 0.3，比较方式是 LESS
+    // READ: 读取已有深度 0.6
+    // WRITE: 如果开启深度写入，把 0.3写回深度附件
+    const VkAccessFlags2 depthAccess =
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    auto& depth = barriers[barrierCount++];
+    depth = makeSceneImageBarrier(target.depth, depthAspect);
+
+    depth.srcStageMask = depthStages;
+    depth.srcAccessMask = depthAccess;
+    depth.dstStageMask = depthStages;
+    depth.dstAccessMask = depthAccess;
+    depth.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // 接下来把图像作为深度/模板附件供深度测试、模板测试相关
+    depth.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkDependencyInfo dependency{};
+    dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependency.imageMemoryBarrierCount = barrierCount;
+    dependency.pImageMemoryBarriers = barriers.data();
+
+    cmdPipelineBarrier2(token.commandBuffer, &dependency);
+}
+
+// 在 scene 绘制后，把 HDR 颜色图准备成 “后处理输入纹理”
+void Renderer::recordSceneColorForPost(const FrameToken &token)
+{
+    if (!initialized_ || context_ == nullptr)
+    {
+        throw std::logic_error("Scene barriers require an initialized renderer");
+    }
+    const auto cmdPipelineBarrier2 = context_->deviceFunctions().cmdPipelineBarrier2;
+    if (!context_->capabilities().synchronization2Enabled || cmdPipelineBarrier2 == nullptr)
+    {
+        throw std::logic_error("Scene barriers require Synchronization2");
+    }
+
+    const HdrFrameTarget& target = hdrTargets_.at(token.frameIndex);
+    auto barrier = makeSceneImageBarrier(target.hdrColor, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+    barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+
+    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDependencyInfo dependency{};
+    dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependency.imageMemoryBarrierCount = 1;
+    dependency.pImageMemoryBarriers = &barrier;
+
+    cmdPipelineBarrier2(token.commandBuffer, &dependency);
+}
+
+void Renderer::beginScenePass(const FrameToken &token, const std::array<VkClearValue, 2> &clearValues)
+{
+    if (!useDynamicRenderingForScene())
+    {
+        VkRenderPassBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        beginInfo.renderPass = sceneRenderPass_;
+        beginInfo.framebuffer = hdrTargets_.at(token.frameIndex).framebuffer;
+        beginInfo.renderArea.offset = {0, 0};
+        beginInfo.renderArea.extent = swapchain_->extent();
+        beginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        beginInfo.pClearValues = clearValues.data();
+
+        vkCmdBeginRenderPass(
+            token.commandBuffer,
+            &beginInfo,
+            VK_SUBPASS_CONTENTS_INLINE
+        );
+        return;
+    }
+
+    const auto cmdBeginRendering = context_->deviceFunctions().cmdBeginRendering;
+    if (cmdBeginRendering == nullptr)
+    {
+        throw std::logic_error("Dynamic scene requires vkCmdBeginRendering");
+    }
+
+    // -- 准备 scene 渲染使用的颜色附件 --
+    recordSceneAttachmentsBegin(token);
+
+    const HdrFrameTarget& target = hdrTargets_.at(token.frameIndex);
+    const bool useMsaa = sceneSamples_ != VK_SAMPLE_COUNT_1_BIT;
+
+    VkRenderingAttachmentInfo color{};
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    color.imageView = useMsaa ? target.msaaColor.view() : target.hdrColor.view();
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    // 开始渲染时，清空成指定的颜色
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // 不开 msaa： 直接画在 hdrColor 上，post还要读取，必须保留
+    // 开启 msaa： resolve 后使用的是 hdrColor，原始的 msaaColor 可以丢弃
+    color.storeOp = useMsaa ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
+    color.clearValue = clearValues[0];
+    // 暂时不启用 Resolve
+    color.resolveMode = VK_RESOLVE_MODE_NONE;
+
+    if (useMsaa)
+    {
+        // 表示对一个像素中的多个采样颜色取平均值
+        color.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+        color.resolveImageView = target.hdrColor.view();
+        color.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
+
+    VkRenderingAttachmentInfo depth{};
+    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth.imageView = target.depth.view();
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.clearValue = clearValues[1];
+
+    VkRenderingInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderingInfo.renderArea.offset = {0, 0};
+    renderingInfo.renderArea.extent = swapchain_->extent();
+    renderingInfo.layerCount = 1;
+    renderingInfo.viewMask = 0;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &color;
+    renderingInfo.pDepthAttachment = &depth;
+    renderingInfo.pStencilAttachment = nullptr;
+
+    cmdBeginRendering(token.commandBuffer, &renderingInfo);
+}
+
+void Renderer::endScenePass(const FrameToken &token)
+{
+    if (!useDynamicRenderingForScene())
+    {
+        vkCmdEndRenderPass(token.commandBuffer);
+        return;
+    }
+
+    const auto cmdEndRendering = context_->deviceFunctions().cmdEndRendering;
+    if (cmdEndRendering == nullptr)
+    {
+        throw std::logic_error("Dynamic rendering requires vkCmdEndRendering");
+    }
+
+    cmdEndRendering(token.commandBuffer);
+    recordSceneColorForPost(token);
 }
 
 // ---------开始 Scene RenderPass-----------------------
@@ -827,7 +1065,10 @@ void Renderer::recreateHdrTargets()
         throw std::runtime_error("HDR configuration changed; restart required");
     }
 
-    createHdrFramebuffers();
+    if (!useDynamicRenderingForScene())
+    {
+        createHdrFramebuffers();
+    }
     // 原来的 post set 指向旧 imageView。图像重建后需要让每帧的 set 指向新 view，而且更新时不能还有 GPU 提交在使用他们
     writePostDescriptors();
 }

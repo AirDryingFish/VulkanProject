@@ -123,7 +123,15 @@ void Renderer::createGraphicsPipeline()
     config.fragShaderPath = MAIN_FRAGMENT_SHADER_PATH;
 
     config.layout = scenePipelineLayout_;
-    config.renderPass = sceneRenderPass_;
+    // config.renderPass = sceneRenderPass_;
+    // config.samples = sceneSamples_;
+
+    config.useDynamicRendering = useDynamicRenderingForScene();
+    config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : sceneRenderPass_;
+
+    config.colorAttachmentFormat = hdrFormat_;
+    config.depthAttachmentFormat = sceneDepthFormat_;
+    config.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
     config.samples = sceneSamples_;
 
     config.useVertexInput = true;
@@ -144,7 +152,13 @@ void Renderer::createSkyboxPipeline()
     config.fragShaderPath = SKYBOX_FRAGMENT_SHADER_PATH;
 
     config.layout = skyboxPipelineLayout_;
-    config.renderPass = sceneRenderPass_;
+
+    config.useDynamicRendering = useDynamicRenderingForScene();
+    config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : sceneRenderPass_;
+
+    config.colorAttachmentFormat = hdrFormat_;
+    config.depthAttachmentFormat = sceneDepthFormat_;
+    config.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
     config.samples = sceneSamples_;
 
     config.useVertexInput = false;

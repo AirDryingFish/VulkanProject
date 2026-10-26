@@ -106,8 +106,11 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createShadowPipeline();
         // -- hdr 资源--
         createHdrTargets();
-        createSceneRenderPass();
-        createHdrFramebuffers();
+        if (!useDynamicRenderingForScene())
+        {
+            createSceneRenderPass();
+            createHdrFramebuffers();
+        }
 
         createPostDescriptors();
         if (!useDynamicRenderingForPresent())
@@ -123,7 +126,13 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createTonemapPipeline();
 
         std::cout << "Present path: " << (useDynamicRenderingForPresent() ? "Dynamic Rendering" : "RenderPass") << "\n";
-
+        std::cout << "Scene path: "
+                  << (useDynamicRenderingForScene()
+                          ? "Dynamic Rendering"
+                          : "RenderPass")
+                  << ", samples="
+                  << static_cast<unsigned int>(sceneSamples_)
+                  << "\n";
         initialized_ = true;
     }
     catch (...)
@@ -426,6 +435,18 @@ bool Renderer::useDynamicRenderingForPresent() const noexcept
     {
         return false;
     }
+    const auto& capabilities = context_->capabilities();
+
+    return capabilities.dynamicRenderingEnabled && capabilities.synchronization2Enabled;
+}
+
+bool Renderer::useDynamicRenderingForScene() const noexcept
+{
+    if (context_ == nullptr)
+    {
+        return false;
+    }
+
     const auto& capabilities = context_->capabilities();
 
     return capabilities.dynamicRenderingEnabled && capabilities.synchronization2Enabled;
@@ -839,19 +860,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     }};
     clearValues[1].depthStencil = {1.0f, 0};
 
-    VkRenderPassBeginInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = sceneRenderPass_;
-    renderPassInfo.framebuffer = hdrTargets_.at(token.frameIndex).framebuffer;
-    renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderArea.extent = swapchain_->extent();
-    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-    renderPassInfo.pClearValues = clearValues.data();
-
     beginGpuPass(GpuPass::Scene);
-
-    // -- 开启 scene 并打点 --
-    vkCmdBeginRenderPass(token.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    beginScenePass(token, clearValues);
 
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -960,7 +970,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     // -- 结束 HDR scene pass --
     // hdrColor 的最终布局及输出依赖由 sceneRenderPass_ 处理
-    vkCmdEndRenderPass(token.commandBuffer);
+    endScenePass(token);
     endGpuPass(GpuPass::Scene);
 
     VkClearValue presentClear{};

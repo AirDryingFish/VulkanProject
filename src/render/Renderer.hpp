@@ -195,6 +195,15 @@ private:
     // -- hdr --
     void selectHdrConfiguration(); // 选择支持的格式和采样数
     void createHdrTargets(); // 创建图像
+
+    void recordSceneAttachmentsBegin(const FrameToken& token);
+    void recordSceneColorForPost(const FrameToken& token);
+
+    bool useDynamicRenderingForScene() const noexcept;
+
+    void beginScenePass(const FrameToken& token, const std::array<VkClearValue, 2>& clearValues);
+    void endScenePass(const FrameToken& token);
+
     void createSceneRenderPass();
     void createPresentRenderPass();
     void createHdrFramebuffers();
