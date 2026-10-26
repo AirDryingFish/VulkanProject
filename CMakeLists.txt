@@ -229,6 +229,20 @@ if(BUILD_TESTING)
     target_link_libraries(baseline_capture_tests PRIVATE glm::glm Vulkan::Vulkan)
     add_test(NAME baseline_capture_tests COMMAND baseline_capture_tests)
 
+    add_executable(shadow_cascade_math_tests
+        tests/ShadowCascadeMathTests.cpp
+        src/render/ShadowCascades.cpp
+    )
+
+    target_include_directories(
+        shadow_cascade_math_tests PRIVATE src
+    )
+
+    add_test(
+        NAME shadow_cascade_math_tests
+        COMMAND shadow_cascade_math_tests
+    )
+
     add_executable(gltf_loader_tests
         tests/GltfLoaderTests.cpp
     )
