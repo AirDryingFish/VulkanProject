@@ -32,7 +32,7 @@ echo Shader compilation complete.
 exit /b 0
 
 :compile
-glslc "%~1" -o "%~2"
+glslc --target-env=vulkan1.0 "%~1" -o "%~2"
 exit /b %errorlevel%
 
 :failed

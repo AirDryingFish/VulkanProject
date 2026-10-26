@@ -10,7 +10,7 @@ if ! command -v glslc >/dev/null 2>&1; then
 fi
 
 compile() {
-    glslc "$SHADER_DIR/$1" -o "$SHADER_DIR/$2"
+    glslc --target-env=vulkan1.0 "$SHADER_DIR/$1" -o "$SHADER_DIR/$2"
 }
 
 compile shader.vert vert.spv
