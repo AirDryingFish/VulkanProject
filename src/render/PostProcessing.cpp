@@ -436,7 +436,7 @@ void Renderer::beginScenePass(const FrameToken &token, const std::array<VkClearV
     VkRenderingAttachmentInfo depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     depth.imageView = target.depth.view();
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depth.clearValue = clearValues[1];

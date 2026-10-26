@@ -238,6 +238,19 @@ private:
     void createShadowPipeline();
     void createShadowFramebuffers();
     void recordShadowPass(const FrameToken& token, const RenderFrameData& data);
+
+    bool useDynamicRenderingForShadow() const noexcept;
+    enum class ShadowImageTransition
+    {
+        ToAttachment,
+        ToSampling
+    };
+
+    void recordShadowImageTransition(const FrameToken& token, ShadowImageTransition transition);
+
+    void beginShadowPass(const FrameToken& token, const VkClearValue& clearValue);
+    void endShadowPass(const FrameToken& token);
+
     // ----
 
     VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);

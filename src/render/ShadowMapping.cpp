@@ -13,6 +13,17 @@
 #include <string>
 #include <algorithm>
 
+bool Renderer::useDynamicRenderingForShadow() const noexcept
+{
+    if (context_ == nullptr)
+    {
+        return false;
+    }
+    const auto &capabilities = context_->capabilities();
+
+    return capabilities.dynamicRenderingEnabled && capabilities.synchronization2Enabled;
+}
+
 void Renderer::createShadowTargets()
 {
     // -- 从 gpu 支持的深度格式里，选一个既能当 depth attachment，又能被 shader 采样的格式，作为 shadow map 的格式--
@@ -308,8 +319,21 @@ void Renderer::createShadowPipeline()
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
+    const bool useDynamic = useDynamicRenderingForShadow();
+
+    VkPipelineRenderingCreateInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    renderingInfo.viewMask = 0;
+    renderingInfo.colorAttachmentCount = 0;
+    renderingInfo.pColorAttachmentFormats = nullptr;
+    renderingInfo.depthAttachmentFormat = shadowDepthFormat_;
+    renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+
+    pipelineInfo.pNext = useDynamic ? &renderingInfo : nullptr;
+
     pipelineInfo.stageCount = static_cast<uint32_t>(shaderStage.size());
     pipelineInfo.pStages = shaderStage.data();
     pipelineInfo.pVertexInputState = &vertexInput;
@@ -321,7 +345,7 @@ void Renderer::createShadowPipeline()
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.layout = shadowPipelineLayout_;
-    pipelineInfo.renderPass = shadowRenderPass_;
+    pipelineInfo.renderPass = useDynamic ? VK_NULL_HANDLE : shadowRenderPass_;
     pipelineInfo.subpass = 0; // 运行在 renderPass 的第 0 个 subpass 里
 
     VK_CHECK(vkCreateGraphicsPipelines(
@@ -343,6 +367,145 @@ void Renderer::createShadowPipeline()
         &shadowDoubleSidedPipeline_));
 }
 
+void Renderer::recordShadowImageTransition(const FrameToken &token, ShadowImageTransition transition)
+{
+    if (!initialized_ || context_ == nullptr)
+    {
+        throw std::logic_error("Shadow transition requires an initialized renderer");
+    }
+
+    const auto cmdPipelineBarrier2 = context_->deviceFunctions().cmdPipelineBarrier2;
+    if (cmdPipelineBarrier2 == nullptr)
+    {
+        throw std::logic_error("Shadow transition requires Synchronization2");
+    }
+
+    const ShadowTarget& target = shadowTargets_.at(token.frameIndex);
+
+    VkImageMemoryBarrier2 barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = target.depth.get();
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    const VkPipelineStageFlags2 depthStages =
+        VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+
+    const VkAccessFlags2 depthAccess =
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    if (transition == ShadowImageTransition::ToAttachment)
+    {
+        // 此张图片之前可能发生过纹理采样和深度附件访问
+        barrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | depthStages;
+        //
+        barrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT | depthAccess;
+
+        barrier.dstStageMask = depthStages;
+        barrier.dstAccessMask = depthAccess;
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+    // 阴影图画好了，准备给 scene 采样
+    else
+    {
+        // shadow 阶段向深度附件写入过阴影深度
+        barrier.srcStageMask = depthStages;
+        barrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    }
+
+    VkDependencyInfo dependency{};
+    dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependency.imageMemoryBarrierCount = 1;
+    dependency.pImageMemoryBarriers = &barrier;
+
+    cmdPipelineBarrier2(token.commandBuffer, &dependency);
+}
+
+void Renderer::beginShadowPass(const FrameToken &token, const VkClearValue &clearValue)
+{
+    const ShadowTarget& target = shadowTargets_.at(token.frameIndex);
+
+    if (!useDynamicRenderingForShadow())
+    {
+        VkRenderPassBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        beginInfo.renderArea.offset = {0, 0};
+        beginInfo.renderArea.extent = {directionalShadowResolution, directionalShadowResolution};
+        beginInfo.renderPass = shadowRenderPass_;
+        beginInfo.framebuffer = target.framebuffer;
+        beginInfo.clearValueCount = 1;
+        beginInfo.pClearValues = &clearValue;
+
+        vkCmdBeginRenderPass(token.commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        return;
+    }
+
+    const auto cmdBeginRendering = context_->deviceFunctions().cmdBeginRendering;
+    if (cmdBeginRendering == nullptr)
+    {
+        throw std::logic_error("Dynamic shadow requires vkCmdBeginRendering");
+    }
+
+    recordShadowImageTransition(token, ShadowImageTransition::ToAttachment);
+
+    VkRenderingAttachmentInfo depth{};
+    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth.imageView = target.depth.view();
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depth.clearValue = clearValue;
+    depth.resolveMode = VK_RESOLVE_MODE_NONE;
+
+    VkRenderingInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderingInfo.renderArea.offset = {0, 0};
+    renderingInfo.renderArea.extent = {directionalShadowResolution, directionalShadowResolution};
+
+    renderingInfo.layerCount = 1;
+    renderingInfo.viewMask = 0;
+
+    renderingInfo.colorAttachmentCount = 0;
+    renderingInfo.pColorAttachments = nullptr;
+    renderingInfo.pDepthAttachment = &depth;
+    renderingInfo.pStencilAttachment = nullptr;
+
+    cmdBeginRendering(token.commandBuffer, &renderingInfo);
+}
+
+void Renderer::endShadowPass(const FrameToken &token)
+{
+    if (!useDynamicRenderingForShadow())
+    {
+        vkCmdEndRenderPass(token.commandBuffer);
+        return;
+    }
+
+    const auto cmdEndRendering = context_->deviceFunctions().cmdEndRendering;
+    if (cmdEndRendering == nullptr)
+    {
+        throw std::logic_error("Dynamic rendering requires cmdEndRendering");
+    }
+
+    cmdEndRendering(token.commandBuffer);
+
+    recordShadowImageTransition(token, ShadowImageTransition::ToSampling);
+}
+
 void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &data)
 {
     FrameContext& frame = frames_.at(token.frameIndex);
@@ -353,22 +516,7 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
     // 深度清成 1.0f，代表目前还没有记录到更近的遮挡物
     clearValue.depthStencil = {1.0f, 0};
 
-    VkRenderPassBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    beginInfo.renderPass = shadowRenderPass_;
-    beginInfo.framebuffer = target.framebuffer;
-    beginInfo.renderArea.offset = {0, 0};
-    beginInfo.renderArea.extent = {
-        directionalShadowResolution,
-        directionalShadowResolution};
-    beginInfo.clearValueCount = 1;
-    beginInfo.pClearValues = &clearValue;
-
-    vkCmdBeginRenderPass(
-        token.commandBuffer,
-        &beginInfo,
-        VK_SUBPASS_CONTENTS_INLINE
-    );
+    beginShadowPass(token, clearValue);
 
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -467,7 +615,7 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
     }
     // ----
 
-    vkCmdEndRenderPass(token.commandBuffer);
+    endShadowPass(token);
 }
 
 void Renderer::recordShadowPreview(const FrameToken &token, const RenderFrameData &data)

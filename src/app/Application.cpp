@@ -129,7 +129,7 @@ void Application::cleanup() noexcept
 
     // RAII 只能自动释放 CPU 持有的句柄，不会自动等待 GPU 停止使用这些资源。
     const VkResult result = context.waitIdle();
-    if (result != VK_SUCCESS && result != VK_ERROR_DEVICE_LOST)
+    if (result != VK_SUCCESS)
     {
         std::fprintf(
             stderr,

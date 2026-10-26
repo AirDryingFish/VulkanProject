@@ -101,8 +101,11 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createUploadContext();
         // -- 初始化阴影渲染管线 --
         createShadowTargets();
-        createShadowRenderPass();
-        createShadowFramebuffers();
+        if (!useDynamicRenderingForShadow())
+        {
+            createShadowRenderPass();
+            createShadowFramebuffers();
+        }
         createShadowPipeline();
         // -- hdr 资源--
         createHdrTargets();
@@ -132,6 +135,11 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
                           : "RenderPass")
                   << ", samples="
                   << static_cast<unsigned int>(sceneSamples_)
+                  << "\n";
+        std::cout << "Shadow path: "
+                  << (useDynamicRenderingForShadow()
+                          ? "Dynamic Rendering"
+                          : "RenderPass")
                   << "\n";
         initialized_ = true;
     }
