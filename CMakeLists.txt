@@ -232,10 +232,15 @@ if(BUILD_TESTING)
     add_executable(shadow_cascade_math_tests
         tests/ShadowCascadeMathTests.cpp
         src/render/ShadowCascades.cpp
+        src/scene/Camera.cpp
     )
 
     target_include_directories(
         shadow_cascade_math_tests PRIVATE src
+    )
+
+    target_link_libraries(
+        shadow_cascade_math_tests PRIVATE glm::glm
     )
 
     add_test(
