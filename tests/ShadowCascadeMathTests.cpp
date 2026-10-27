@@ -276,6 +276,175 @@ namespace
                 "Invalid frustum slice must be rejected");
         }
     }
+
+    void testKnownShadowXYAndSnapping()
+    {
+        const auto cornersView = calculateFrustumSliceCorners(
+            glm::mat4(1.0f), 90.0f, 1.0f, 1.0f, 3.0f);
+
+        const glm::vec3 direction(0.0f, 0.0f, -1.0f);
+
+        const auto base = fitShadowCascadeXY(
+            cornersView, glm::mat4(1.0f), direction, 16);
+
+        const float expectedRadius = std::sqrt(19.0f);
+
+        require(
+            glm::length(
+                base.centerWorld - glm::vec3(0, 0, -2)) < 1e-5f,
+            "Unexpected slice center");
+
+        require(
+            std::abs(base.radius - expectedRadius) < 1e-5f,
+            "Unexpected slice radius");
+
+        require(
+            std::abs(
+                base.halfExtent -
+                expectedRadius * 4.0f / 3.0f) < 1e-5f,
+            "Unexpected guarded extent");
+
+        require(
+            std::abs(
+                base.texelWorldSize -
+                expectedRadius / 6.0f) < 1e-5f,
+            "Unexpected world texel size");
+
+        const float texel = base.texelWorldSize;
+
+        glm::mat4 inverseView(1.0f);
+        inverseView[3].x = 0.2f * texel;
+
+        const auto smallMove = fitShadowCascadeXY(
+            cornersView, inverseView, direction, 16);
+
+        require(
+            glm::length(
+                smallMove.snappedCenterLightSpace) < 1e-5f,
+            "Move within this grid cell must keep snapped center");
+
+        inverseView[3].x = 0.6f * texel;
+
+        const auto nextCell = fitShadowCascadeXY(
+            cornersView, inverseView, direction, 16);
+
+        require(
+            glm::length(
+                nextCell.snappedCenterLightSpace -
+                glm::vec2(texel, 0)) < 1e-5f,
+            "Crossing the rounding boundary must move one texel");
+    }
+
+    void testShadowXYCoverage()
+    {
+        const auto cornersView = calculateFrustumSliceCorners(
+            glm::mat4(1.0f),
+            60.0f, 16.0f / 9.0f, 1.0f, 30.0f);
+
+        const std::array<glm::vec3, 3> directions{{{-1.0f, -1.0f, -2.0f},
+                                                   {0.0f, 0.0f, -1.0f},
+                                                   {0.0f, 0.0f, 1.0f}}};
+
+        const std::array<glm::vec3, 3> eyes{{{0.0f, -5.0f, 2.0f},
+                                             {3.0f, -2.0f, 4.0f},
+                                             {0.0f, 0.0f, 5.0f}}};
+
+        for (const auto &direction : directions)
+        {
+            const auto reference = fitShadowCascadeXY(
+                cornersView, glm::mat4(1.0f), direction, 2048);
+
+            for (const auto &eye : eyes)
+            {
+                Camera camera;
+                camera.lookAt(eye, glm::vec3(0.0f));
+
+                const glm::mat4 inverseView =
+                    glm::inverse(camera.view());
+
+                const auto fit = fitShadowCascadeXY(
+                    cornersView, inverseView, direction, 2048);
+
+                require(
+                    fit.radius == reference.radius &&
+                        fit.halfExtent == reference.halfExtent &&
+                        fit.texelWorldSize == reference.texelWorldSize,
+                    "Camera pose must not change XY size");
+
+                const glm::vec3 lightForward = glm::vec3(
+                    fit.lightRotation *
+                    glm::vec4(glm::normalize(direction), 0.0f));
+
+                require(
+                    glm::length(
+                        lightForward -
+                        glm::vec3(0, 0, -1)) < 1e-5f,
+                    "Light propagation must map to negative light Z");
+
+                const glm::vec2 grid =
+                    fit.snappedCenterLightSpace /
+                    fit.texelWorldSize;
+
+                require(
+                    glm::length(
+                        grid - glm::round(grid)) < 1e-3f,
+                    "Shadow center must lie on texel grid");
+
+                for (const auto &cornerView : cornersView)
+                {
+                    const glm::vec4 world =
+                        inverseView * glm::vec4(cornerView, 1.0f);
+
+                    const glm::vec2 delta =
+                        glm::vec2(fit.lightRotation * world) -
+                        fit.snappedCenterLightSpace;
+
+                    const float limit =
+                        fit.halfExtent - fit.texelWorldSize;
+
+                    require(
+                        std::abs(delta.x) <= limit + 1e-4f &&
+                            std::abs(delta.y) <= limit + 1e-4f,
+                        "All corners must retain a PCF texel of margin");
+                }
+            }
+        }
+    }
+
+    void testInvalidShadowXY()
+    {
+        const auto cornersView = calculateFrustumSliceCorners(
+            glm::mat4(1.0f), 60.0f, 1.0f, 1.0f, 10.0f);
+
+        const auto expectRejected =
+            [&](const FrustumSliceCorners &corners,
+                const glm::vec3 &direction,
+                std::uint32_t resolution)
+        {
+            bool rejected = false;
+
+            try
+            {
+                (void)fitShadowCascadeXY(
+                    corners,
+                    glm::mat4(1.0f),
+                    direction,
+                    resolution);
+            }
+            catch (const std::invalid_argument &)
+            {
+                rejected = true;
+            }
+
+            require(
+                rejected,
+                "Invalid shadow XY input must be rejected");
+        };
+
+        expectRejected(cornersView, {0, 0, -1}, 4);
+        expectRejected(cornersView, {0, 0, 0}, 2048);
+        expectRejected(FrustumSliceCorners{}, {0, 0, -1}, 2048);
+    }
 }
 
 int main()
@@ -289,6 +458,10 @@ int main()
         testKnownFrustumSlice();
         testCascadeReprojection();
         testInvalidFrustumSlices();
+
+        testKnownShadowXYAndSnapping();
+        testShadowXYCoverage();
+        testInvalidShadowXY();
 
         std::cout << "Shadow cascade math tests passed\n";
         return 0;

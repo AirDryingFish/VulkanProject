@@ -1,7 +1,10 @@
 #include "ShadowCascades.hpp"
 
+#include <glm/ext/matrix_transform.hpp>
+
 #include <cmath>
 #include <stdexcept>
+#include <algorithm>
 
 std::array<float, shadowCascadeCount> calculateCascadeSplits(float nearPlane, float shadowFar, float lambda)
 {
@@ -114,4 +117,111 @@ FrustumSliceCorners calculateFrustumSliceCorners(const glm::mat4 &inverseView, f
         }
     }
     return corners;
+}
+
+// 包围球固定每级阴影的覆盖尺寸，再将覆盖中心对齐到 texel 网格，减少相机移动和旋转时的阴影抖动
+ShadowCascadeXY fitShadowCascadeXY(const FrustumSliceCorners &cornerView, const glm::mat4 &inverseView, const glm::vec3 &lightDirection, std::uint32_t resolution)
+{
+    // 在包围球的四周，每侧预留 2 个 texel 的安全边距
+    constexpr double guardTexels = 2.0;
+
+    if (resolution <= 2.0 * guardTexels)
+    {
+        throw std::invalid_argument("Shadow resolution is too small");
+    }
+
+    for (int col = 0; col < 4; ++col)
+    {
+        for (int row = 0; row < 4; ++row)
+        {
+            if (!std::isfinite(inverseView[col][row]))
+            {
+                throw std::invalid_argument("Inverse view must be finite");
+            }
+        }
+    }
+
+    // 先在 view space 求球，半径不会随相机平移、旋转而变化
+    glm::dvec3 centerView(0.0);
+
+    for (const auto& corner : cornerView)
+    {
+        if (!std::isfinite(corner.x) ||
+            !std::isfinite(corner.y) ||
+            !std::isfinite(corner.z))
+        {
+            throw std::invalid_argument("Frustum corners must be finite");
+        }
+
+        centerView += glm::dvec3(corner);
+    }
+
+    centerView /= static_cast<double>(cornerView.size());
+
+    double radius = 0.0;
+    for (const auto& corner : cornerView)
+    {
+        radius = std::max(radius, glm::length(glm::dvec3(corner) - centerView));
+    }
+
+    if (!std::isfinite(radius) || radius <= 0.0)
+    {
+        throw std::invalid_argument("Frustum sphere must have positve radius");
+    }
+
+    const glm::dvec3 directionInput(lightDirection);
+    const double lengthSquared = glm::dot(directionInput, directionInput);
+    if (!std::isfinite(lengthSquared) || lengthSquared <= 0.0)
+    {
+        throw std::invalid_argument("Light direction must be finite and nonzero");
+    }
+
+    const glm::vec3 direction(directionInput / std::sqrt(lengthSquared));
+    const glm::vec3 worldUp(0.0f, 0.0f, 1.0f);
+    // 如果光线方向朝着up，用(0 1 0)作为lightUp
+    const glm::vec3 lightUp = std::abs(glm::dot(direction, worldUp)) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f) : worldUp;
+
+    ShadowCascadeXY fit{};
+    fit.lightRotation = glm::lookAtRH(glm::vec3(0.0f), direction, lightUp);
+    fit.centerWorld = glm::vec3(inverseView * glm::vec4(glm::vec3(centerView), 1.0));
+
+    // 贴图分辨率（多少格）
+    const double size = static_cast<double>(resolution);
+    // shadow map 覆盖的正方形区域，从中心到一侧边缘的距离
+    const double halfExtent = radius / (1.0 - 2.0 * guardTexels / size);
+
+    fit.radius = static_cast<float>(radius);
+    fit.halfExtent = static_cast<float>(halfExtent);
+    fit.texelWorldSize = static_cast<float>(2 * halfExtent / size);
+    if (!std::isfinite(fit.radius) || fit.radius <= 0.0f ||
+        !std::isfinite(fit.halfExtent) || fit.halfExtent <= 0.0f ||
+        !std::isfinite(fit.texelWorldSize) ||
+        fit.texelWorldSize <= 0.0f)
+    {
+        throw std::range_error(
+            "Shadow XY size is not representable");
+    }
+
+    // 把包围球球心从 world 转 light
+    const glm::vec3 centerLightSpace(fit.lightRotation * glm::vec4(fit.centerWorld, 1.0f));
+    if (!std::isfinite(centerLightSpace.x) ||
+        !std::isfinite(centerLightSpace.y) ||
+        !std::isfinite(centerLightSpace.z))
+    {
+        throw std::range_error(
+            "Shadow center is not finite");
+    }
+
+    const double texel = fit.texelWorldSize;
+    fit.snappedCenterLightSpace = glm::vec2(
+        std::round(static_cast<double>(centerLightSpace.x / texel)) * texel,
+        std::round(static_cast<double>(centerLightSpace.y / texel)) * texel);
+    if (!std::isfinite(fit.snappedCenterLightSpace.x) ||
+        !std::isfinite(fit.snappedCenterLightSpace.y))
+    {
+        throw std::range_error(
+            "Snapped shadow center is not finite");
+    }
+
+    return fit;
 }

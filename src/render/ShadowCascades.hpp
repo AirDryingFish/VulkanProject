@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 inline constexpr std::size_t shadowCascadeCount = 4;
 
@@ -28,3 +29,24 @@ FrustumSliceCorners calculateFrustumSliceCorners(
     float farDistance
 );
 
+struct ShadowCascadeXY
+{
+    // 世界空间 -> 以世界原点为参考的光空间，只包含旋转
+    glm::mat4 lightRotation{1.0f};
+
+    glm::vec3 centerWorld{};
+
+    // 已对齐 texel 网格的光空间 XY 中心
+    glm::vec2 snappedCenterLightSpace{};
+
+    float radius = 0.0f;
+    float halfExtent = 0.0f;
+    float texelWorldSize = 0.0f;
+};
+
+ShadowCascadeXY fitShadowCascadeXY(
+    const FrustumSliceCorners& cornerView,
+    const glm::mat4& inverseView,
+    const glm::vec3& lightDirection,
+    std::uint32_t resolution
+);
