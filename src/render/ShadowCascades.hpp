@@ -50,3 +50,24 @@ ShadowCascadeXY fitShadowCascadeXY(
     const glm::vec3& lightDirection,
     std::uint32_t resolution
 );
+
+// 定义完整矩阵计算结果，区分主相机 near 与光源 near
+struct ShadowCascadeMatrices
+{
+    glm::mat4 view{1.0f};
+    glm::mat4 projection{1.0f};
+    glm::mat4 viewProjection{1.0f};
+
+    float nearPlane = 0.0f;
+    float farPlane = 0.0f;
+};
+
+// XY 来自稳定拟合；
+// sceneMinimum/sceneMaximum 是世界空间 AABB
+// lightNear 是光源虚拟相机的正近面距离
+ShadowCascadeMatrices calculateShadowCascadeMatrices(
+    const ShadowCascadeXY &xy,
+    const glm::vec3& sceneMinimum,
+    const glm::vec3& sceneMaximum,
+    float depthMargin,
+    float lightNear);

@@ -1,10 +1,12 @@
 #include "ShadowCascades.hpp"
 
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
 
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
+#include <limits>
 
 std::array<float, shadowCascadeCount> calculateCascadeSplits(float nearPlane, float shadowFar, float lambda)
 {
@@ -224,4 +226,86 @@ ShadowCascadeXY fitShadowCascadeXY(const FrustumSliceCorners &cornerView, const 
     }
 
     return fit;
+}
+
+// 将场景包围盒变换到光空间，建立能容纳遮挡物的完整矩阵
+ShadowCascadeMatrices calculateShadowCascadeMatrices(const ShadowCascadeXY &xy, const glm::vec3 &sceneMinimum, const glm::vec3 &sceneMaximum, float depthMargin, float lightNear)
+{
+    // 数值检查
+    if (!std::isfinite(xy.halfExtent) ||
+        xy.halfExtent <= 0.0f ||
+
+        !std::isfinite(xy.snappedCenterLightSpace.x) ||
+        !std::isfinite(xy.snappedCenterLightSpace.y) ||
+
+        !std::isfinite(depthMargin) ||
+        depthMargin < 0.0f ||
+
+        !std::isfinite(lightNear) ||
+        lightNear <= 0.0f)
+    {
+        throw std::invalid_argument("Invalid shadow projection parameters");
+    }
+
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        if (!std::isfinite(sceneMinimum[axis]) ||
+            !std::isfinite(sceneMaximum[axis]) ||
+            sceneMinimum[axis] > sceneMaximum[axis])
+        {
+            throw std::invalid_argument("Invalid scene bounds");
+        }
+    }
+
+    for (int column = 0; column < 4; ++column)
+    {
+        for (int row = 0; row < 4; ++row)
+        {
+            if (!std::isfinite(xy.lightRotation[column][row]))
+            {
+                throw std::invalid_argument("Light rotation must be finite");
+            }
+        }
+    }
+
+
+    const glm::dmat4 rotation(xy.lightRotation);
+    double minimumZ = std::numeric_limits<double>::max();
+    double maximumZ = std::numeric_limits<double>::lowest();
+
+    std::array<glm::vec4, 8> cornersWorld{};
+
+
+    // 统计 Z 的最大最小值
+    // i	二进制 X  Y   Z
+    // 0	000	min	min	min
+    // 1	001	max	min	min
+    // 2	010	min	max	min
+    // 3	011	max	max	min
+    // 4	100	min	min	max
+    // 5	101	max	min	max
+    // 6	110	min	max	max
+    // 7	111	max	max	max
+    for (std::size_t i = 0; i < cornersWorld.size(); ++i)
+    {
+        cornersWorld[i] = glm::vec4(
+            (i & 1) ? sceneMaximum.x : sceneMinimum.x,
+            (i & 2) ? sceneMaximum.y : sceneMinimum.y,
+            (i & 4) ? sceneMaximum.z : sceneMinimum.z,
+            1.0f
+        );
+
+        const glm::dvec4 light = rotation * cornersWorld[i];
+
+        minimumZ = std::min(minimumZ, light.z);
+        maximumZ = std::max(maximumZ, light.z);
+    }
+
+    // margin 是场景前后留的安全距离
+    const double margin = depthMargin;
+    // 
+    const double eyeZ = maximumZ + margin + lightNear;
+    const double farDistance = (maximumZ - minimumZ) + 2.0 * margin + lightNear;
+
+
 }
