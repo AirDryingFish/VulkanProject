@@ -445,6 +445,211 @@ namespace
         expectRejected(cornersView, {0, 0, 0}, 2048);
         expectRejected(FrustumSliceCorners{}, {0, 0, -1}, 2048);
     }
+
+    glm::vec3 shadowNdc(
+        const glm::mat4 &matrix,
+        const glm::vec3 &world)
+    {
+        const glm::vec4 clip =
+            matrix * glm::vec4(world, 1.0f);
+
+        require(
+            std::isfinite(clip.w) && clip.w > 0.0f,
+            "Shadow clip W must be positive and finite");
+
+        return glm::vec3(clip) / clip.w;
+    }
+
+    void testKnownShadowMatrices()
+    {
+        ShadowCascadeXY xy{};
+        xy.halfExtent = 4.0f;
+        xy.snappedCenterLightSpace = {2.0f, -3.0f};
+
+        const auto matrices = calculateShadowCascadeMatrices(
+            xy,
+            {-2.0f, -8.0f, -10.0f},
+            {8.0f, 4.0f, 6.0f},
+            2.0f,
+            1.0f);
+
+        require(
+            matrices.nearPlane == 1.0f &&
+                matrices.farPlane == 21.0f,
+            "Unexpected light depth interval");
+
+        const glm::vec3 originInView(
+            matrices.view * glm::vec4(0, 0, 0, 1));
+
+        require(
+            glm::length(
+                originInView - glm::vec3(-2, 3, -9)) < 1e-5f,
+            "Unexpected light view translation");
+
+        const auto closest =
+            shadowNdc(matrices.viewProjection, {2, -3, 6});
+
+        const auto farthest =
+            shadowNdc(matrices.viewProjection, {2, -3, -10});
+
+        require(
+            std::abs(closest.z - 0.1f) < 1e-5f &&
+                std::abs(farthest.z - 0.9f) < 1e-5f,
+            "Scene endpoints must retain depth margin");
+
+        require(
+            std::abs(shadowNdc(
+                         matrices.viewProjection, {6, -3, 6})
+                         .x -
+                     1.0f) < 1e-5f,
+            "Right edge must map to positive NDC X");
+
+        require(
+            std::abs(shadowNdc(
+                         matrices.viewProjection, {2, 1, 6})
+                         .y +
+                     1.0f) < 1e-5f,
+            "Upper edge must include one Vulkan Y flip");
+    }
+
+    void testShadowMatrixCoverage()
+    {
+        const glm::vec3 minimum(-2.0f, -3.0f, -4.0f);
+        const glm::vec3 maximum(5.0f, 7.0f, 11.0f);
+
+        const auto cornersView = calculateFrustumSliceCorners(
+            glm::mat4(1.0f),
+            60.0f, 16.0f / 9.0f, 1.0f, 30.0f);
+
+        Camera camera;
+        camera.lookAt(
+            {3.0f, -5.0f, 2.0f},
+            {0.0f, 0.0f, 0.0f});
+
+        const glm::mat4 inverseView =
+            glm::inverse(camera.view());
+
+        const std::array<glm::vec3, 3> directions{{{1.0f, -2.0f, -3.0f},
+                                                   {0.0f, 0.0f, -1.0f},
+                                                   {0.0f, 0.0f, 1.0f}}};
+
+        for (std::size_t d = 0; d < directions.size(); ++d)
+        {
+            const auto xy = fitShadowCascadeXY(
+                cornersView, inverseView, directions[d], 2048);
+
+            const auto matrices = calculateShadowCascadeMatrices(
+                xy, minimum, maximum, 1.0f, 0.5f);
+
+            if (d == 0)
+            {
+                require(
+                    std::abs(
+                        matrices.farPlane -
+                        (72.0f / std::sqrt(14.0f) + 2.5f)) < 1e-4f,
+                    "Oblique light must include all eight AABB corners");
+            }
+
+            for (std::size_t i = 0; i < 8; ++i)
+            {
+                const glm::vec3 world(
+                    (i & 1) ? maximum.x : minimum.x,
+                    (i & 2) ? maximum.y : minimum.y,
+                    (i & 4) ? maximum.z : minimum.z);
+
+                const auto ndc =
+                    shadowNdc(matrices.viewProjection, world);
+
+                require(
+                    ndc.z >= -1e-4f && ndc.z <= 1.0001f,
+                    "Scene caster depth must remain within light range");
+            }
+
+            for (const auto &corner : cornersView)
+            {
+                const glm::vec3 world(
+                    inverseView * glm::vec4(corner, 1.0f));
+
+                const auto ndc =
+                    shadowNdc(matrices.viewProjection, world);
+
+                require(
+                    std::abs(ndc.x) <= 1.0001f &&
+                        std::abs(ndc.y) <= 1.0001f,
+                    "Slice corners must remain within shadow XY");
+            }
+
+            const glm::vec4 anchorWorld =
+                glm::inverse(xy.lightRotation) *
+                glm::vec4(
+                    xy.snappedCenterLightSpace, 0.0f, 1.0f);
+
+            require(
+                glm::length(glm::vec2(shadowNdc(
+                    matrices.viewProjection,
+                    glm::vec3(anchorWorld)))) < 1e-4f,
+                "Snapped center must map to NDC XY origin");
+        }
+    }
+
+    void testInvalidShadowMatrices()
+    {
+        ShadowCascadeXY xy{};
+        xy.halfExtent = 4.0f;
+
+        const auto expectInvalid =
+            [&](const glm::vec3 &minimum,
+                const glm::vec3 &maximum,
+                float margin,
+                float nearPlane)
+        {
+            bool rejected = false;
+
+            try
+            {
+                (void)calculateShadowCascadeMatrices(
+                    xy, minimum, maximum, margin, nearPlane);
+            }
+            catch (const std::invalid_argument &)
+            {
+                rejected = true;
+            }
+
+            require(
+                rejected,
+                "Invalid shadow matrix input must be rejected");
+        };
+
+        expectInvalid({0, 0, 0}, {1, 1, 1}, -1.0f, 0.1f);
+        expectInvalid({0, 0, 0}, {1, 1, 1}, 1.0f, 0.0f);
+        expectInvalid({2, 0, 0}, {1, 1, 1}, 1.0f, 0.1f);
+
+        const float nan =
+            std::numeric_limits<float>::quiet_NaN();
+
+        expectInvalid({nan, 0, 0}, {1, 1, 1}, 1.0f, 0.1f);
+
+        // near+1 在 float 中舍入回 near。
+        bool rejected = false;
+
+        try
+        {
+            (void)calculateShadowCascadeMatrices(
+                xy,
+                {0, 0, 0},
+                {1, 1, 1},
+                0.0f,
+                16777216.0f);
+        }
+        catch (const std::range_error &)
+        {
+            rejected = true;
+        }
+
+        require(
+            rejected,
+            "Collapsed float depth interval must be rejected");
+    }
 }
 
 int main()
@@ -462,6 +667,10 @@ int main()
         testKnownShadowXYAndSnapping();
         testShadowXYCoverage();
         testInvalidShadowXY();
+
+        testKnownShadowMatrices();
+        testShadowMatrixCoverage();
+        testInvalidShadowMatrices();
 
         std::cout << "Shadow cascade math tests passed\n";
         return 0;

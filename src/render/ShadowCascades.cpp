@@ -295,7 +295,7 @@ ShadowCascadeMatrices calculateShadowCascadeMatrices(const ShadowCascadeXY &xy, 
             1.0f
         );
 
-        const glm::dvec4 light = rotation * cornersWorld[i];
+        const glm::dvec4 light = rotation * glm::dvec4(cornersWorld[i]);
 
         minimumZ = std::min(minimumZ, light.z);
         maximumZ = std::max(maximumZ, light.z);
@@ -303,9 +303,75 @@ ShadowCascadeMatrices calculateShadowCascadeMatrices(const ShadowCascadeXY &xy, 
 
     // margin 是场景前后留的安全距离
     const double margin = depthMargin;
-    // 
+    // 把相机放在场景最大 Z 的外侧，并保证 near 平面和场景之间还有 margin 的间隔
     const double eyeZ = maximumZ + margin + lightNear;
+    // 从相机到 far 平面的矩阵。在场景的前后两侧各留一份 margin，所以要 * 2.0
     const double farDistance = (maximumZ - minimumZ) + 2.0 * margin + lightNear;
 
+    ShadowCascadeMatrices matrices{};
+    matrices.nearPlane = lightNear;
+    matrices.farPlane = static_cast<float>(farDistance);
+    if (!std::isfinite(eyeZ) ||
+        !std::isfinite(matrices.farPlane) ||
+        matrices.farPlane <= matrices.nearPlane)
+    {
+        throw std::range_error("Shadow depth interval is not representable");
+    }
 
+    // 先旋转到 light space，再平移
+    const glm::dvec3 translation(
+        -static_cast<double>(xy.snappedCenterLightSpace.x),
+        -static_cast<double>(xy.snappedCenterLightSpace.y),
+        -eyeZ
+    );
+
+    matrices.view = glm::mat4(
+        glm::translate(glm::dmat4(1.0), translation) * rotation
+    );
+
+    const double h = xy.halfExtent;
+
+
+    matrices.projection = glm::mat4(glm::orthoRH_ZO(
+        -h, h, -h, h,
+        static_cast<double>(matrices.nearPlane),
+        static_cast<double>(matrices.farPlane)
+    ));
+
+    // xy 对称，Y 翻转只需要改变这个缩放项(因为 Vulkan viewport (0, 0) 在左上方)
+    matrices.projection[1][1] *= -1.0f;
+    matrices.viewProjection = matrices.projection * matrices.view;
+
+    for (int col = 0; col < 4; ++col)
+    {
+        for (int row = 0; row < 4; ++row)
+        {
+            if (!std::isfinite(matrices.view[col][row]) ||
+                !std::isfinite(matrices.projection[col][row]) ||
+                !std::isfinite(matrices.viewProjection[col][row]))
+            {
+                throw std::range_error("Shadow matrix is not finite");
+            }
+        }
+    }
+
+    for (const auto& world : cornersWorld)
+    {
+        const glm::vec4 clip = matrices.viewProjection * world;
+        if (!std::isfinite(clip.z) ||
+            !std::isfinite(clip.w) ||
+            clip.w <= 0.0f)
+        {
+            throw std::range_error("Shadow clip depth is not finite");
+        }
+
+        const float depth = clip.z / clip.w;
+
+        if (depth < -1e-4f || depth > 1.0001f)
+        {
+            throw std::range_error("Scene depth is outside the shadow interval");
+        }
+    }
+
+    return matrices;
 }
