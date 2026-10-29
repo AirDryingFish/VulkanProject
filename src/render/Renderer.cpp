@@ -779,6 +779,15 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.sceneSamples = sceneSamples_;
     frame.recordedTimingConfig.shadowEnabled = data.directionalShadowsEnabled;
     frame.recordedTimingConfig.shadowPreview = data.showShadowDepth;
+    frame.recordedTimingConfig.shadowPreviewLayer = data.shadowPreviewLayer;
+
+    frame.recordedTimingConfig.shadowMode = data.shadowMode;
+    frame.recordedTimingConfig.shadowPcfEnabled = data.shadowPcfEnabled;
+    frame.recordedTimingConfig.shadowConstantBias = data.shadowConstantBias;
+    frame.recordedTimingConfig.shadowSlopeBias = data.shadowSlopeBias;
+    frame.recordedTimingConfig.shadowReceiverBiasNormalized = data.shadowReceiverBiasNormalized;
+    frame.recordedTimingConfig.shadowReceiverBiasWorld = data.shadowReceiverBiasWorld;
+
     frame.recordedTimingConfig.uiDrawn = data.imguiDrawData != nullptr;
     frame.recordedTimingConfig.bypassToneMapping = data.bypassToneMapping;
     frame.recordedDraws = {};

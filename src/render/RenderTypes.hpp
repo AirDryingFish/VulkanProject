@@ -42,7 +42,15 @@ struct RenderFrameData
     glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 
     bool directionalShadowsEnabled = false;
-    // 这里不放 shadowReceiverBias，因为它通过 UBO 传给 shader
+    ShadowMode shadowMode = ShadowMode::Single;
+
+    std::uint32_t shadowPreviewLayer = 0;
+
+    // receiver 参数用于诊断快照；shader 仍通过 UBO 接收比较 bias。
+    bool shadowPcfEnabled = false;
+    float shadowReceiverBiasNormalized = 0.0f; // Single 输入
+    float shadowReceiverBiasWorld = 0.0f;      // CSM 输入
+
     float shadowConstantBias = 0.0f;
     float shadowSlopeBias = 0.0f;
     bool showShadowDepth = false;

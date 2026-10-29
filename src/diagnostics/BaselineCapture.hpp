@@ -93,6 +93,14 @@ struct BaselineCapture
                config.extent.height == other.extent.height &&
                config.sceneSamples == other.sceneSamples &&
                config.shadowEnabled == other.shadowEnabled &&
+               config.shadowMode == other.shadowMode &&
+               config.shadowPcfEnabled == other.shadowPcfEnabled &&
+               config.shadowConstantBias == other.shadowConstantBias &&
+               config.shadowSlopeBias == other.shadowSlopeBias &&
+               config.shadowReceiverBiasNormalized ==
+                   other.shadowReceiverBiasNormalized &&
+               config.shadowReceiverBiasWorld ==
+                   other.shadowReceiverBiasWorld &&
                config.shadowPreview == other.shadowPreview &&
                config.uiDrawn == other.uiDrawn &&
                config.bypassToneMapping == other.bypassToneMapping &&
@@ -100,7 +108,8 @@ struct BaselineCapture
                config.toneMapper == other.toneMapper &&
                config.debugView == other.debugView &&
                config.debugDepthNear == other.debugDepthNear &&
-               config.debugDepthFar == other.debugDepthFar;
+               config.debugDepthFar == other.debugDepthFar &&
+               config.shadowPreviewLayer == other.shadowPreviewLayer;
     }
 
     // 接收延迟返回的 GPU 快照，通常在 beginFrame() 后、覆盖该槽 CPU 缓存前调用。

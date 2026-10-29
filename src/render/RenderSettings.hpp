@@ -20,7 +20,8 @@ enum class DebugView : std::int32_t
     Roughness = 4,
     LinearDepth = 5,
     HdrLuminance = 6,
-    ShadowProjection = 7
+    ShadowProjection = 7,
+    ShadowCascades = 8
 };
 
 inline bool isSurfaceDebugView(DebugView view) noexcept
@@ -37,14 +38,35 @@ struct DisplaySettings
     ToneMapper toneMapper = ToneMapper::Reinhard;
 };
 
+enum class ShadowMode : std::uint32_t
+{
+    Single = 0,
+    Cascaded = 1
+};
+
 struct ShadowSettings
 {
+    ShadowMode mode = ShadowMode::Cascaded;
+
     bool enabled = true;
     bool pcfEnabled = false;
     bool showDepth = false;
+    int previewLayer = 0;
+
+
     float constantBias = 1.25f;
     float slopeBias = 1.75f;
+
+    // Single 使用：归一化光源深度 bias
     float receiverBias = 0.0005f;
     glm::vec3 center{0.0f};
     float halfExtent = 5.0f;
+
+    // CSM 使用
+    float shadowDistance = 50.0f;
+    float splitLambda = 0.5f;
+    float depthMargin = 1.0f;
+    float lightNear = 0.1f;
+
+    float receiverBiasWorld = 0.7f;
 };

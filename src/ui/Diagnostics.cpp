@@ -56,6 +56,7 @@ const char* debugViewName(DebugView view)
     case DebugView::LinearDepth: return "Linear depth";
     case DebugView::HdrLuminance: return "HDR luminance";
     case DebugView::ShadowProjection: return "Shadow projection";
+    case DebugView::ShadowCascades: return "Shadow cascades";
     }
     return "Unknown";
 }
@@ -75,8 +76,33 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     ImGui::Text("%ux", static_cast<unsigned int>(config.sceneSamples));
     metricRow("Shadows");
     ImGui::TextUnformatted(config.shadowEnabled ? "Draw enabled" : "Clear only");
+
+    metricRow("Shadow mode");
+    ImGui::TextUnformatted(config.shadowMode == ShadowMode::Cascaded
+                               ? "CSM 4"
+                               : "Single");
+
+    metricRow("Shadow PCF 3x3");
+    ImGui::TextUnformatted(config.shadowPcfEnabled ? "On" : "Off");
+
+    metricRow("Raster constant factor");
+    ImGui::Text("%.3f", config.shadowConstantBias);
+
+    metricRow("Raster slope factor");
+    ImGui::Text("%.3f", config.shadowSlopeBias);
+
+    metricRow("Single receiver input (depth)");
+    ImGui::Text("%.6f", config.shadowReceiverBiasNormalized);
+
+    metricRow("CSM receiver input (world)");
+    ImGui::Text("%.5f", config.shadowReceiverBiasWorld);
+
     metricRow("Depth preview");
     ImGui::TextUnformatted(config.shadowPreview ? "On" : "Off");
+
+    metricRow("Depth preview layer (0-based)");
+    ImGui::Text("%u", config.shadowPreviewLayer);
+
     metricRow("UI rendered");
     ImGui::TextUnformatted(config.uiDrawn ? "Yes" : "No");
     metricRow("Exposure EV");

@@ -65,7 +65,7 @@ namespace
         const VkExtent3D extent = image.extent();
 
         // 限定当前渲染目标使用的形态
-        if (image.mipLevels() != 1 || image.arrayLayers() != 1 || extent.depth != 1)
+        if (image.mipLevels() != 1 || image.arrayLayers() == 0 || extent.depth != 1)
         {
             return std::nullopt;
         }
@@ -77,8 +77,10 @@ namespace
             return std::nullopt;
         }
 
-        return static_cast<std::uint64_t>(extent.width) * extent.height *
+        return static_cast<std::uint64_t>(extent.width) *
+                extent.height *
                 static_cast<std::uint64_t>(image.samples()) *
+                static_cast<std::uint64_t>(image.arrayLayers()) *
                 *bytesPerSample;
     }
 

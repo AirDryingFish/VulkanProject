@@ -26,6 +26,9 @@ bool Renderer::useDynamicRenderingForShadow() const noexcept
 
 void Renderer::createShadowTargets()
 {
+    constexpr std::uint32_t shadowLayerCount = static_cast<std::uint32_t>(shadowCascadeCount);
+    constexpr VkImageUsageFlags shadowUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
     // -- 从 gpu 支持的深度格式里，选一个既能当 depth attachment，又能被 shader 采样的格式，作为 shadow map 的格式--
     const std::array<VkFormat, 2> candidates{
         VK_FORMAT_D32_SFLOAT,
@@ -45,12 +48,39 @@ void Renderer::createShadowTargets()
             format,
             &properties
         );
-
-        if ((properties.optimalTilingFeatures & requiredFeatures) == requiredFeatures)
+        if ((properties.optimalTilingFeatures & requiredFeatures) != requiredFeatures)
         {
-            shadowDepthFormat_ = format;
-            break;
+            continue;
         }
+
+        VkImageFormatProperties imageProperties{};
+        const VkResult result = vkGetPhysicalDeviceImageFormatProperties(
+            context_->physicalDevice(),
+            format,
+            VK_IMAGE_TYPE_2D,
+            VK_IMAGE_TILING_OPTIMAL,
+            shadowUsage,
+            0,
+            &imageProperties
+        );
+        if (result == VK_ERROR_FORMAT_NOT_SUPPORTED)
+        {
+            continue;
+        }
+        VK_CHECK(result);
+
+        if (imageProperties.maxExtent.width < directionalShadowResolution ||
+            imageProperties.maxExtent.height < directionalShadowResolution ||
+            imageProperties.maxExtent.depth < 1 ||
+            imageProperties.maxMipLevels < 1 ||
+            imageProperties.maxArrayLayers < shadowLayerCount ||
+            (imageProperties.sampleCounts & VK_SAMPLE_COUNT_1_BIT) == 0)
+        {
+            continue;
+        }
+
+        shadowDepthFormat_ = format;
+        break;
     }
 
     if (shadowDepthFormat_ == VK_FORMAT_UNDEFINED)
@@ -67,23 +97,40 @@ void Renderer::createShadowTargets()
         desc.extent = {directionalShadowResolution, directionalShadowResolution, 1};
         desc.format = shadowDepthFormat_;
         desc.mipLevels = 1;
-        desc.arrayLayers = 1;
+        desc.arrayLayers = shadowLayerCount;
         desc.samples = VK_SAMPLE_COUNT_1_BIT; // 阴影图暂时不用主画面的 MSAA
         desc.tiling = VK_IMAGE_TILING_OPTIMAL;
-        desc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        desc.usage = shadowUsage;
         desc.requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         desc.debugName = name.c_str();
 
         ShadowTarget& target = shadowTargets_[index];
         target.depth = context_->createImage(desc);
+        // 整体 view： layerCount=4，baseArrayLayer=0
         target.depth.setView(
             context_->createImageView(
                 target.depth.get(),
                 shadowDepthFormat_,
                 1,
-                VK_IMAGE_ASPECT_DEPTH_BIT
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                shadowLayerCount,
+                0
             )
         );
+        // 单层 view：layerCount=1，baseArrayLayer=layer
+        for (std::size_t layer = 0; layer < target.layerViews.size(); ++layer)
+        {
+            target.layerViews[layer] = context_->createImageView(
+                target.depth.get(),
+                shadowDepthFormat_,
+                1,
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                VK_IMAGE_VIEW_TYPE_2D,
+                1,
+                static_cast<std::uint32_t>(layer)
+            );
+        }
     }
     // ----
 
@@ -121,6 +168,8 @@ void Renderer::createShadowTargets()
         << directionalShadowResolution
         << "x"
         << directionalShadowResolution
+        << ", layers=" << shadowLayerCount
+        << ", per-layer rendering"
         << '\n';
 }
 
@@ -202,22 +251,34 @@ void Renderer::createShadowFramebuffers()
 {
     for (ShadowTarget& target : shadowTargets_)
     {
-        const VkImageView depthView = target.depth.view();
-        VkFramebufferCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        createInfo.renderPass = shadowRenderPass_;
-        createInfo.attachmentCount = 1;
-        createInfo.pAttachments = &depthView;
-        createInfo.width = directionalShadowResolution;
-        createInfo.height = directionalShadowResolution;
-        createInfo.layers = 1;
+        for (std::size_t layer = 0; layer < target.layerViews.size(); ++layer)
+        {
+            const VkImageView depthView = target.layerViews.at(layer);
+            VkFramebufferCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            createInfo.renderPass = shadowRenderPass_;
+            createInfo.attachmentCount = 1;
+            createInfo.pAttachments = &depthView;
+            createInfo.width = directionalShadowResolution;
+            createInfo.height = directionalShadowResolution;
+            createInfo.layers = 1;
 
-        VK_CHECK(vkCreateFramebuffer(
-            context_->device(),
-            &createInfo,
-            nullptr,
-            &target.framebuffer
-        ));
+            VK_CHECK(vkCreateFramebuffer(
+                context_->device(),
+                &createInfo,
+                nullptr,
+                &target.framebuffers[layer]));
+        }
+
+    }
+}
+
+void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &data)
+{
+    const std::uint32_t cascadeCount = static_cast<std::uint32_t>(shadowCascadeCount);
+    for (std::uint32_t cascadeIndex = 0; cascadeIndex < cascadeCount; ++cascadeIndex)
+    {
+        recordShadowCascade(token, data, cascadeIndex);
     }
 }
 
@@ -367,7 +428,7 @@ void Renderer::createShadowPipeline()
         &shadowDoubleSidedPipeline_));
 }
 
-void Renderer::recordShadowImageTransition(const FrameToken &token, ShadowImageTransition transition)
+void Renderer::recordShadowImageTransition(const FrameToken &token, ShadowImageTransition transition, std::uint32_t cascadeIndex)
 {
     if (!initialized_ || context_ == nullptr)
     {
@@ -390,7 +451,7 @@ void Renderer::recordShadowImageTransition(const FrameToken &token, ShadowImageT
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.baseArrayLayer = cascadeIndex;
     barrier.subresourceRange.layerCount = 1;
 
     const VkPipelineStageFlags2 depthStages =
@@ -435,7 +496,7 @@ void Renderer::recordShadowImageTransition(const FrameToken &token, ShadowImageT
     cmdPipelineBarrier2(token.commandBuffer, &dependency);
 }
 
-void Renderer::beginShadowPass(const FrameToken &token, const VkClearValue &clearValue)
+void Renderer::beginShadowPass(const FrameToken &token, const VkClearValue &clearValue, std::uint32_t cascadeIndex)
 {
     const ShadowTarget& target = shadowTargets_.at(token.frameIndex);
 
@@ -446,7 +507,7 @@ void Renderer::beginShadowPass(const FrameToken &token, const VkClearValue &clea
         beginInfo.renderArea.offset = {0, 0};
         beginInfo.renderArea.extent = {directionalShadowResolution, directionalShadowResolution};
         beginInfo.renderPass = shadowRenderPass_;
-        beginInfo.framebuffer = target.framebuffer;
+        beginInfo.framebuffer = target.framebuffers.at(cascadeIndex);
         beginInfo.clearValueCount = 1;
         beginInfo.pClearValues = &clearValue;
 
@@ -460,11 +521,11 @@ void Renderer::beginShadowPass(const FrameToken &token, const VkClearValue &clea
         throw std::logic_error("Dynamic shadow requires vkCmdBeginRendering");
     }
 
-    recordShadowImageTransition(token, ShadowImageTransition::ToAttachment);
+    recordShadowImageTransition(token, ShadowImageTransition::ToAttachment, cascadeIndex);
 
     VkRenderingAttachmentInfo depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth.imageView = target.depth.view();
+    depth.imageView = target.layerViews.at(cascadeIndex);
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -487,7 +548,7 @@ void Renderer::beginShadowPass(const FrameToken &token, const VkClearValue &clea
     cmdBeginRendering(token.commandBuffer, &renderingInfo);
 }
 
-void Renderer::endShadowPass(const FrameToken &token)
+void Renderer::endShadowPass(const FrameToken &token, std::uint32_t cascadeIndex)
 {
     if (!useDynamicRenderingForShadow())
     {
@@ -503,20 +564,18 @@ void Renderer::endShadowPass(const FrameToken &token)
 
     cmdEndRendering(token.commandBuffer);
 
-    recordShadowImageTransition(token, ShadowImageTransition::ToSampling);
+    recordShadowImageTransition(token, ShadowImageTransition::ToSampling, cascadeIndex);
 }
 
-void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &data)
+void Renderer::recordShadowCascade(const FrameToken &token, const RenderFrameData &data, std::uint32_t cascadeIndex)
 {
     FrameContext& frame = frames_.at(token.frameIndex);
-
-    const ShadowTarget& target = shadowTargets_.at(token.frameIndex);
 
     VkClearValue clearValue{};
     // 深度清成 1.0f，代表目前还没有记录到更近的遮挡物
     clearValue.depthStencil = {1.0f, 0};
 
-    beginShadowPass(token, clearValue);
+    beginShadowPass(token, clearValue, cascadeIndex);
 
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -543,8 +602,12 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
         0,
         nullptr
     );
+
+    // cascaded 模式：四层都绘制物体
+    // single 模式：只在 cascadeIndex == 0 时绘制物体
+    const bool drawThisCascade = data.shadowMode == ShadowMode::Cascaded || cascadeIndex == 0u;
     // 依次画各个物体的深度
-    if (data.directionalShadowsEnabled && data.objects != nullptr)
+    if (data.directionalShadowsEnabled && data.objects != nullptr && drawThisCascade)
     {
         const VkDeviceSize offset = 0;
         for (const RenderObjectView& object : *data.objects)
@@ -576,14 +639,17 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
                 nullptr
             );
 
+            DrawPushConstants shadowPush = object.pushConstants;
+            // 单独修改 push Constant，说明“正在画 csm 的哪一级”
+            shadowPush.textureInfo.w = cascadeIndex;
+
             vkCmdPushConstants(
                 token.commandBuffer,
                 shadowPipelineLayout_,
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                 0,
                 sizeof(DrawPushConstants), // 只传入模型的 model 矩阵
-                &object.pushConstants
-            );
+                &shadowPush);
 
             vkCmdBindVertexBuffers(
                 token.commandBuffer,
@@ -615,8 +681,9 @@ void Renderer::recordShadowPass(const FrameToken &token, const RenderFrameData &
     }
     // ----
 
-    endShadowPass(token);
+    endShadowPass(token, cascadeIndex);
 }
+
 
 void Renderer::recordShadowPreview(const FrameToken &token, const RenderFrameData &data)
 {
@@ -654,6 +721,19 @@ void Renderer::recordShadowPreview(const FrameToken &token, const RenderFrameDat
         0,
         nullptr
     );
+
+    PostPushConstants preview{};
+    preview.modes.w = static_cast<std::int32_t>(data.shadowPreviewLayer);
+
+    vkCmdPushConstants(
+        token.commandBuffer,
+        scenePipelineLayout_,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        0,
+        sizeof(preview),
+        &preview
+    );
+
     vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);
 
     // 恢复全窗口 viewport 和 scissor
@@ -730,14 +810,22 @@ void Renderer::destroyShadowTargets() noexcept
 
     for (ShadowTarget& target : shadowTargets_)
     {
-        if (target.framebuffer != VK_NULL_HANDLE)
+        for (VkFramebuffer &framebuffer : target.framebuffers)
         {
-            vkDestroyFramebuffer(
-                device,
-                target.framebuffer,
-                nullptr
-            );
-            target.framebuffer = VK_NULL_HANDLE;
+            if (framebuffer != VK_NULL_HANDLE)
+            {
+                vkDestroyFramebuffer(device, framebuffer, nullptr);
+                framebuffer = VK_NULL_HANDLE;
+            }
+        }
+
+        for (VkImageView& view : target.layerViews)
+        {
+            if (view != VK_NULL_HANDLE)
+            {
+                vkDestroyImageView(context_->device(), view, nullptr);
+                view = VK_NULL_HANDLE;
+            }
         }
         target.depth.reset();
     }

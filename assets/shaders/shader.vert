@@ -41,6 +41,12 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 shadowParams;
     ivec4 shadowFlags;
 
+    mat4 cascadeLightViewProjection[4];
+    vec4 cascadeSplits;
+    vec4 cascadeTexelWorldSize;
+    vec4 cascadeReceiverBias;
+    uvec4 cascadeInfo;
+
 } ubo;
 
 layout(push_constant) uniform ModelPushConstants

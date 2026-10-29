@@ -1,6 +1,8 @@
 #include "app/Application.hpp"
 #include "render/ShaderTypes.hpp"
+#include "render/ShadowCascades.hpp"
 
+#include <glm/matrix.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
@@ -84,7 +86,7 @@ void Application::createUniformBuffer()
     }
 }
 
-void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
+void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, std::uint32_t shadowPreviewLayer)
 {
     // currentImage 在这里实际是 frameIndex（帧资源槽），不是交换链 imageIndex。
     // 调用前 beginFrame() 已等待该槽的 fence，当前槽的 UBO 才可以安全覆写。
@@ -92,7 +94,9 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
 
     UniformBufferObject ubo{};
     ubo.view = camera.view();
-    ubo.proj = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
+    // ubo.proj = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
+    const float aspectRatio = swapchain.extent().width / static_cast<float>(swapchain.extent().height);
+    ubo.proj = camera.projection(aspectRatio);
 
     ubo.cameraPosition = glm::vec4(camera.position, 1.0f);
     ubo.ambientLight = glm::vec4(scene.ambientLightColor, scene.ambientLightIntensity);
@@ -149,6 +153,75 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime)
         display.debugView == DebugView::ShadowProjection ? 1 : 0,
         shadows.pcfEnabled ? 1 : 0,
         static_cast<std::uint32_t>(display.debugView));
+
+    ubo.cascadeLightViewProjection.fill(ubo.lightViewProjection);
+
+    const float effectiveShadowDistance = std::min(camera.farPlane, shadows.shadowDistance);
+    ubo.cascadeSplits = glm::vec4(effectiveShadowDistance);
+
+    const float shadowTexelWorldSize = 2.0 * halfExtent / static_cast<float>(directionalShadowResolution);
+
+    ubo.cascadeTexelWorldSize = glm::vec4(shadowTexelWorldSize);
+    ubo.cascadeReceiverBias = glm::vec4(shadows.receiverBias);
+    // x: 有效级数
+    // y: ShadowMode
+    // z: 预览层
+    // w: reserved
+    ubo.cascadeInfo = glm::uvec4(
+        1u, //表示当前只有一级有效
+        static_cast<uint32_t>(ShadowMode::Single),
+        0u,
+        0u
+    );
+
+    if (shadows.mode == ShadowMode::Cascaded)
+    {
+        ShadowCascadeInput input{};
+
+        input.inverseView = glm::inverse(ubo.view);
+        input.fovDegrees = camera.fieldOfViewDegrees;
+        input.aspectRatio = aspectRatio;
+        input.cameraNear = camera.nearPlane;
+        input.cameraFar = camera.farPlane;
+
+        input.shadowDistance = shadows.shadowDistance;
+        input.splitLambda = shadows.splitLambda;
+
+        input.lightDirection = direction;
+
+        // 根据场景中所有物体的当前变换，计算一个能包住它们的世界空间 AABB，通过 minimum、maximum 返回
+        scene.bounds(input.sceneMinimum, input.sceneMaximum);
+
+        input.resolution = directionalShadowResolution;
+        input.depthMargin = shadows.depthMargin;
+        input.lightNear = shadows.lightNear;
+        input.receiverBiasWorld = shadows.receiverBiasWorld;
+
+        const ShadowCascadeFrame cascadeFrame = calculateShadowCascadeFrame(input);
+
+
+        for (std::size_t i = 0; i < shadowCascadeCount; ++i)
+        {
+            const ShadowCascadeData& cascade = cascadeFrame.cascades[i];
+            // 使用 glm 的索引类型，方便访问 glm::vec4
+            const auto component = static_cast<glm::length_t>(i);
+            ubo.cascadeLightViewProjection[i] = cascade.matrices.viewProjection;
+            ubo.cascadeSplits[component] = cascade.farDistance;
+            ubo.cascadeTexelWorldSize[component] = cascade.xy.texelWorldSize;
+            ubo.cascadeReceiverBias[component] = cascade.receiverBias;
+        }
+
+        // 旧字段暂时镜像第 0 级
+        ubo.lightViewProjection = ubo.cascadeLightViewProjection[0];
+        ubo.shadowParams.z = ubo.cascadeReceiverBias.x;
+        ubo.cascadeInfo = glm::uvec4(
+            static_cast<std::uint32_t>(shadowCascadeCount),
+            static_cast<std::uint32_t>(ShadowMode::Cascaded),
+            0u, 0u
+        );
+    }
+
+    ubo.cascadeInfo.z = shadowPreviewLayer;
 
     for (size_t i = 0; i < std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS); i++)
     {

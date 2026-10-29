@@ -44,12 +44,24 @@ struct FrameTimingConfig
     VkExtent2D extent{};
     VkSampleCountFlagBits sceneSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    std::uint32_t shadowPreviewLayer = 0;
+
+    ShadowMode shadowMode = ShadowMode::Single;
+    bool shadowPcfEnabled = false;
+
+    float shadowConstantBias = 0.0f;
+    float shadowSlopeBias = 0.0f;
+
+    float shadowReceiverBiasNormalized = 0.0f; // Single 归一化深度输入
+    float shadowReceiverBiasWorld = 0.0f;      // CSM 世界单位输入
+
     bool shadowEnabled = false;
     bool shadowPreview = false;
     bool uiDrawn = false;
     bool bypassToneMapping = false;
     float exposureEv = 0.0f;
     ToneMapper toneMapper = ToneMapper::Reinhard;
+
 
     DebugView debugView = DebugView::Lit;
     float debugDepthNear = 0.1f;

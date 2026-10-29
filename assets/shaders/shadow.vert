@@ -36,6 +36,12 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 shadowParams;
     ivec4 shadowFlags;
 
+    mat4 cascadeLightViewProjection[4];
+    vec4 cascadeSplits;
+    vec4 cascadeTexelWorldSize;
+    vec4 cascadeReceiverBias;
+    uvec4 cascadeInfo;
+
 } ubo;
 
 layout(push_constant) uniform DrawPushConstants
@@ -49,10 +55,13 @@ layout(push_constant) uniform DrawPushConstants
 
 // 记录光源看到的最近表面（渲染深度图）
 void main(){
+
+    uint cascadeIndex = draw.textureInfo.w;
+
     // inPosition: 模型自己的局部坐标
     // model * inPosition: 模型的世界坐标
     // lightViewProjection * model * inPosition: 光源裁剪空间坐标
-    gl_Position = ubo.lightViewProjection * draw.model * vec4(inPosition, 1.0);
+    gl_Position = ubo.cascadeLightViewProjection[cascadeIndex] * draw.model * vec4(inPosition, 1.0);
 
     fragAlpha = inColor.a;
     fragTexCoord = inTexCoord;

@@ -38,6 +38,12 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 shadowParams;
     ivec4 shadowFlags;
 
+    mat4 cascadeLightViewProjection[4];
+    vec4 cascadeSplits;
+    vec4 cascadeTexelWorldSize;
+    vec4 cascadeReceiverBias;
+    uvec4 cascadeInfo;
+
 } frame;
 
 layout(push_constant) uniform DrawPushConstants
@@ -61,7 +67,7 @@ layout(set = 1, binding = 4) uniform sampler2D emissiveMap;
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilterMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
-layout(set = 0, binding = 4) uniform sampler2DShadow shadowMap;
+layout(set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
 
 // 按 slot index 去找要用第几套 uv
 vec2 materialUv(uint slot)
@@ -273,6 +279,34 @@ vec3 evaluateDirectLight(
     return (kD * albedo / PI + specular) * radiance * NdotL;
 }
 
+// 根据 fragment 的 view space 距离选择正确的 cascade
+int selectShadowCascade(vec3 worldPos)
+{
+    float viewDepth = -(frame.view * vec4(worldPos, 1.0)).z;
+
+    if (viewDepth <= 0.0 || viewDepth > frame.cascadeSplits.w)
+    {
+        return -1;
+    }
+
+    // Single mode
+    if (frame.cascadeInfo.y == 0u)
+    {
+        return 0;
+    }
+
+    int cascadeCount = int(min(frame.cascadeInfo.x, 4u));
+
+    for (int i = 0; i < cascadeCount; ++i)
+    {
+        if (viewDepth <= frame.cascadeSplits[i])
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 float directionalShadowVisibility(vec3 worldPosition)
 {
     if (frame.shadowFlags.x == 0)
@@ -280,7 +314,13 @@ float directionalShadowVisibility(vec3 worldPosition)
         return 1.0;
     }
 
-    vec4 lightClip = frame.lightViewProjection * vec4(worldPosition, 1.0);
+    int cascadeIndex = selectShadowCascade(worldPosition);
+    if (cascadeIndex < 0)
+    {
+        return 1.0;
+    }
+
+    vec4 lightClip = frame.cascadeLightViewProjection[cascadeIndex] * vec4(worldPosition, 1.0);
 
     if (lightClip.w <= 0.0)
     {
@@ -297,12 +337,13 @@ float directionalShadowVisibility(vec3 worldPosition)
         return 1.0;
     }
     // frame.shadowParams.z: 阴影比较使用的 bias
-    float referenceDepth = lightNdc.z - frame.shadowParams.z;
+    float referenceDepth = lightNdc.z - frame.cascadeReceiverBias[cascadeIndex];
 
     // 未开启 pcf
     if (frame.shadowFlags.z == 0)
     {
-        return textureLod(shadowMap, vec3(lightUv, referenceDepth), 0.0);
+        // return textureLod(shadowMap, vec3(lightUv, referenceDepth), 0.0);
+        return textureGrad(shadowMap, vec4(lightUv, float(cascadeIndex), referenceDepth), vec2(0.0), vec2(0.0));
     }
 
     vec2 texelSize = frame.shadowParams.xy;
@@ -312,7 +353,11 @@ float directionalShadowVisibility(vec3 worldPosition)
         for (int x = -1; x <= 1; ++x)
         {
             vec2 sampleUv = lightUv + vec2(float(x), float(y)) * texelSize;
-            visibilitySum += textureLod(shadowMap, vec3(sampleUv, referenceDepth), 0.0);
+
+            // 要指定采样哪一级阴影，以及换用 Array 阴影采样其支持的函数。
+            // vec4(U, V, 选择哪一层阴影贴图, 比较深度)
+            // 第三第四个为参数为 UV 沿着 X/Y 方向的变化率
+            visibilitySum += textureGrad(shadowMap, vec4(sampleUv, float(cascadeIndex), referenceDepth), vec2(0.0), vec2(0.0));
         }
     }
     return visibilitySum /= 9.0;
@@ -324,6 +369,32 @@ void main()
     vec4 baseColor = texture(albedoMap, materialUv(0u)) * draw.baseColorFactor * fragColor;
     bool alphaRejected = draw.textureInfo.z == 1u && baseColor.a < draw.emissiveFactor.w;
 
+    if (frame.shadowFlags.w == 8)
+    {
+        if (alphaRejected)
+        {
+            discard;
+        }
+
+        int cascadeIndex = selectShadowCascade(fragWorldPos);
+
+        if (cascadeIndex < 0)
+        {
+            outColor = vec4(1.0, 1.0, 1.0, 1.0);
+            return;
+        }
+
+        const vec3 colors[4] = vec3[4](
+        vec3(1.0, 0.15, 0.15), // 红色
+        vec3(0.15, 1.0, 0.15), // 绿色
+        vec3(0.15, 0.3, 1.0),  // 蓝色
+        vec3(1.0, 0.85, 0.15)  // 黄色
+        );
+
+        outColor = vec4(colors[cascadeIndex], 1.0);
+        return;
+    }
+
     // -- 用颜色显示光空间坐标 (debug use) --
     if (frame.shadowFlags.y != 0)
     {
@@ -332,7 +403,14 @@ void main()
             discard;
         }
 
-        vec4 lightClip = frame.lightViewProjection * vec4(fragWorldPos, 1.0);
+        int cascadeIndex = selectShadowCascade(fragWorldPos);
+        if (cascadeIndex < 0)
+        {
+            outColor = vec4(1.0, 1.0, 1.0, 1.0);
+            return;
+        }
+
+        vec4 lightClip = frame.cascadeLightViewProjection[cascadeIndex] * vec4(fragWorldPos, 1.0);
         if (lightClip.w <= 0.0) // 点在相机后方
         {
             outColor = vec4(1.0, 0.0, 1.0, 1.0); // 把这个像素画成红色

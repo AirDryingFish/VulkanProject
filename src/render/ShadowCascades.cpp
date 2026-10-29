@@ -194,7 +194,7 @@ ShadowCascadeXY fitShadowCascadeXY(const FrustumSliceCorners &cornerView, const 
 
     fit.radius = static_cast<float>(radius);
     fit.halfExtent = static_cast<float>(halfExtent);
-    fit.texelWorldSize = static_cast<float>(2 * halfExtent / size);
+    fit.texelWorldSize = static_cast<float>(2 * fit.halfExtent / size);
     if (!std::isfinite(fit.radius) || fit.radius <= 0.0f ||
         !std::isfinite(fit.halfExtent) || fit.halfExtent <= 0.0f ||
         !std::isfinite(fit.texelWorldSize) ||
@@ -374,4 +374,57 @@ ShadowCascadeMatrices calculateShadowCascadeMatrices(const ShadowCascadeXY &xy, 
     }
 
     return matrices;
+}
+
+ShadowCascadeFrame calculateShadowCascadeFrame(const ShadowCascadeInput &input)
+{
+    if (!std::isfinite(input.cameraNear)            ||
+        input.cameraNear <= 0.0f                    ||
+
+        !std::isfinite(input.cameraFar)             ||
+        input.cameraFar <= input.cameraNear         ||
+
+        !std::isfinite(input.shadowDistance)        ||
+        input.shadowDistance <= input.cameraNear    ||
+
+        !std::isfinite(input.receiverBiasWorld)     ||
+        input.receiverBiasWorld < 0.0f)
+    {
+        throw std::invalid_argument(
+            "Invalid cascade frame parameters");
+    }
+
+    const float effectiveShadowFar = std::min(input.shadowDistance, input.cameraFar);
+
+    const auto splits = calculateCascadeSplits(input.cameraNear, effectiveShadowFar, input.splitLambda);
+
+    ShadowCascadeFrame frame{};
+    float sliceNear = input.cameraNear;
+
+    for (std::size_t i = 0; i < frame.cascades.size(); ++i)
+    {
+        auto& cascade = frame.cascades[i];
+
+        cascade.nearDistance = sliceNear;
+        cascade.farDistance = splits[i];
+
+        // inverseView 用单位阵，是因为后续在 view space 中计算包围球中心和半径
+        const auto cornersView = calculateFrustumSliceCorners(glm::mat4(1.0f), input.fovDegrees, input.aspectRatio, cascade.nearDistance, cascade.farDistance);
+        cascade.xy = fitShadowCascadeXY(cornersView, input.inverseView, input.lightDirection, input.resolution);
+        // 给当前级 csm 计算完整的 light camera 矩阵和 深度范围
+        cascade.matrices = calculateShadowCascadeMatrices(cascade.xy, input.sceneMinimum, input.sceneMaximum, input.depthMargin, input.lightNear);
+
+        // 世界单位 bias -> 本级光源归一化深度单位
+        // 把 “world space 中偏移多远” 换算成 “Shadow map 深度偏移多少”
+        const double depthSpan = static_cast<double>(cascade.matrices.farPlane) - static_cast<double>(cascade.matrices.nearPlane);
+        cascade.receiverBias = static_cast<float>(static_cast<double>(input.receiverBiasWorld) / depthSpan);
+        if (!std::isfinite(cascade.receiverBias) ||
+            cascade.receiverBias < 0.0f)
+        {
+            throw std::range_error("Cascade receiver bias is not representable");
+        }
+
+        sliceNear = splits[i];
+    }
+    return frame;
 }

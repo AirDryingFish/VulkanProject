@@ -222,7 +222,8 @@ public:
         uint32_t mipLevels,
         VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
         VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D,
-        uint32_t layerCount = 1
+        uint32_t layerCount = 1,
+        uint32_t baseArrayLayer = 0
     ) const;
 
     GpuSampler createSampler(const SamplerDesc& desc) const;

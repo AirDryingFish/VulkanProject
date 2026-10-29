@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 inline constexpr std::size_t shadowCascadeCount = 4;
 
@@ -71,3 +72,54 @@ ShadowCascadeMatrices calculateShadowCascadeMatrices(
     const glm::vec3& sceneMaximum,
     float depthMargin,
     float lightNear);
+
+
+// 单次四级 csm 的输入快照
+struct ShadowCascadeInput
+{
+    // 必须是有效主相机的刚体仿射逆视图: view space -> world space
+    glm::mat4 inverseView{1.0f};
+
+    float fovDegrees = 45.0f;
+    float aspectRatio = 1.0f;
+    float cameraNear = 0.1f;
+    float cameraFar = 1000.0f;
+
+    float shadowDistance = 50.0f;
+    float splitLambda = 0.5f;
+
+    glm::vec3 lightDirection{-1.0f, -1.0f, -2.0f};
+
+    glm::vec3 sceneMinimum{std::numeric_limits<float>::max()};
+    glm::vec3 sceneMaximum{std::numeric_limits<float>::lowest()};
+
+    // 调用方必须填写实际 shadow map 分辨率
+    std::uint32_t resolution = 0;
+
+    float depthMargin = 1.0f;
+    float lightNear = 0.1f;
+
+    // 不同级联的光源深度跨度可能不同，对于普通线性正交深度，可转换为归一化深度偏移
+    float receiverBiasWorld = 0.01f;
+};
+
+// 输出数据，保存某一级 csm 的计算结果
+struct ShadowCascadeData
+{
+    float nearDistance = 0.0f;
+    float farDistance = 0.0f;
+
+    ShadowCascadeXY xy{};
+    ShadowCascadeMatrices matrices{};
+
+    // 归一化光源深度单位
+    float receiverBias = 0.0f;
+};
+
+
+struct ShadowCascadeFrame
+{
+    std::array<ShadowCascadeData, shadowCascadeCount> cascades{};
+};
+
+ShadowCascadeFrame calculateShadowCascadeFrame(const ShadowCascadeInput& input);

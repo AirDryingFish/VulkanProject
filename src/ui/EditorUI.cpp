@@ -691,16 +691,38 @@ void Application::drawImGui()
                 ImGui::SeparatorText("Depth bias");
                 ImGui::SliderFloat("Shadow constant bias", &shadows.constantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
                 ImGui::SliderFloat("Shadow slope bias", &shadows.slopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::SliderFloat("Shadow receiver bias", &shadows.receiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
+                // ImGui::SliderFloat("Shadow receiver bias", &shadows.receiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
+
+                if (shadows.mode ==ShadowMode::Cascaded)
+                {
+                    ImGui::SliderFloat("CSM receiver bias (world)", &shadows.receiverBiasWorld, 0.0f, 0.1f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
+                }
+                else
+                {
+                    ImGui::SliderFloat("Single receiver bias (depth)", &shadows.receiverBias, 0.0f, 0.005f, "%.6f", ImGuiSliderFlags_AlwaysClamp);
+                }
+
                 if (ImGui::Button("Reset shadow bias"))
                 {
                     shadows.constantBias = 1.25f;
                     shadows.slopeBias = 1.75f;
                     shadows.receiverBias = 0.0005f;
+                    shadows.receiverBiasWorld = 0.7f;
                 }
                 ImGui::SeparatorText("Debug views");
                 ImGui::Checkbox("Show shadow depth", &shadows.showDepth);
                 // 调试显示
+
+                int previewLayer = shadows.mode == ShadowMode::Single ? 0 : shadows.previewLayer;
+
+                ImGui::BeginDisabled(shadows.mode == ShadowMode::Single);
+
+                if (ImGui::SliderInt("Shadow preview layer", &previewLayer, 0, static_cast<int>(shadowCascadeCount) - 1, "%d" ,ImGuiSliderFlags_AlwaysClamp))
+                {
+                    shadows.previewLayer = previewLayer;
+                }
+
+                ImGui::EndDisabled();
 
 
                 ImGui::TextWrapped("Bias corrects depth comparisons; PCF filters shadow edges. The depth preview shows raw depth, not visibility.");
@@ -757,9 +779,11 @@ void Application::drawImGui()
                     "Roughness",
                     "Linear depth",
                     "HDR luminance",
-                    "Shadow projection"};
+                    "Shadow projection",
+                    "Shadow cascades"
+                };
                 int selectedView = static_cast<int>(display.debugView);
-                if (ImGui::Combo("Debug View", &selectedView, viewNames, 8))
+                if (ImGui::Combo("Debug View", &selectedView, viewNames, IM_ARRAYSIZE(viewNames)))
                 {
                     display.debugView = static_cast<DebugView>(selectedView);
                 }

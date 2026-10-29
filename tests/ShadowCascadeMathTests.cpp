@@ -650,6 +650,189 @@ namespace
             rejected,
             "Collapsed float depth interval must be rejected");
     }
+
+    ShadowCascadeInput makeCascadeFrameInput()
+    {
+        ShadowCascadeInput input{};
+        input.fovDegrees = 90.0f;
+        input.aspectRatio = 1.0f;
+        input.cameraNear = 1.0f;
+        input.cameraFar = 100.0f;
+        input.shadowDistance = 17.0f;
+        input.splitLambda = 0.0f;
+        input.lightDirection = {0.0f, 0.0f, -1.0f};
+        input.sceneMinimum = glm::vec3(-20.0f);
+        input.sceneMaximum = glm::vec3(20.0f);
+        input.resolution = 16;
+        input.depthMargin = 1.0f;
+        input.lightNear = 0.5f;
+        input.receiverBiasWorld = 0.042f;
+        return input;
+    }
+
+    void testKnownCascadeFrame()
+    {
+        const auto frame =
+            calculateShadowCascadeFrame(makeCascadeFrameInput());
+
+        const std::array<float, 4> nearDistances{1, 5, 9, 13};
+        const std::array<float, 4> farDistances{5, 9, 13, 17};
+        const std::array<float, 4> centerDepths{3, 7, 11, 15};
+        const std::array<float, 4> radiusSquared{54, 166, 342, 582};
+
+        for (std::size_t i = 0; i < frame.cascades.size(); ++i)
+        {
+            const auto &cascade = frame.cascades[i];
+
+            require(
+                cascade.nearDistance == nearDistances[i] &&
+                    cascade.farDistance == farDistances[i],
+                "Cascade intervals must advance without gaps");
+
+            require(
+                glm::length(
+                    cascade.xy.centerWorld -
+                    glm::vec3(0, 0, -centerDepths[i])) < 1e-4f,
+                "Cascade must use its own near and far boundaries");
+
+            require(
+                std::abs(
+                    cascade.xy.radius -
+                    std::sqrt(radiusSquared[i])) < 1e-4f,
+                "Cascade sphere must match its interval");
+
+            require(
+                cascade.matrices.nearPlane == 0.5f &&
+                    cascade.matrices.farPlane == 42.5f,
+                "Light depth range must use scene bounds");
+
+            require(
+                std::abs(cascade.receiverBias - 0.001f) < 1e-6f,
+                "World bias must use light depth span");
+
+            const auto ndc = shadowNdc(
+                cascade.matrices.viewProjection,
+                {farDistances[i], 0, -farDistances[i]});
+
+            const float expectedX =
+                farDistances[i] /
+                (std::sqrt(radiusSquared[i]) * 4.0f / 3.0f);
+
+            require(
+                std::abs(ndc.x - expectedX) < 1e-4f,
+                "Each cascade matrix must match its own XY fit");
+        }
+    }
+
+    void testCascadeFrameLimitsAndMotion()
+    {
+        const auto input = makeCascadeFrameInput();
+        const std::array<float, 4> expectedFar{3, 5, 7, 9};
+
+        auto cameraLimited = input;
+        cameraLimited.cameraFar = 9.0f;
+
+        auto distanceLimited = input;
+        distanceLimited.shadowDistance = 9.0f;
+
+        const auto a = calculateShadowCascadeFrame(cameraLimited);
+        const auto b = calculateShadowCascadeFrame(distanceLimited);
+
+        for (std::size_t i = 0; i < expectedFar.size(); ++i)
+        {
+            require(
+                a.cascades[i].farDistance == expectedFar[i] &&
+                    b.cascades[i].farDistance == expectedFar[i],
+                "Effective far must honor camera and shadow limits");
+        }
+
+        const auto original = calculateShadowCascadeFrame(input);
+
+        auto movedInput = input;
+        const glm::vec3 translation(2.0f, -3.0f, 4.0f);
+        movedInput.inverseView[3] = glm::vec4(translation, 1.0f);
+        movedInput.receiverBiasWorld = 0.0f;
+
+        const auto moved = calculateShadowCascadeFrame(movedInput);
+
+        for (std::size_t i = 0; i < moved.cascades.size(); ++i)
+        {
+            const auto &before = original.cascades[i];
+            const auto &after = moved.cascades[i];
+
+            require(
+                glm::length(
+                    after.xy.centerWorld -
+                    before.xy.centerWorld -
+                    translation) < 1e-4f,
+                "All cascade centers must follow camera translation");
+
+            require(
+                after.xy.radius == before.xy.radius &&
+                    after.xy.halfExtent == before.xy.halfExtent &&
+                    after.xy.texelWorldSize == before.xy.texelWorldSize,
+                "Translation must preserve all cascade sizes");
+
+            require(
+                after.receiverBias == 0.0f,
+                "Zero world bias must remain zero");
+        }
+    }
+
+    void testInvalidCascadeFrame()
+    {
+        const auto expectInvalid =
+            [](const ShadowCascadeInput &input)
+        {
+            bool rejected = false;
+
+            try
+            {
+                (void)calculateShadowCascadeFrame(input);
+            }
+            catch (const std::invalid_argument &)
+            {
+                rejected = true;
+            }
+
+            require(
+                rejected,
+                "Invalid cascade frame input must be rejected");
+        };
+
+        const float nan =
+            std::numeric_limits<float>::quiet_NaN();
+        const float inf =
+            std::numeric_limits<float>::infinity();
+
+        auto input = makeCascadeFrameInput();
+        input.cameraFar = nan;
+        expectInvalid(input);
+
+        input = makeCascadeFrameInput();
+        input.shadowDistance = nan;
+        expectInvalid(input);
+
+        input = makeCascadeFrameInput();
+        input.shadowDistance = input.cameraNear;
+        expectInvalid(input);
+
+        input = makeCascadeFrameInput();
+        input.cameraFar = input.cameraNear;
+        expectInvalid(input);
+
+        input = makeCascadeFrameInput();
+        input.receiverBiasWorld = -0.01f;
+        expectInvalid(input);
+
+        input = makeCascadeFrameInput();
+        input.receiverBiasWorld = inf;
+        expectInvalid(input);
+
+        input = makeCascadeFrameInput();
+        input.resolution = 0;
+        expectInvalid(input);
+    }
 }
 
 int main()
@@ -671,6 +854,10 @@ int main()
         testKnownShadowMatrices();
         testShadowMatrixCoverage();
         testInvalidShadowMatrices();
+
+        testKnownCascadeFrame();
+        testCascadeFrameLimitsAndMotion();
+        testInvalidCascadeFrame();
 
         std::cout << "Shadow cascade math tests passed\n";
         return 0;

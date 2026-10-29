@@ -4,6 +4,7 @@
 #include "diagnostics/FrameTiming.hpp"
 #include "render/RenderTypes.hpp"
 #include "vulkan/VulkanResources.hpp"
+#include "render/ShadowCascades.hpp"
 
 #include <array>
 #include <cstdint>
@@ -37,7 +38,11 @@ private:
     struct ShadowTarget
     {
         GpuImage depth;
-        VkFramebuffer framebuffer = VK_NULL_HANDLE;
+
+        // 独占 4 个单层 2D view，销毁 image 前逐个释放
+        std::array<VkImageView, shadowCascadeCount> layerViews{};
+
+        std::array<VkFramebuffer, shadowCascadeCount> framebuffers{};
     };
 
     // 帧槽按 CPU 提交顺序循环复用；其索引与 acquire 返回的交换链图像索引独立。
@@ -238,6 +243,9 @@ private:
     void createShadowPipeline();
     void createShadowFramebuffers();
     void recordShadowPass(const FrameToken& token, const RenderFrameData& data);
+    void recordShadowCascade(const FrameToken &token, const RenderFrameData &data, std::uint32_t cascadeIndex);
+
+    // void recordShadowCascade(const FrameToken& token, const RenderFrameData& data, std::uint32_t cascadeIndex);
 
     bool useDynamicRenderingForShadow() const noexcept;
     enum class ShadowImageTransition
@@ -246,10 +254,10 @@ private:
         ToSampling
     };
 
-    void recordShadowImageTransition(const FrameToken& token, ShadowImageTransition transition);
+    void recordShadowImageTransition(const FrameToken &token, ShadowImageTransition transition, std::uint32_t cascadeIndex);
 
-    void beginShadowPass(const FrameToken& token, const VkClearValue& clearValue);
-    void endShadowPass(const FrameToken& token);
+    void beginShadowPass(const FrameToken &token, const VkClearValue &clearValue, std::uint32_t cascadeIndex);
+    void endShadowPass(const FrameToken &token, std::uint32_t cascadeIndex);
 
     // ----
 

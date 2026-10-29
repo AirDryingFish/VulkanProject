@@ -136,6 +136,8 @@ add_executable(vulkan
     src/render/EnvironmentSkybox.cpp
     src/render/GraphicsPipeline.cpp
     src/render/ShadowMapping.cpp
+    src/render/ShadowCascades.hpp
+    src/render/ShadowCascades.cpp
     src/render/PostProcessing.cpp
 
     # Vulkan backend and resource lifetime

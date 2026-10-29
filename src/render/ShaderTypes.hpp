@@ -1,8 +1,10 @@
 #pragma once
 
 #include "scene/Lighting.hpp"
+#include "render/ShadowCascades.hpp"
 
 #include <cstddef>
+#include <array>
 #include <glm/glm.hpp>
 
 // CPU 与 GLSL 共享的二进制布局：字段顺序、类型、对齐都属于接口约定。
@@ -49,6 +51,24 @@ struct alignas(16) UniformBufferObject
     // z: PCF enabled
     // w: DebugView
     alignas(16) glm::ivec4 shadowFlags{};
+
+    // 世界空间 -> 每级 light clip space
+    // 容量为 4，实际使用数量见 cascadeInfo.x
+    alignas(16) std::array<glm::mat4, shadowCascadeCount> cascadeLightViewProjection{};
+
+    // 用一个 vec4 保存四级 CSM 各自的远边界，距离按相机视空间的正向深度表示
+    alignas(16) glm::vec4 cascadeSplits{};
+
+    alignas(16) glm::vec4 cascadeTexelWorldSize{};
+
+    // 每级归一化深度比较 bias
+    alignas(16) glm::vec4 cascadeReceiverBias{};
+
+    // x: 有效级数
+    // y: ShadowMode
+    // z: 预览层(调试时显示指定层的 shadow map)
+    // w: reserved
+    alignas(16) glm::uvec4 cascadeInfo{};
 };
 
 static_assert(offsetof(UniformBufferObject, proj) == 64);
@@ -62,7 +82,22 @@ static_assert(offsetof(UniformBufferObject, directionalColorIntensity) == 976);
 static_assert(offsetof(UniformBufferObject, lightViewProjection) == 992);
 static_assert(offsetof(UniformBufferObject, shadowParams) == 1056);
 static_assert(offsetof(UniformBufferObject, shadowFlags) == 1072);
-static_assert(sizeof(UniformBufferObject) == 1088);
+static_assert(
+    offsetof(UniformBufferObject, cascadeLightViewProjection) == 1088);
+
+static_assert(
+    offsetof(UniformBufferObject, cascadeSplits) == 1344);
+
+static_assert(
+    offsetof(UniformBufferObject, cascadeTexelWorldSize) == 1360);
+
+static_assert(
+    offsetof(UniformBufferObject, cascadeReceiverBias) == 1376);
+
+static_assert(
+    offsetof(UniformBufferObject, cascadeInfo) == 1392);
+
+static_assert(sizeof(UniformBufferObject) == 1408);
 
 // 每个 draw 单独推送模型矩阵和材质参数；相机/灯光等整帧共享数据放在 UBO。
 struct alignas(16) DrawPushConstants
@@ -89,7 +124,7 @@ struct alignas(16) DrawPushConstants
     // x: 纹理 UV set bit mask
     // y: 当前 Mesh 是否有有效 vertex tangent
     // z: 0 = OPAQUE, 1 = MASK
-    // w: reserved
+    // w: shadow draw 使用 cascade index；scene draw 保持 0
     alignas(16) glm::uvec4 textureInfo{
         0u, 0u, 0u, 0u
     };
@@ -101,7 +136,8 @@ struct alignas(16) PostPushConstants
     // x: 曝光 EV；y/z: HDR 亮度调试的 log2 范围；w: 预留。
     glm::vec4 params{};
 
-    // x: ToneMapper；y: 跳过曝光/色调映射；z: DebugView；w: 预留。
+    // x: ToneMapper；y: 跳过曝光/色调映射；
+    // z: DebugView；w: 阴影预览层。
     glm::ivec4 modes{0};
 };
 static_assert(offsetof(PostPushConstants, params) == 0);

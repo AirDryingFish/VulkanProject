@@ -304,7 +304,10 @@ void Application::drawFrame()
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     drawImGui();
-    updateUniformBuffer(frame.frameIndex, deltaTime);
+
+    const std::uint32_t shadowPreviewLayer = shadows.mode == ShadowMode::Single ? 0u : static_cast<std::uint32_t>(std::clamp(shadows.previewLayer, 0, static_cast<int>(shadowCascadeCount) - 1));
+
+    updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer);
     processModelPicking();
     ImGui::Render();
 
@@ -348,13 +351,19 @@ void Application::drawFrame()
     // 材质、法线、光空间视图：黑色背景
     // LinearDepth：白色背景，表示没有表面。
     // HDR luminance：保留正常场景背景和天空。
-    if (isSurfaceDebugView(display.debugView) || display.debugView == DebugView::ShadowProjection)
+    if (isSurfaceDebugView(display.debugView) || display.debugView == DebugView::ShadowProjection || display.debugView == DebugView::ShadowCascades)
     {
         renderData.clearColor = display.debugView == DebugView::LinearDepth ? glm::vec4(1.0f) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
 
     renderData.directionalShadowsEnabled = shadows.enabled && scene.directionalLight.enabled;
+    renderData.shadowMode = shadows.mode;
+    renderData.shadowPcfEnabled = shadows.pcfEnabled;
+    renderData.shadowReceiverBiasNormalized = shadows.receiverBias;
+    renderData.shadowReceiverBiasWorld = shadows.receiverBiasWorld;
+    renderData.shadowPreviewLayer = shadowPreviewLayer;
+
     renderData.shadowConstantBias = shadows.constantBias;
     renderData.shadowSlopeBias = shadows.slopeBias;
     renderData.showShadowDepth = shadows.showDepth;

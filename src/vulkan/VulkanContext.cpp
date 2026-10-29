@@ -485,7 +485,7 @@ GpuImage VulkanContext::createImage(const ImageDesc &desc) const
     );
 }
 
-VkImageView VulkanContext::createImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags, VkImageViewType viewType, uint32_t layerCount) const
+VkImageView VulkanContext::createImageView(VkImage image, VkFormat format, uint32_t mipLevels, VkImageAspectFlags aspectFlags, VkImageViewType viewType, uint32_t layerCount, uint32_t baseArrayLayer) const
 {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -495,10 +495,10 @@ VkImageView VulkanContext::createImageView(VkImage image, VkFormat format, uint3
     viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = mipLevels;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.baseArrayLayer = baseArrayLayer;
     viewInfo.subresourceRange.layerCount = layerCount;
 
-    VkImageView imageView;
+    VkImageView imageView = VK_NULL_HANDLE;
     VK_CHECK(vkCreateImageView(device_, &viewInfo, nullptr, &imageView));
 
     return imageView;

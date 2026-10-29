@@ -44,6 +44,12 @@ FrameTimingConfig captureConfig()
     config.sceneSamples = VK_SAMPLE_COUNT_4_BIT;
     config.shadowEnabled = true;
     config.uiDrawn = true;
+    config.shadowMode = ShadowMode::Single;
+    config.shadowPcfEnabled = true;
+    config.shadowConstantBias = 1.25f;
+    config.shadowSlopeBias = 1.75f;
+    config.shadowReceiverBiasNormalized = 0.0005f;
+    config.shadowReceiverBiasWorld = 0.01f;
     return config;
 }
 
@@ -269,12 +275,32 @@ void testZeroTimings()
 void testConfigChangeCancels()
 {
     using ChangeConfig = void (*)(FrameTimingConfig&);
-    const std::array<ChangeConfig, 5> changes = {{
+    const std::array<ChangeConfig, 12> changes = {{
         [](FrameTimingConfig& config) { config.sceneId = "shadow-playground"; },
         [](FrameTimingConfig& config) { ++config.extent.width; },
         [](FrameTimingConfig& config) { config.exposureEv = 1.0f; },
         [](FrameTimingConfig& config) { config.toneMapper = ToneMapper::AcesFittedNarkowicz; },
-        [](FrameTimingConfig& config) { config.shadowEnabled = !config.shadowEnabled; }
+        [](FrameTimingConfig& config) { config.shadowEnabled = !config.shadowEnabled; },
+        // 记住“测量这一帧时，预览的是哪一层阴影图”
+        [](FrameTimingConfig& config) { config.shadowPreviewLayer = 1u; },
+        [](FrameTimingConfig& config) {
+            config.shadowMode = ShadowMode::Cascaded;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowPcfEnabled = !config.shadowPcfEnabled;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowConstantBias += 0.25f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowSlopeBias += 0.25f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowReceiverBiasNormalized += 0.0001f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowReceiverBiasWorld += 0.01f;
+        }
     }};
     const auto id = firstMeasuredSubmission();
     for (ChangeConfig change : changes)
