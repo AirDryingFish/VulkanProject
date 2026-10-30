@@ -3,6 +3,7 @@
 #include "render/RenderSettings.hpp"
 #include "vulkan/VulkanHeaders.hpp"
 
+#include <glm/glm.hpp>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -55,6 +56,14 @@ struct FrameTimingConfig
 
     float shadowReceiverBiasNormalized = 0.0f; // Single 归一化深度输入
     float shadowReceiverBiasWorld = 0.0f;      // CSM 世界单位输入
+
+    // 请求距离；实际接收远界还受 camera.farPlane 限制。
+    float shadowDistance = 0.0f;
+    float shadowSplitLambda = 0.0f;
+    float shadowDepthMargin = 0.0f;
+    float shadowCsmLightNear = 0.0f;
+    glm::vec3 shadowSingleCenter{0.0f};
+    float shadowSingleHalfExtent = 0.0f;
 
     bool shadowEnabled = false;
     bool shadowPreview = false;

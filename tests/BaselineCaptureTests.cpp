@@ -45,6 +45,14 @@ FrameTimingConfig captureConfig()
     config.shadowEnabled = true;
     config.shadowMode = ShadowMode::Cascaded;
     config.shadowBlendFraction = 0.15f;
+
+    config.shadowDistance = 50.0f;
+    config.shadowSplitLambda = 0.5f;
+    config.shadowDepthMargin = 1.0f;
+    config.shadowCsmLightNear = 0.1f;
+    config.shadowSingleCenter = {1.0f, 2.0f, 3.0f};
+    config.shadowSingleHalfExtent = 5.0f;
+
     config.uiDrawn = true;
     config.shadowPcfEnabled = true;
     config.shadowConstantBias = 1.25f;
@@ -276,7 +284,7 @@ void testZeroTimings()
 void testConfigChangeCancels()
 {
     using ChangeConfig = void (*)(FrameTimingConfig&);
-    const std::array<ChangeConfig, 13> changes = {{
+    const std::array<ChangeConfig, 21> changes = {{
         [](FrameTimingConfig& config) { config.sceneId = "shadow-playground"; },
         [](FrameTimingConfig& config) { ++config.extent.width; },
         [](FrameTimingConfig& config) { config.exposureEv = 1.0f; },
@@ -304,6 +312,30 @@ void testConfigChangeCancels()
         },
         [](FrameTimingConfig& config) {
             config.shadowBlendFraction += 0.1f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowDistance += 1.0f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowSplitLambda += 0.1f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowDepthMargin += 0.5f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowCsmLightNear += 0.05f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowSingleCenter.x += 1.0f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowSingleCenter.y += 1.0f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowSingleCenter.z += 1.0f;
+        },
+        [](FrameTimingConfig& config) {
+            config.shadowSingleHalfExtent += 1.0f;
         }
     }};
     const auto id = firstMeasuredSubmission();

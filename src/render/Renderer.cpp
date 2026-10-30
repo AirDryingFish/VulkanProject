@@ -789,6 +789,14 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.shadowReceiverBiasNormalized = data.shadowReceiverBiasNormalized;
     frame.recordedTimingConfig.shadowReceiverBiasWorld = data.shadowReceiverBiasWorld;
 
+    frame.recordedTimingConfig.shadowDistance = data.shadowDistance;
+    frame.recordedTimingConfig.shadowSplitLambda = data.shadowSplitLambda;
+    frame.recordedTimingConfig.shadowDepthMargin = data.shadowDepthMargin;
+    frame.recordedTimingConfig.shadowCsmLightNear = data.shadowCsmLightNear;
+    frame.recordedTimingConfig.shadowSingleCenter = data.shadowSingleCenter;
+    frame.recordedTimingConfig.shadowSingleHalfExtent =
+        data.shadowSingleHalfExtent;
+
     frame.recordedTimingConfig.uiDrawn = data.imguiDrawData != nullptr;
     frame.recordedTimingConfig.bypassToneMapping = data.bypassToneMapping;
     frame.recordedDraws = {};

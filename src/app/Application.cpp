@@ -372,6 +372,13 @@ void Application::drawFrame()
     renderData.shadowSlopeBias = shadows.slopeBias;
     renderData.showShadowDepth = shadows.showDepth;
 
+    renderData.shadowDistance = shadows.shadowDistance;
+    renderData.shadowSplitLambda = shadows.splitLambda;
+    renderData.shadowDepthMargin = shadows.depthMargin;
+    renderData.shadowCsmLightNear = shadows.lightNear;
+    renderData.shadowSingleCenter = shadows.center;
+    renderData.shadowSingleHalfExtent = shadows.halfExtent;
+
     renderData.debugView = display.debugView;
     renderData.debugDepthNear = camera.nearPlane;
     renderData.debugDepthFar = std::max(display.debugDepthFar, camera.nearPlane + 0.001f);

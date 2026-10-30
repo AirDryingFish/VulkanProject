@@ -85,6 +85,32 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
                                ? "CSM 4"
                                : "Single");
 
+    metricRow("Shadow distance (requested)");
+    ImGui::Text("%.3f", config.shadowDistance);
+
+    if (config.shadowMode == ShadowMode::Cascaded)
+    {
+        metricRow("Split lambda");
+        ImGui::Text("%.3f", config.shadowSplitLambda);
+
+        metricRow("Caster depth margin");
+        ImGui::Text("%.3f", config.shadowDepthMargin);
+
+        metricRow("CSM light near");
+        ImGui::Text("%.3f", config.shadowCsmLightNear);
+    }
+    else
+    {
+        metricRow("Single shadow center");
+        ImGui::Text("%.2f %.2f %.2f",
+                    config.shadowSingleCenter.x,
+                    config.shadowSingleCenter.y,
+                    config.shadowSingleCenter.z);
+
+        metricRow("Single half extent");
+        ImGui::Text("%.3f", config.shadowSingleHalfExtent);
+    }
+
     metricRow("Shadow PCF 3x3");
     ImGui::TextUnformatted(config.shadowPcfEnabled ? "On" : "Off");
 

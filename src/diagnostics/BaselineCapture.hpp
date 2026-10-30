@@ -110,7 +110,15 @@ struct BaselineCapture
                config.debugView == other.debugView &&
                config.debugDepthNear == other.debugDepthNear &&
                config.debugDepthFar == other.debugDepthFar &&
-               config.shadowPreviewLayer == other.shadowPreviewLayer;
+               config.shadowPreviewLayer == other.shadowPreviewLayer &&
+               config.shadowDistance == other.shadowDistance &&
+               config.shadowSplitLambda == other.shadowSplitLambda &&
+               config.shadowDepthMargin == other.shadowDepthMargin &&
+               config.shadowCsmLightNear == other.shadowCsmLightNear &&
+               glm::all(glm::equal(
+                   config.shadowSingleCenter,
+                   other.shadowSingleCenter)) &&
+               config.shadowSingleHalfExtent == other.shadowSingleHalfExtent;
     }
 
     // 接收延迟返回的 GPU 快照，通常在 beginFrame() 后、覆盖该槽 CPU 缓存前调用。

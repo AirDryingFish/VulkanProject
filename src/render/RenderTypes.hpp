@@ -56,6 +56,14 @@ struct RenderFrameData
     float shadowSlopeBias = 0.0f;
     bool showShadowDepth = false;
 
+    // 请求距离；实际接收远界还受 camera.farPlane 限制。
+    float shadowDistance = 0.0f;
+    float shadowSplitLambda = 0.0f;
+    float shadowDepthMargin = 0.0f;
+    float shadowCsmLightNear = 0.0f;
+    glm::vec3 shadowSingleCenter{0.0f};
+    float shadowSingleHalfExtent = 0.0f;
+
     std::string sceneId;
 
     bool bypassToneMapping = false;
