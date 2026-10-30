@@ -69,6 +69,9 @@ struct alignas(16) UniformBufferObject
     // z: 预览层(调试时显示指定层的 shadow map)
     // w: reserved
     alignas(16) glm::uvec4 cascadeInfo{};
+
+    // 各级向下一级混合的起点，末级等于 far
+    alignas(16) glm::vec4 cascadeBlendStarts{};
 };
 
 static_assert(offsetof(UniformBufferObject, proj) == 64);
@@ -97,7 +100,10 @@ static_assert(
 static_assert(
     offsetof(UniformBufferObject, cascadeInfo) == 1392);
 
-static_assert(sizeof(UniformBufferObject) == 1408);
+static_assert(
+    offsetof(UniformBufferObject, cascadeBlendStarts) == 1408);
+
+static_assert(sizeof(UniformBufferObject) == 1424);
 
 // 每个 draw 单独推送模型矩阵和材质参数；相机/灯光等整帧共享数据放在 UBO。
 struct alignas(16) DrawPushConstants

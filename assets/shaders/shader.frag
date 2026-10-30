@@ -44,6 +44,8 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 cascadeReceiverBias;
     uvec4 cascadeInfo;
 
+    vec4 cascadeBlendStarts;
+
 } frame;
 
 layout(push_constant) uniform DrawPushConstants
@@ -307,19 +309,8 @@ int selectShadowCascade(vec3 worldPos)
     return -1;
 }
 
-float directionalShadowVisibility(vec3 worldPosition)
+float shadowCascadeVisibility(vec3 worldPosition, int cascadeIndex)
 {
-    if (frame.shadowFlags.x == 0)
-    {
-        return 1.0;
-    }
-
-    int cascadeIndex = selectShadowCascade(worldPosition);
-    if (cascadeIndex < 0)
-    {
-        return 1.0;
-    }
-
     vec4 lightClip = frame.cascadeLightViewProjection[cascadeIndex] * vec4(worldPosition, 1.0);
 
     if (lightClip.w <= 0.0)
@@ -361,6 +352,48 @@ float directionalShadowVisibility(vec3 worldPosition)
         }
     }
     return visibilitySum /= 9.0;
+}
+
+float directionalShadowVisibility(vec3 worldPosition)
+{
+    if (frame.shadowFlags.x == 0)
+    {
+        return 1.0;
+    }
+
+    int cascadeIndex = selectShadowCascade(worldPosition);
+    if (cascadeIndex < 0)
+    {
+        return 1.0;
+    }
+
+    float currectVisibility = shadowCascadeVisibility(worldPosition, cascadeIndex);
+
+    int cascadeCount = int(min(frame.cascadeInfo.x, 4u));
+
+    if (frame.cascadeInfo.y == 0u || cascadeIndex + 1 >= cascadeCount)
+    {
+        return currectVisibility;
+    }
+
+    float blendStart = frame.cascadeBlendStarts[cascadeIndex];
+    float blendEnd = frame.cascadeSplits[cascadeIndex];
+    if (blendStart >= blendEnd)
+    {
+        return currectVisibility;
+    }
+
+    float viewDepth = -(frame.view * vec4(fragWorldPos, 1.0)).z;
+    if (viewDepth <= blendStart)
+    {
+        return currectVisibility;
+    }
+
+    float nextVisibility = shadowCascadeVisibility(worldPosition, cascadeIndex + 1);
+
+    float weight = clamp((viewDepth - blendStart) / (blendEnd - blendStart), 0.0, 1.0);
+
+    return mix(currectVisibility, nextVisibility, weight);
 }
 
 void main()

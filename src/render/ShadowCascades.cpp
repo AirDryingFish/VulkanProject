@@ -388,7 +388,12 @@ ShadowCascadeFrame calculateShadowCascadeFrame(const ShadowCascadeInput &input)
         input.shadowDistance <= input.cameraNear    ||
 
         !std::isfinite(input.receiverBiasWorld)     ||
-        input.receiverBiasWorld < 0.0f)
+        input.receiverBiasWorld < 0.0f              ||
+
+        !std::isfinite(input.blendFraction)         ||
+        input.blendFraction < 0.0f                  ||
+        input.blendFraction > 1.0f
+    )
     {
         throw std::invalid_argument(
             "Invalid cascade frame parameters");
@@ -401,6 +406,7 @@ ShadowCascadeFrame calculateShadowCascadeFrame(const ShadowCascadeInput &input)
     ShadowCascadeFrame frame{};
     float sliceNear = input.cameraNear;
 
+
     for (std::size_t i = 0; i < frame.cascades.size(); ++i)
     {
         auto& cascade = frame.cascades[i];
@@ -408,8 +414,28 @@ ShadowCascadeFrame calculateShadowCascadeFrame(const ShadowCascadeInput &input)
         cascade.nearDistance = sliceNear;
         cascade.farDistance = splits[i];
 
+        // 本级在什么时候开始提供阴影，应该在上一级开始混合的地方就开始提供
+        cascade.fitNearDistance = i == 0 ? input.cameraNear : frame.cascades[i - 1].blendStartDistance;
+
+        cascade.blendStartDistance = cascade.farDistance;
+
+        if (i + 1 < frame.cascades.size() && input.blendFraction > 0.0f)
+        {
+            const double fraction = static_cast<double>(input.blendFraction);
+            const double blendStart = (1.0 - fraction) * static_cast<double>(cascade.farDistance) + fraction * static_cast<double>(cascade.nearDistance);
+
+            cascade.blendStartDistance = static_cast<float>(blendStart);
+
+            if (!std::isfinite(cascade.blendStartDistance) || cascade.blendStartDistance < cascade.nearDistance || cascade.blendStartDistance >= cascade.farDistance)
+            {
+                throw std::range_error("Cascade blend interval is not representable");
+            }
+
+        }
+
+
         // inverseView 用单位阵，是因为后续在 view space 中计算包围球中心和半径
-        const auto cornersView = calculateFrustumSliceCorners(glm::mat4(1.0f), input.fovDegrees, input.aspectRatio, cascade.nearDistance, cascade.farDistance);
+        const auto cornersView = calculateFrustumSliceCorners(glm::mat4(1.0f), input.fovDegrees, input.aspectRatio, cascade.fitNearDistance, cascade.farDistance);
         cascade.xy = fitShadowCascadeXY(cornersView, input.inverseView, input.lightDirection, input.resolution);
         // 给当前级 csm 计算完整的 light camera 矩阵和 深度范围
         cascade.matrices = calculateShadowCascadeMatrices(cascade.xy, input.sceneMinimum, input.sceneMaximum, input.depthMargin, input.lightNear);

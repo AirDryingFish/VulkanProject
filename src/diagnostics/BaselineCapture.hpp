@@ -101,6 +101,7 @@ struct BaselineCapture
                    other.shadowReceiverBiasNormalized &&
                config.shadowReceiverBiasWorld ==
                    other.shadowReceiverBiasWorld &&
+               config.shadowBlendFraction == other.shadowBlendFraction &&
                config.shadowPreview == other.shadowPreview &&
                config.uiDrawn == other.uiDrawn &&
                config.bypassToneMapping == other.bypassToneMapping &&

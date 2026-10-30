@@ -86,7 +86,7 @@ void Application::createUniformBuffer()
     }
 }
 
-void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, std::uint32_t shadowPreviewLayer)
+void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction)
 {
     // currentImage 在这里实际是 frameIndex（帧资源槽），不是交换链 imageIndex。
     // 调用前 beginFrame() 已等待该槽的 fence，当前槽的 UBO 才可以安全覆写。
@@ -158,6 +158,7 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, st
 
     const float effectiveShadowDistance = std::min(camera.farPlane, shadows.shadowDistance);
     ubo.cascadeSplits = glm::vec4(effectiveShadowDistance);
+    ubo.cascadeBlendStarts = ubo.cascadeSplits;
 
     const float shadowTexelWorldSize = 2.0 * halfExtent / static_cast<float>(directionalShadowResolution);
 
@@ -186,6 +187,7 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, st
 
         input.shadowDistance = shadows.shadowDistance;
         input.splitLambda = shadows.splitLambda;
+        input.blendFraction = shadowBlendFraction;
 
         input.lightDirection = direction;
 
@@ -207,6 +209,7 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, st
             const auto component = static_cast<glm::length_t>(i);
             ubo.cascadeLightViewProjection[i] = cascade.matrices.viewProjection;
             ubo.cascadeSplits[component] = cascade.farDistance;
+            ubo.cascadeBlendStarts[component] = cascade.blendStartDistance;
             ubo.cascadeTexelWorldSize[component] = cascade.xy.texelWorldSize;
             ubo.cascadeReceiverBias[component] = cascade.receiverBias;
         }

@@ -307,7 +307,9 @@ void Application::drawFrame()
 
     const std::uint32_t shadowPreviewLayer = shadows.mode == ShadowMode::Single ? 0u : static_cast<std::uint32_t>(std::clamp(shadows.previewLayer, 0, static_cast<int>(shadowCascadeCount) - 1));
 
-    updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer);
+    const float shadowBlendFraction = shadows.mode == ShadowMode::Cascaded ? shadows.blendFraction : 0.0f;
+
+    updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction);
     processModelPicking();
     ImGui::Render();
 
@@ -359,10 +361,12 @@ void Application::drawFrame()
 
     renderData.directionalShadowsEnabled = shadows.enabled && scene.directionalLight.enabled;
     renderData.shadowMode = shadows.mode;
+    renderData.shadowBlendFraction = shadowBlendFraction;
     renderData.shadowPcfEnabled = shadows.pcfEnabled;
     renderData.shadowReceiverBiasNormalized = shadows.receiverBias;
     renderData.shadowReceiverBiasWorld = shadows.receiverBiasWorld;
     renderData.shadowPreviewLayer = shadowPreviewLayer;
+
 
     renderData.shadowConstantBias = shadows.constantBias;
     renderData.shadowSlopeBias = shadows.slopeBias;

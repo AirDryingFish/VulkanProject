@@ -782,6 +782,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.shadowPreviewLayer = data.shadowPreviewLayer;
 
     frame.recordedTimingConfig.shadowMode = data.shadowMode;
+    frame.recordedTimingConfig.shadowBlendFraction = data.shadowBlendFraction;
     frame.recordedTimingConfig.shadowPcfEnabled = data.shadowPcfEnabled;
     frame.recordedTimingConfig.shadowConstantBias = data.shadowConstantBias;
     frame.recordedTimingConfig.shadowSlopeBias = data.shadowSlopeBias;

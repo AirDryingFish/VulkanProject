@@ -47,6 +47,8 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 cascadeReceiverBias;
     uvec4 cascadeInfo;
 
+    vec4 cascadeBlendStarts;
+
 } ubo;
 
 layout(push_constant) uniform ModelPushConstants

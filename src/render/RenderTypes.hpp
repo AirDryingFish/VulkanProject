@@ -43,6 +43,7 @@ struct RenderFrameData
 
     bool directionalShadowsEnabled = false;
     ShadowMode shadowMode = ShadowMode::Single;
+    float shadowBlendFraction = 0.0f;
 
     std::uint32_t shadowPreviewLayer = 0;
 

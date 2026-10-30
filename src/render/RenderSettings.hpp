@@ -65,8 +65,12 @@ struct ShadowSettings
     // CSM 使用
     float shadowDistance = 50.0f;
     float splitLambda = 0.5f;
+
+    // CSM 级间过渡比例，0 关闭
+    float blendFraction = 0.0f;
+
     float depthMargin = 1.0f;
     float lightNear = 0.1f;
 
-    float receiverBiasWorld = 0.7f;
+    float receiverBiasWorld = 0.07f;
 };

@@ -833,6 +833,55 @@ namespace
         input.resolution = 0;
         expectInvalid(input);
     }
+
+    void testCascadeBlendFrame()
+    {
+        auto input = makeCascadeFrameInput();
+        input.blendFraction = 0.25f;
+        const auto frame = calculateShadowCascadeFrame(input);
+        const std::array<float, 4> fitNear{1, 4, 8, 12};
+        const std::array<float, 4> starts{4, 8, 12, 17};
+        const std::array<float, 4> nearDistances{1, 5, 9, 13};
+        const std::array<float, 4> farDistances{5, 9, 13, 17};
+        const std::array<float, 4> radiusSquared{54, 168.25f, 344.25f, 584.25f};
+        for (std::size_t i = 0; i < frame.cascades.size(); ++i)
+        {
+            const auto &cascade = frame.cascades[i];
+            require(cascade.nearDistance == nearDistances[i] &&
+                        cascade.farDistance == farDistances[i] &&
+                        cascade.fitNearDistance == fitNear[i] &&
+                        cascade.blendStartDistance == starts[i],
+                    "Nominal and overlapping intervals must match the known frame");
+            require(std::abs(cascade.xy.radius - std::sqrt(radiusSquared[i])) < 1e-4f,
+                    "Cascade fit must use the expanded interval");
+        }
+
+        input.lightDirection = {-1.0f, -2.0f, -3.0f};
+        input.sceneMinimum = glm::vec3(-100.0f);
+        input.sceneMaximum = glm::vec3(100.0f);
+        Camera camera;
+        camera.lookAt({3, -2, 4}, {0, 1, 0});
+        input.inverseView = glm::inverse(camera.view());
+        const auto moved = calculateShadowCascadeFrame(input);
+        for (std::size_t i = 0; i + 1 < moved.cascades.size(); ++i)
+        {
+            const auto &current = moved.cascades[i];
+            const auto &next = moved.cascades[i + 1];
+            const auto corners = calculateFrustumSliceCorners(
+                input.inverseView, input.fovDegrees, input.aspectRatio,
+                current.blendStartDistance, current.farDistance);
+            for (const auto &corner : corners)
+            {
+                for (const auto *cascade : {&current, &next})
+                {
+                    const auto ndc = shadowNdc(cascade->matrices.viewProjection, corner);
+                    require(std::abs(ndc.x) <= 1.0001f && std::abs(ndc.y) <= 1.0001f &&
+                                ndc.z >= -1e-4f && ndc.z <= 1.0001f,
+                            "Both cascades must cover the blend-band corners");
+                }
+            }
+        }
+    }
 }
 
 int main()
@@ -858,6 +907,8 @@ int main()
         testKnownCascadeFrame();
         testCascadeFrameLimitsAndMotion();
         testInvalidCascadeFrame();
+
+        testCascadeBlendFrame();
 
         std::cout << "Shadow cascade math tests passed\n";
         return 0;

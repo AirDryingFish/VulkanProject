@@ -87,6 +87,8 @@ struct ShadowCascadeInput
 
     float shadowDistance = 50.0f;
     float splitLambda = 0.5f;
+    // csm 两级之间过渡占本级区间的比例，0表示关闭
+    float blendFraction = 0.0f;
 
     glm::vec3 lightDirection{-1.0f, -1.0f, -2.0f};
 
@@ -108,6 +110,12 @@ struct ShadowCascadeData
 {
     float nearDistance = 0.0f;
     float farDistance = 0.0f;
+
+    // 实际拟合区间 = [fitNearDistance, farDistance]
+    // 计算本级覆盖范围时，从哪里开始覆盖
+    float fitNearDistance = 0.0f;
+    // 本级从哪里开始向下一级混合
+    float blendStartDistance = 0.0f;
 
     ShadowCascadeXY xy{};
     ShadowCascadeMatrices matrices{};

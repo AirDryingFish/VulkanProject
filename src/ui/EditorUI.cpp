@@ -685,6 +685,20 @@ void Application::drawImGui()
                 ImGui::BeginChild("ShadowsContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::SeparatorText("Directional shadows");
+
+
+                const char* shadowModeNames[] = {"Single", "Cascaded"};
+                int selectedShadowMode = static_cast<int>(shadows.mode);
+
+                if (ImGui::Combo("Shadow mode", &selectedShadowMode, shadowModeNames, IM_ARRAYSIZE(shadowModeNames)))
+                {
+                    shadows.mode = static_cast<ShadowMode>(selectedShadowMode);
+                }
+
+                ImGui::BeginDisabled(shadows.mode == ShadowMode::Single);
+                ImGui::SliderFloat("Cascade blend fraction", &shadows.blendFraction, 0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::EndDisabled();
+
                 ImGui::Checkbox("Shadows##DirectionalLight", &shadows.enabled);
                 ImGui::Checkbox("Shadow PCF 3x3", &shadows.pcfEnabled);
 
@@ -695,7 +709,7 @@ void Application::drawImGui()
 
                 if (shadows.mode ==ShadowMode::Cascaded)
                 {
-                    ImGui::SliderFloat("CSM receiver bias (world)", &shadows.receiverBiasWorld, 0.0f, 0.1f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
+                    ImGui::SliderFloat("CSM receiver bias (world)", &shadows.receiverBiasWorld, 0.0f, 1.0f, "%.5f", ImGuiSliderFlags_AlwaysClamp);
                 }
                 else
                 {
@@ -707,7 +721,7 @@ void Application::drawImGui()
                     shadows.constantBias = 1.25f;
                     shadows.slopeBias = 1.75f;
                     shadows.receiverBias = 0.0005f;
-                    shadows.receiverBiasWorld = 0.7f;
+                    shadows.receiverBiasWorld = 0.07f;
                 }
                 ImGui::SeparatorText("Debug views");
                 ImGui::Checkbox("Show shadow depth", &shadows.showDepth);

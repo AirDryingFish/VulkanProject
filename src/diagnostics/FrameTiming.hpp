@@ -47,6 +47,7 @@ struct FrameTimingConfig
     std::uint32_t shadowPreviewLayer = 0;
 
     ShadowMode shadowMode = ShadowMode::Single;
+    float shadowBlendFraction = 0.0f;
     bool shadowPcfEnabled = false;
 
     float shadowConstantBias = 0.0f;

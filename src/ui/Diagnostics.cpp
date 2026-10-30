@@ -77,6 +77,9 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     metricRow("Shadows");
     ImGui::TextUnformatted(config.shadowEnabled ? "Draw enabled" : "Clear only");
 
+    metricRow("Cascade blend fraction");
+    ImGui::Text("%.2f", config.shadowBlendFraction);
+
     metricRow("Shadow mode");
     ImGui::TextUnformatted(config.shadowMode == ShadowMode::Cascaded
                                ? "CSM 4"
