@@ -76,7 +76,7 @@ void Application::createUniformBuffer()
     BufferDesc uniformDesc{};
     uniformDesc.size = bufferSize;
     uniformDesc.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    uniformDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    uniformDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     uniformDesc.debugName = "frame uniform buffer";
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -86,7 +86,7 @@ void Application::createUniformBuffer()
     }
 }
 
-void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction)
+ShadowFrameSummary Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction)
 {
     // currentImage 在这里实际是 frameIndex（帧资源槽），不是交换链 imageIndex。
     // 调用前 beginFrame() 已等待该槽的 fence，当前槽的 UBO 才可以安全覆写。
@@ -97,6 +97,27 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, st
     // ubo.proj = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
     const float aspectRatio = swapchain.extent().width / static_cast<float>(swapchain.extent().height);
     ubo.proj = camera.projection(aspectRatio);
+
+    const float minimumShadowDistance = std::min(camera.nearPlane + 0.01f, camera.farPlane);
+    if (!std::isfinite(shadows.shadowDistance))
+    {
+        shadows.shadowDistance = 50.0f;
+    }
+
+    shadows.shadowDistance = std::max(shadows.shadowDistance, minimumShadowDistance);
+    shadows.splitLambda = std::clamp(std::isfinite(shadows.splitLambda) ? shadows.splitLambda : 0.5f, 0.0f, 1.0f);
+    shadows.halfExtent = std::clamp(std::isfinite(shadows.halfExtent)
+            ? shadows.halfExtent
+            : 5.0f,
+        0.1f,
+        10000.0f
+    );
+    if (!std::isfinite(shadows.center.x) ||
+        !std::isfinite(shadows.center.y) ||
+        !std::isfinite(shadows.center.z))
+    {
+        shadows.center = glm::vec3(0.0f);
+    }
 
     ubo.cameraPosition = glm::vec4(camera.position, 1.0f);
     ubo.ambientLight = glm::vec4(scene.ambientLightColor, scene.ambientLightIntensity);
@@ -236,6 +257,16 @@ void Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, st
 
     // 一次拷贝整份 CPU/GLSL 共享布局；字段偏移和总大小由 ShaderTypes.hpp 的断言约束。
     memcpy(uniformBufferMapped[currentImage], &ubo, sizeof(ubo));
+    VK_CHECK(uniformBuffers[currentImage].flush(0, sizeof(ubo)));
+
+    ShadowFrameSummary summary{};
+    summary.activeCascadeCount = ubo.cascadeInfo.x;
+    summary.cameraNearDistance = ubo.renderParams.y;
+    summary.receiverFarDistance = ubo.cascadeSplits.w;
+    summary.cameraFovDegrees = camera.fieldOfViewDegrees;
+    summary.receiverBiasNormalized = ubo.cascadeReceiverBias;
+
+    return summary;
 }
 
 void Application::releaseMesh(MeshHandle& mesh)

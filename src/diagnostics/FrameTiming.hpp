@@ -2,6 +2,7 @@
 
 #include "render/RenderSettings.hpp"
 #include "vulkan/VulkanHeaders.hpp"
+#include "render/ShadowFrameSummary.hpp"
 
 #include <glm/glm.hpp>
 #include <array>
@@ -38,6 +39,14 @@ struct GpuPassTiming
     double milliseconds = 0.0;
 };
 
+// 由 renderer 从当前帧实际使用的图像读取
+struct ShadowTargetSummary
+{
+    VkExtent2D extent{};
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    std::uint32_t arrayLayers = 0;
+};
+
 // 配置跟随提交复制，延迟回来的 GPU 样本不能套用此刻 UI 的设置。
 struct FrameTimingConfig
 {
@@ -64,6 +73,9 @@ struct FrameTimingConfig
     float shadowCsmLightNear = 0.0f;
     glm::vec3 shadowSingleCenter{0.0f};
     float shadowSingleHalfExtent = 0.0f;
+
+    ShadowFrameSummary shadowFrame{};
+    ShadowTargetSummary shadowTarget{};
 
     bool shadowEnabled = false;
     bool shadowPreview = false;

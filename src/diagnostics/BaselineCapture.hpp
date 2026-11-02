@@ -13,6 +13,8 @@
 #include <iomanip>
 #include <locale>
 #include <cstddef>
+#include <limits>
+#include <utility>
 
 inline constexpr std::size_t baselineCpuMetricCount = 6;
 struct BaselineCpuSample
@@ -54,6 +56,8 @@ struct BaselineCapture
     std::uint32_t droppedSamples = 0;
 
     FrameTimingConfig config{};
+    std::string contextText;
+
     std::vector<BaselineSample> samples;
     // 采集状态与导出反馈独立保存，导出成功不应覆盖 Capture complete。
     std::string message;
@@ -62,12 +66,15 @@ struct BaselineCapture
     // CPU 数据在提交后立即可得，GPU 数据要等对应 fence 完成；按帧槽暂存以便稍后配对。
     std::array<BaselineCpuSample, MAX_FRAMES_IN_FLIGHT> cpuByFrameSlot{};
 
-    void start(std::uint64_t firstId, const FrameTimingConfig& capturedConfig)
+    void start(std::uint64_t firstId, const FrameTimingConfig& capturedConfig, std::string capturedContext = {})
     {
         // 新采集不继承旧样本/消息/CPU 缓存；调用方必须在 start 后再 rememberCpu。
         *this = BaselineCapture{};
+
         firstSubmissionId = firstId;
         config = capturedConfig;
+        contextText = std::move(capturedContext);
+
         samples.reserve(targetSamples);
         running = true;
     }
@@ -118,7 +125,26 @@ struct BaselineCapture
                glm::all(glm::equal(
                    config.shadowSingleCenter,
                    other.shadowSingleCenter)) &&
-               config.shadowSingleHalfExtent == other.shadowSingleHalfExtent;
+                config.shadowSingleHalfExtent == other.shadowSingleHalfExtent &&
+                config.shadowFrame.activeCascadeCount ==
+                    other.shadowFrame.activeCascadeCount &&
+                config.shadowFrame.cameraNearDistance ==
+                    other.shadowFrame.cameraNearDistance &&
+                config.shadowFrame.receiverFarDistance ==
+                    other.shadowFrame.receiverFarDistance &&
+                config.shadowFrame.cameraFovDegrees ==
+                    other.shadowFrame.cameraFovDegrees &&
+                glm::all(glm::equal(
+                    config.shadowFrame.receiverBiasNormalized,
+                    other.shadowFrame.receiverBiasNormalized)) &&
+                config.shadowTarget.extent.width ==
+                    other.shadowTarget.extent.width &&
+                config.shadowTarget.extent.height ==
+                    other.shadowTarget.extent.height &&
+                config.shadowTarget.format ==
+                    other.shadowTarget.format &&
+                config.shadowTarget.arrayLayers ==
+                    other.shadowTarget.arrayLayers;
     }
 
     // 接收延迟返回的 GPU 快照，通常在 beginFrame() 后、覆盖该槽 CPU 缓存前调用。
@@ -252,6 +278,178 @@ struct BaselineCapture
 
         file.flush();
         return file.good();
+    }
+    bool saveMetadata(const char *path) const
+    {
+        if (!complete || samples.empty() ||
+            path == nullptr || path[0] == '\0')
+        {
+            return false;
+        }
+
+        std::ofstream file(path);
+        if (!file)
+        {
+            return false;
+        }
+
+        file.imbue(std::locale::classic());
+        file << std::boolalpha
+             << std::setprecision(
+                    std::numeric_limits<float>::max_digits10);
+
+        // 普通标量：key=value
+        const auto write = [&](const char *key, const auto &value)
+        {
+            file << key << '=' << value << '\n';
+        };
+
+        // 三维向量：key=x y z
+        const auto writeVec3 =
+            [&](const char *key, const glm::vec3 &value)
+        {
+            file << key << '='
+                 << value.x << ' '
+                 << value.y << ' '
+                 << value.z << '\n';
+        };
+
+        // 四维向量：key=x y z w
+        const auto writeVec4 =
+            [&](const char *key, const glm::vec4 &value)
+        {
+            file << key << '='
+                 << value.x << ' '
+                 << value.y << ' '
+                 << value.z << ' '
+                 << value.w << '\n';
+        };
+
+        // 采集身份和样本数量。
+        write("schema_version", 2);
+        write("warmup_first_submission_id", firstSubmissionId);
+        write("first_measured_submission_id",
+              samples.front().submissionId);
+        write("last_measured_submission_id",
+              samples.back().submissionId);
+        write("warmup_submissions", warmupSubmissions);
+        write("target_samples", targetSamples);
+        write("actual_samples", samples.size());
+        write("dropped_samples", droppedSamples);
+
+        // 场景与实际渲染目标配置。
+        write("scene_id", std::quoted(config.sceneId));
+        write("width", config.extent.width);
+        write("height", config.extent.height);
+        write("scene_samples",
+              static_cast<std::uint32_t>(config.sceneSamples));
+
+        // 阴影模式及输入参数。
+        const char *modeName = "Unknown";
+        if (config.shadowMode == ShadowMode::Single)
+        {
+            modeName = "Single";
+        }
+        else if (config.shadowMode == ShadowMode::Cascaded)
+        {
+            modeName = "Cascaded";
+        }
+
+        write("shadow_mode", modeName);
+        write("shadow_mode_value",
+              static_cast<std::uint32_t>(config.shadowMode));
+        write("shadow_enabled", config.shadowEnabled);
+        write("shadow_preview", config.shadowPreview);
+        write("shadow_preview_layer", config.shadowPreviewLayer);
+        write("shadow_pcf_enabled", config.shadowPcfEnabled);
+        write("shadow_blend_fraction", config.shadowBlendFraction);
+        write("shadow_constant_bias", config.shadowConstantBias);
+        write("shadow_slope_bias", config.shadowSlopeBias);
+        write("single_receiver_bias",
+              config.shadowReceiverBiasNormalized);
+        write("csm_receiver_bias_world",
+              config.shadowReceiverBiasWorld);
+        write("shadow_distance", config.shadowDistance);
+        write("shadow_split_lambda", config.shadowSplitLambda);
+        write("shadow_depth_margin", config.shadowDepthMargin);
+        write("shadow_csm_light_near", config.shadowCsmLightNear);
+        writeVec3("single_center", config.shadowSingleCenter);
+        write("single_half_extent", config.shadowSingleHalfExtent);
+
+        // 本次 UBO 使用的实际结果。
+        write("active_cascades",
+              config.shadowFrame.activeCascadeCount);
+        write("camera_near",
+              config.shadowFrame.cameraNearDistance);
+        write("receiver_far",
+              config.shadowFrame.receiverFarDistance);
+        write("camera_fov_degrees",
+              config.shadowFrame.cameraFovDegrees);
+        writeVec4("cascade_receiver_bias",
+                  config.shadowFrame.receiverBiasNormalized);
+
+        // 实际分配的阴影图形状。
+        write("shadow_width", config.shadowTarget.extent.width);
+        write("shadow_height", config.shadowTarget.extent.height);
+        write("allocated_shadow_layers",
+              config.shadowTarget.arrayLayers);
+        write("shadow_format_value",
+              static_cast<std::int32_t>(config.shadowTarget.format));
+
+        const char *formatName = "Unknown";
+        if (config.shadowTarget.format == VK_FORMAT_D32_SFLOAT)
+        {
+            formatName = "D32_SFLOAT";
+        }
+        else if (config.shadowTarget.format == VK_FORMAT_D16_UNORM)
+        {
+            formatName = "D16_UNORM";
+        }
+        write("shadow_format", formatName);
+
+        // 显示设置也会影响对照条件。
+        write("ui_drawn", config.uiDrawn);
+        write("bypass_tone_mapping", config.bypassToneMapping);
+        write("exposure_ev", config.exposureEv);
+        write("tone_mapper_value",
+              static_cast<std::uint32_t>(config.toneMapper));
+        write("debug_view_value",
+              static_cast<std::int32_t>(config.debugView));
+        write("debug_depth_near", config.debugDepthNear);
+        write("debug_depth_far", config.debugDepthFar);
+
+        write("context_available", !contextText.empty());
+
+        file << "\n[capture_context]\n";
+        file << contextText;
+
+        file.flush();
+        if (!file.good())
+        {
+            return false;
+        }
+
+        file.close();
+        return !file.fail();
+    }
+
+    bool saveBundle(const char *csvPath) const
+    {
+        if (!complete || samples.empty() ||
+            csvPath == nullptr || csvPath[0] == '\0')
+        {
+            return false;
+        }
+
+        if (!saveCsv(csvPath))
+        {
+            return false;
+        }
+
+        const std::string metadataPath =
+            std::string(csvPath) + ".config.txt";
+
+        return saveMetadata(metadataPath.c_str());
     }
 
     void rememberCpu(const CpuFrameTimingSnapshot& cpu)

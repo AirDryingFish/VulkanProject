@@ -702,6 +702,20 @@ void Application::drawImGui()
                 ImGui::Checkbox("Shadows##DirectionalLight", &shadows.enabled);
                 ImGui::Checkbox("Shadow PCF 3x3", &shadows.pcfEnabled);
 
+                ImGui::SeparatorText("Shadow coverage");
+                const float minimumShadowDistance = std::min(camera.nearPlane + 0.01f, camera.farPlane);
+                ImGui::DragFloat("Shadow Distance", &shadows.shadowDistance, 0.5f, minimumShadowDistance, camera.farPlane, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::Text("Receiver far: %.2f", std::min(camera.farPlane, shadows.shadowDistance));
+
+                ImGui::BeginDisabled(shadows.mode == ShadowMode::Single);
+                ImGui::SliderFloat("Split lambda", &shadows.splitLambda, 0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::EndDisabled();
+
+                ImGui::BeginDisabled(shadows.mode != ShadowMode::Single);
+                ImGui::DragFloat3("Single center", &shadows.center.x, 0.1f);
+                ImGui::DragFloat("Single half extent", &shadows.halfExtent, 0.1f, 0.1f, 10000.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::EndDisabled();
+
                 ImGui::SeparatorText("Depth bias");
                 ImGui::SliderFloat("Shadow constant bias", &shadows.constantBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
                 ImGui::SliderFloat("Shadow slope bias", &shadows.slopeBias, 0.0f, 5.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
@@ -751,6 +765,33 @@ void Application::drawImGui()
                 ImGui::BeginChild("CameraContent", ImVec2(0.0f, 0.0f));
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
                 ImGui::SeparatorText("Camera");
+
+                const bool canSetAuditCamera =
+                    activeScenePreset == ScenePreset::ShadowPlayground &&
+                    !pendingScenePreset.has_value();
+
+                ImGui::BeginDisabled(!canSetAuditCamera);
+
+                if (ImGui::Button("Use shadow test camera"))
+                {
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: test camera reset.");
+                    diagnostics.startRequested = false;
+
+                    camera.lookAt(
+                        {14.0f, -22.0f, 14.0f},
+                        {0.0f, 15.0f, 0.0f});
+
+                    camera.nearPlane = 0.1f;
+                    camera.farPlane = 100.0f;
+                    camera.fieldOfViewDegrees = 45.0f;
+                    camera.moveSpeed = 2.0f;
+
+                    cameraController.reset(window);
+                }
+
+                ImGui::EndDisabled();
+
                 ImGui::Text("Position: %.2f %.2f %.2f", camera.position.x, camera.position.y, camera.position.z);
                 ImGui::Text("Front: %.2f %.2f %.2f", camera.front.x, camera.front.y, camera.front.z);
                 ImGui::Text("Yaw/Pitch: %.1f %.1f", camera.yaw, camera.pitch);

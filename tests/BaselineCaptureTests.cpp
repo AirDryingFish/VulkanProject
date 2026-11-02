@@ -53,6 +53,17 @@ FrameTimingConfig captureConfig()
     config.shadowSingleCenter = {1.0f, 2.0f, 3.0f};
     config.shadowSingleHalfExtent = 5.0f;
 
+    config.shadowFrame.activeCascadeCount = 4;
+    config.shadowFrame.cameraNearDistance = 0.1f;
+    config.shadowFrame.receiverFarDistance = 50.0f;
+    config.shadowFrame.cameraFovDegrees = 60.0f;
+    config.shadowFrame.receiverBiasNormalized = {
+        0.0001f, 0.0002f, 0.0003f, 0.0004f};
+
+    config.shadowTarget.extent = {2048, 2048};
+    config.shadowTarget.format = VK_FORMAT_D32_SFLOAT;
+    config.shadowTarget.arrayLayers = 4;
+
     config.uiDrawn = true;
     config.shadowPcfEnabled = true;
     config.shadowConstantBias = 1.25f;
@@ -284,7 +295,7 @@ void testZeroTimings()
 void testConfigChangeCancels()
 {
     using ChangeConfig = void (*)(FrameTimingConfig&);
-    const std::array<ChangeConfig, 21> changes = {{
+    const std::array<ChangeConfig, 33> changes = {{
         [](FrameTimingConfig& config) { config.sceneId = "shadow-playground"; },
         [](FrameTimingConfig& config) { ++config.extent.width; },
         [](FrameTimingConfig& config) { config.exposureEv = 1.0f; },
@@ -336,7 +347,22 @@ void testConfigChangeCancels()
         },
         [](FrameTimingConfig& config) {
             config.shadowSingleHalfExtent += 1.0f;
-        }
+        },
+
+        [](FrameTimingConfig& c) { c.shadowFrame.activeCascadeCount = 1; },
+        [](FrameTimingConfig& c) { c.shadowFrame.cameraNearDistance += 0.1f; },
+        [](FrameTimingConfig& c) { c.shadowFrame.receiverFarDistance += 1.0f; },
+        [](FrameTimingConfig& c) { c.shadowFrame.cameraFovDegrees += 1.0f; },
+
+        [](FrameTimingConfig& c) { c.shadowFrame.receiverBiasNormalized.x += 0.0001f; },
+        [](FrameTimingConfig& c) { c.shadowFrame.receiverBiasNormalized.y += 0.0001f; },
+        [](FrameTimingConfig& c) { c.shadowFrame.receiverBiasNormalized.z += 0.0001f; },
+        [](FrameTimingConfig& c) { c.shadowFrame.receiverBiasNormalized.w += 0.0001f; },
+
+        [](FrameTimingConfig& c) { ++c.shadowTarget.extent.width; },
+        [](FrameTimingConfig& c) { ++c.shadowTarget.extent.height; },
+        [](FrameTimingConfig& c) { c.shadowTarget.format = VK_FORMAT_D16_UNORM; },
+        [](FrameTimingConfig& c) { c.shadowTarget.arrayLayers = 1; }
     }};
     const auto id = firstMeasuredSubmission();
     for (ChangeConfig change : changes)
@@ -488,6 +514,130 @@ void testCsv(const BaselineCapture& capture)
     require(!incomplete.saveCsv(prematureName.c_str()) && !std::filesystem::exists(prematurePath),
             "incomplete capture must not create an export file");
 }
+
+void testBundle(const BaselineCapture &capture)
+{
+    TemporaryDirectory temporary;
+
+    const auto csvPath =
+        (temporary.path() / "bundle.csv").string();
+    const std::string configPath =
+        csvPath + ".config.txt";
+
+    require(capture.saveBundle(csvPath.c_str()),
+            "complete capture must export CSV and config");
+
+    require(std::filesystem::is_regular_file(csvPath),
+            "bundle CSV must exist");
+    require(std::filesystem::is_regular_file(configPath),
+            "bundle config must exist");
+
+    std::ifstream file(configPath);
+    require(file.is_open(), "config must be readable");
+
+    std::ostringstream contents;
+    contents << file.rdbuf();
+    const std::string text = contents.str();
+
+    require(text.find("shadow_mode=Cascaded\n") !=
+                std::string::npos,
+            "config must preserve captured shadow mode");
+    require(text.find("active_cascades=4\n") !=
+                std::string::npos,
+            "config must record active cascade count");
+    require(text.find("allocated_shadow_layers=4\n") !=
+                std::string::npos,
+            "config must record actual allocated layers");
+
+    // 未完成时，两个文件都不能创建。
+    BaselineCapture incomplete;
+    const auto prematurePath =
+        (temporary.path() / "premature.csv").string();
+
+    require(!incomplete.saveBundle(prematurePath.c_str()),
+            "incomplete capture must reject bundle export");
+    require(!std::filesystem::exists(prematurePath),
+            "incomplete capture must not create CSV");
+    require(!std::filesystem::exists(
+                prematurePath + ".config.txt"),
+            "incomplete capture must not create config");
+
+    // 把配置文件路径占成目录，使配置导出失败。
+    const auto blockedPath =
+        (temporary.path() / "blocked.csv").string();
+
+    std::filesystem::create_directory(
+        blockedPath + ".config.txt");
+
+    require(!capture.saveBundle(blockedPath.c_str()),
+            "metadata failure must fail bundle export");
+
+    // 更换路径后，同一份采集仍可重试。
+    const auto retryPath =
+        (temporary.path() / "retry-bundle.csv").string();
+
+    require(capture.saveBundle(retryPath.c_str()),
+            "failed bundle export must remain retryable");
+}
+
+void testCaptureContext(const BaselineCapture &completed)
+{
+    std::string sourceContext =
+        "camera.position=1 2 3\n";
+
+    BaselineCapture capture;
+    capture.start(
+        completed.firstSubmissionId,
+        completed.config,
+        sourceContext);
+
+    // 修改调用者的字符串，不应影响已保存副本。
+    sourceContext = "camera.position=9 9 9\n";
+
+    require(
+        capture.contextText == "camera.position=1 2 3\n",
+        "capture must own an independent context copy");
+
+    // 复用已验证的完成样本，测试上下文导出。
+    capture.samples = completed.samples;
+    capture.running = false;
+    capture.complete = true;
+
+    TemporaryDirectory temporary;
+    const auto path =
+        (temporary.path() / "context.config.txt").string();
+
+    require(capture.saveMetadata(path.c_str()),
+            "completed context must export");
+
+    std::ifstream file(path);
+    require(file.is_open(), "context file must be readable");
+
+    std::ostringstream contents;
+    contents << file.rdbuf();
+    const std::string text = contents.str();
+
+    require(
+        text.find("context_available=true\n") !=
+            std::string::npos,
+        "metadata must report available context");
+
+    require(
+        text.find("camera.position=1 2 3\n") !=
+            std::string::npos,
+        "metadata must export the captured context");
+
+    require(
+        text.find("camera.position=9 9 9\n") ==
+            std::string::npos,
+        "metadata must not export later caller changes");
+
+    // 不传上下文的新采集，必须清除上一份上下文。
+    capture.start(2000, completed.config);
+
+    require(capture.contextText.empty(),
+            "new capture must not retain old context");
+}
 }
 
 int main()
@@ -502,6 +652,8 @@ int main()
         testConfigChangeCancels();
         testCancelAndRestart();
         testCsv(completed);
+        testBundle(completed);
+        testCaptureContext(completed);
         std::cout << "Baseline capture tests passed\n";
         return 0;
     }

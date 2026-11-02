@@ -3,6 +3,7 @@
 #include "vulkan/VulkanHeaders.hpp"
 #include "render/RenderSettings.hpp"
 #include "render/ShaderTypes.hpp"
+#include "render/ShadowFrameSummary.hpp"
 #include <glm/glm.hpp>
 
 #include <cstdint>
@@ -55,6 +56,8 @@ struct RenderFrameData
     float shadowConstantBias = 0.0f;
     float shadowSlopeBias = 0.0f;
     bool showShadowDepth = false;
+
+    ShadowFrameSummary shadowFrame{};
 
     // 请求距离；实际接收远界还受 camera.farPlane 限制。
     float shadowDistance = 0.0f;

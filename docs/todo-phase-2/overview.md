@@ -3,23 +3,26 @@
 本文接续 [Phase 1 开发路线图](../todo-phase-1/overview.md)，作为后续手敲开发的大纲。
 
 原规划日期：2026-09-23；原源码基线：`98fd00f`（`Support mask material`）。
-进度核对：2026-10-19，当前源码基线 `4655e94`（`Add comment`）。
+进度核对：2026-11-02，源码基线 `289fbc5`（`Add csm diagnostics`）加工作区未提交的 CSM 诊断/采集改动。
 本文区分实现与运行验收；未来阶段仍是规划，不因写出指南而视为实现。
 
-> 当前类名和源码路径见 [README · 源码目录](../../README.md#源码目录)；下文保留规划基线的叙述，源码导航链接按当前结构维护。
+> 当前类名和源码路径见 [README · 源码目录](../../README.md#源码目录)。下文的开发顺序和未勾选验收项继续保留；当前实现状态以本次核对及 Stage 2 指南为准，不能把历史清单当作代码尚不存在。
 
 项目目标包含引擎图形工程师求职展示：逐步积累渲染算法、GPU 数据与同步管理、性能分析和技术
 表达能力。每个重点功能应有可运行的对照、可解释的取舍和实际测量结果。
 
-当前 Stage 0 的 A–F 主功能已实现，G 的采集/导出工具已完成且有功能验证；固定条件的截图、
-捕帧和硬件性能证据尚待收口。下一次代码任务是 **Stage 0.5 小组 A：版本与能力记录**，之后再进入 Stage 1 CSM。
-详见 [Stage 0 当前状态](stage-0-rendering-baseline.md#当前进度与证据边界)。
+当前 Stage 0 基线工具、Stage 0.5 能力管理/主帧路径现代化和 Stage 1 四级 CSM 的核心实现已有。
+Linux Debug/Release 构建与各六项测试、两配置 Shadow Playground 的 30 帧启动/退出检查通过；
+固定条件 Single/CSM 画质/性能、完整配置归档及生命周期专项验收仍开放。
+**可以有条件开始 Stage 2 A 组的 CPU 契约；在接入新 GPU 附件前补齐 Stage 1 收口检查。**
+具体依据、运行边界与待办见 [Stage 2 准入评估](stage-2-deferred-tiled-lighting.md#1-是否需要做当前是否可以开始)。
 
 分阶段手敲指南：
 
 - [阶段 0：可测量、可观察的渲染基线](stage-0-rendering-baseline.md)
 - [阶段 0.5：Vulkan 能力管理与现代化](stage-0-5-vulkan-modernization.md)
 - [阶段 1：四级 Cascaded Shadow Maps](stage-1-cascaded-shadow-maps.md)
+- [阶段 2：Deferred Rendering 与 Tiled 多光源剔除](stage-2-deferred-tiled-lighting.md)
 
 ## 1. 当前起点与 Phase 1 收尾边界
 
@@ -29,7 +32,7 @@
 |---|---|---|
 | VulkanContext / Swapchain / Renderer、VMA 资源封装 | 核心代码已有 | 继续扩展资源与 pass，保持所有权明确 |
 | glTF、Mesh 共享、材质、节点变换 | 主链路已有，已补双面与 Alpha Mask | 作为光栅和光追的共同场景输入 |
-| 方向光阴影、PCF、深度预览 | 已有 | 扩展成 CSM，并作为光追阴影的对照 |
+| 方向光阴影、PCF、深度预览 | 已有 Single/四级 CSM、稳定拟合、过渡及逐层预览 | Deferred 复用，并作为光追阴影的对照；专项画质验收仍待收口 |
 | HDR Scene → Post → Present → ImGui | 已接通 | Deferred 和光追继续输出线性 HDR |
 | 曝光、ACES fitted | 已有 EV、Reinhard 与 ACES fitted（Narkowicz） | 固定后续算法比较的显示条件 |
 | 材质与深度 Debug Views | 已有材质、法线、深度、HDR 亮度与光空间视图 | 后续扩展到 G-buffer、重投影和光追命中 |
@@ -37,7 +40,7 @@
 | CPU / draw / 资源 / CSV | 已有主机六区间、绘制量、VMA 与 300 行配对采集 | 固定条件归档仍待完善，CSV 本身不含完整环境设置 |
 | Bloom、FXAA | 尚未完成 | Bloom 纳入 A-2 显示收尾；FXAA 选做，主要抗锯齿目标为 TAA |
 | 多光源剔除、屏幕空间效果与绘制优化 | 尚未建立本大纲中的进阶路径 | 纳入阶段 2、A-1、A-3、A-4，逐项实现与测量 |
-| Vulkan API / 能力管理 | 当前请求 Vulkan 1.0，设备初始化主要使用旧式 features | 阶段 0.5 建立版本协商与 Features2，接入 Synchronization2 / Dynamic Rendering |
+| Vulkan API / 能力管理 | 首选请求 1.3，已有版本协商/Features2；本次设备启用 Synchronization2 / Dynamic Rendering | 新增 pass 复用主帧路径约定；兼容设备与跨平台按实际验证范围声明 |
 | 光追能力 | 尚未建立 RT feature 路径 | 阶段 4 复用能力框架，补齐 BDA、加速结构、Ray Query 及依赖 |
 
 Phase 1 中的旧复选框和历史实施顺序保留为原始记录，不能直接代表当前进度。迁移任务时应区分：
@@ -134,8 +137,9 @@ A 基础可独立作为作品交付，之后即可进入 B；A 进阶与阶段 7
 
 **目的：建立明确的版本、扩展和 feature 契约，并在新增大量 Pass 前更新同步与渲染附件的表达方式。**
 
-详细分组、当前缺口和下一次最小手敲任务见 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md)。
-当前尚未实现该阶段；不要把支持 timestamp 或安装较新 SDK 当作已经完成能力管理。
+原实施分组与验收清单见 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md)。
+当前核心实现已有，本次 Linux 设备使用 Vulkan 1.3、Synchronization2 与主帧 Dynamic Rendering；
+下列清单仍作为完整验收标准，未执行的设备/平台/窗口专项不自动勾选，不把安装 SDK 当作运行能力。
 
 ### 版本目标与范围
 
@@ -247,7 +251,8 @@ Render Graph 是本项目的架构选择，不是升级 Vulkan 必须同时实�
 **目的：解决单张方向光阴影图覆盖大场景时，近处细节不足的问题。**
 
 详细数据契约、数学步骤、资源接入与验收见 [Stage 1 手敲指南](stage-1-cascaded-shadow-maps.md)。
-按本项目主线先完成 Stage 0.5 的主帧路径迁移，再接入 CSM；目前只有单张方向光阴影。
+Stage 0.5 主帧路径迁移与 CSM 核心接入已实现，支持 Single/CSM 切换；下列画质/运行标准仍需实际收口。
+本次构建/CPU 测试与基础运行证据见 [Stage 2 准入评估](stage-2-deferred-tiled-lighting.md#1-是否需要做当前是否可以开始)。
 
 ### 手敲顺序
 
@@ -271,6 +276,9 @@ Render Graph 是本项目的架构选择，不是升级 Vulkan 必须同时实�
 ## 6. 阶段 2：Deferred Rendering 与多光源剔除
 
 **目的：建立可复用的表面数据，再通过缩小每像素需要处理的光源集合，研究多光源场景的性能。**
+
+详细数据契约、小步开发与验收见 [Stage 2 手敲指南](stage-2-deferred-tiled-lighting.md)。
+当前仍是待开发阶段；推荐保留 Forward，先 Deferred 全灯，再 Compute Tiled，不因指南完成而标为实现。
 
 ### 手敲顺序
 
@@ -599,20 +607,20 @@ ReSTIR DI 不是整套光追管线，也不自动提供间接光或完整降噪�
 
 ## 16. 下一次实际手敲任务
 
-**先做 Stage 0.5 小组 A：能力值对象、Loader 版本查询和选卡版本日志。**
+**从 [Stage 2 A 组](stage-2-deferred-tiled-lighting.md#5-提交-a只做契约和深度重建检查) 开始：坐标/附件契约、深度重建和 tile 索引的 CPU 检查，暂不改变主渲染链。**
 
-具体从 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md#4-小组-a先记录能力保持原有渲染) 开始。
-首组保持当前渲染行为，不修改 barrier、Submit、Pass 或 shader；先能解释头文件、Loader、Instance
-与 Device 的区别。之后按以下顺序保留可运行的小提交：
+随后先完成 [Stage 2 准入边界](stage-2-deferred-tiled-lighting.md#13-准入与收口边界) 中的 Stage 1 收口：
+固定条件 Single/CSM 截图、运动/Mask/双面与生命周期检查，原始 CSV 配完整配置档案；修正 D16 格式误标。
+核实既有 host buffer 的真实内存属性，落实请求属性与缓存维护契约，不能仅凭请求 HOST_COHERENT 认定无需 flush。
+没有发现未解释的图形/同步错误后，再逐组推进：
 
-1. 版本协商、Features2、支持/启用区分与 VMA/ImGui/shader 目标统一。
-2. Synchronization2：先明确资源依赖，再迁移 barrier 与 submit，保留帧槽和计时契约。
-3. Dynamic Rendering：Post/Present + ImGui → HDR Scene/MSAA → 单图 Shadow，明确暂留的 IBL 路径。
-4. 补齐 Stage 0 固定条件的 CSV/截图/捕帧档案与迁移回归记录。
-5. 按 [Stage 1 指南](stage-1-cascaded-shadow-maps.md) 做四级 CSM，再进入 Deferred。
+1. B：MRT 格式列表、每槽单采样 G-buffer 与附件预览。
+2. C：Deferred Lighting 复用 CSM/IBL，保持 Forward 与现有 HDR/Post。
+3. D：每槽 light SSBO、固定种子多光源场景和全灯基线。
+4. E/F：同队列 Compute Tiled、保守剔除及溢出全灯回退。
+5. G/H：完整计时、配置/内存归档与图形/性能验收。
 
-Stage 0 的 G 组证据可以与能力记录并行补齐。Timeline、Bindless 与 RT 留在需要它们的阶段；
-本大纲不预设尚不存在的函数或文件已经实现。
+Stage 0/0.5/1 的未执行验收不因进入下一阶段自动消失；未来指南中的新增接口仍不视为已有实现。
 
 ## 17. 参考资料
 

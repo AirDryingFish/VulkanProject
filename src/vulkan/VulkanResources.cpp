@@ -4,19 +4,21 @@
 
 
 GpuBuffer::GpuBuffer(
-    VmaAllocator allocator, 
-    VkBuffer buffer, 
+    VmaAllocator allocator,
+    VkBuffer buffer,
     VmaAllocation allocation,
     VkDeviceSize size,
     VkBufferUsageFlags usage,
-    VkMemoryPropertyFlags requiredMemoryProperties
-) noexcept: 
+    VkMemoryPropertyFlags requiredMemoryProperties,
+    VkMemoryPropertyFlags actualMemoryProperties
+) noexcept:
     allocator_(allocator),
     buffer_(buffer),
     allocation_(allocation),
     size_(size),
     usage_(usage),
-    requiredMemoryProperties_(requiredMemoryProperties)
+    requiredMemoryProperties_(requiredMemoryProperties),
+    memoryProperties_(actualMemoryProperties)
 {
 }
 
@@ -65,6 +67,23 @@ VkResult GpuBuffer::map(void **data) noexcept
     return result;
 }
 
+VkResult GpuBuffer::flush(VkDeviceSize offset, VkDeviceSize byteSize) noexcept
+{
+    assert(allocator_ != nullptr);
+    assert(allocation_ != nullptr);
+    assert(mappedData_ != nullptr);
+
+    assert(offset <= size_);
+    assert(byteSize == VK_WHOLE_SIZE || byteSize <= size_ - offset);
+
+    return vmaFlushAllocation(
+        allocator_,
+        allocation_,
+        offset,
+        byteSize
+    );
+}
+
 void GpuBuffer::unmap() noexcept
 {
     if (mappedData_ == nullptr)
@@ -90,6 +109,7 @@ void GpuBuffer::reset() noexcept
     size_ = 0;
     usage_ = 0;
     requiredMemoryProperties_ = 0;
+    memoryProperties_ = 0;
 }
 
 VkDeviceSize GpuBuffer::size() const noexcept
@@ -107,6 +127,11 @@ VkMemoryPropertyFlags GpuBuffer::requiredMemoryProperties() const noexcept
     return requiredMemoryProperties_;
 }
 
+VkMemoryPropertyFlags GpuBuffer::memoryProperties() const noexcept
+{
+    return memoryProperties_;
+}
+
 void GpuBuffer::moveFrom(GpuBuffer &other) noexcept
 {
     allocator_ = std::exchange(other.allocator_, nullptr);
@@ -116,6 +141,7 @@ void GpuBuffer::moveFrom(GpuBuffer &other) noexcept
     size_ = std::exchange(other.size_, 0);
     usage_ = std::exchange(other.usage_, 0);
     requiredMemoryProperties_ = std::exchange(other.requiredMemoryProperties_, 0);
+    memoryProperties_ = std::exchange(other.memoryProperties_, 0);
 }
 
 GpuImage::GpuImage(VmaAllocator allocator, VkDevice device, VkImage image, VmaAllocation allocation, VkExtent3D extent, VkFormat format, VkImageUsageFlags usage, uint32_t mipLevels, uint32_t arrayLayers, VkSampleCountFlagBits samples) noexcept:
@@ -317,7 +343,7 @@ GpuSampler::~GpuSampler() noexcept
     reset();
 }
 
-GpuSampler::GpuSampler(GpuSampler &&other) noexcept : 
+GpuSampler::GpuSampler(GpuSampler &&other) noexcept :
     device_(std::exchange(other.device_, VK_NULL_HANDLE)),
     sampler_(std::exchange(other.sampler_, VK_NULL_HANDLE))
 {

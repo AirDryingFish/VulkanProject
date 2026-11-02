@@ -14,6 +14,7 @@
 #include "vulkan/Swapchain.hpp"
 #include "vulkan/VulkanCheck.hpp"
 #include "vulkan/VulkanContext.hpp"
+#include "render/ShadowFrameSummary.hpp"
 
 #include <array>
 #include <map>
@@ -63,6 +64,8 @@ private:
     void initializeRendering();
     void mainLoop();
     void drawFrame();
+    std::string buildBaselineContext() const;
+
     void cleanup() noexcept;
     void recreateSwapchain();
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
@@ -86,7 +89,7 @@ private:
     void releaseMesh(MeshHandle& mesh);
     void destroyBufferDeferred(GpuBuffer& buffer);
     void createUniformBuffer();
-    void updateUniformBuffer(std::uint32_t frameSlot, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction);
+    ShadowFrameSummary updateUniformBuffer(std::uint32_t frameSlot, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction);
 
     void createDescriptorPool();
     void createFrameDescriptorSets();

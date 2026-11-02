@@ -57,6 +57,7 @@ private:
     VkDeviceSize size_ = 0;
     VkBufferUsageFlags usage_ = 0;
     VkMemoryPropertyFlags requiredMemoryProperties_ = 0;
+    VkMemoryPropertyFlags memoryProperties_ = 0;
 
     void moveFrom(GpuBuffer& other) noexcept;
 
@@ -69,7 +70,8 @@ public:
         VmaAllocation allocation,
         VkDeviceSize size,
         VkBufferUsageFlags usage,
-        VkMemoryPropertyFlags requiredMemoryProperties
+        VkMemoryPropertyFlags requiredMemoryProperties,
+        VkMemoryPropertyFlags actualMemoryProperties
     ) noexcept;
 
     ~GpuBuffer() noexcept;
@@ -83,12 +85,17 @@ public:
 
     VkBuffer get() const noexcept;
     VkResult map(void** data) noexcept;
+
+    // 让接入代码能明确通知 VMA 刷新缓存
+    VkResult flush(VkDeviceSize offset = 0, VkDeviceSize byteSize = VK_WHOLE_SIZE) noexcept;
+
     void unmap() noexcept;
     void reset() noexcept;
 
     VkDeviceSize size() const noexcept;
     VkBufferUsageFlags usage() const noexcept;
     VkMemoryPropertyFlags requiredMemoryProperties() const noexcept;
+    VkMemoryPropertyFlags memoryProperties() const noexcept;
 
 };
 

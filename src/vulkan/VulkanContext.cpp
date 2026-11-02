@@ -382,13 +382,24 @@ GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
     {
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
     }
+    allocInfo.requiredFlags = desc.requiredMemoryProperties;
 
     VK_CHECK(vmaCreateBuffer(allocator_, &bufferInfo, &allocInfo, &rawBuffer, &rawAllocation, nullptr));
+
+    VkMemoryPropertyFlags actualMemoryProperties = 0;
+    vmaGetAllocationMemoryProperties(
+        allocator_,
+        rawAllocation,
+        &actualMemoryProperties
+    );
+
+    assert((actualMemoryProperties & desc.requiredMemoryProperties) == desc.requiredMemoryProperties);
 
     setDebugName(
         VK_OBJECT_TYPE_BUFFER,
         reinterpret_cast<uint64_t>(rawBuffer),
         desc.debugName);
+
 
     return GpuBuffer(
         allocator_,
@@ -396,7 +407,8 @@ GpuBuffer VulkanContext::createBuffer(const BufferDesc &desc) const
         rawAllocation,
         desc.size,
         desc.usage,
-        desc.requiredMemoryProperties
+        desc.requiredMemoryProperties,
+        actualMemoryProperties
     );
 }
 

@@ -138,6 +138,7 @@ add_executable(vulkan
     src/render/ShadowMapping.cpp
     src/render/ShadowCascades.hpp
     src/render/ShadowCascades.cpp
+    src/render/ShadowFrameSummary.hpp
     src/render/PostProcessing.cpp
 
     # Vulkan backend and resource lifetime

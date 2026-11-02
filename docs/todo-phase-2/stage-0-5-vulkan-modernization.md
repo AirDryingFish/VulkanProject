@@ -1,16 +1,17 @@
 # 阶段 0.5：Vulkan 能力管理与现代化手敲指南
 
 本文接续 [Stage 0 渲染基线](stage-0-rendering-baseline.md)，对应 [Phase 2 大纲](overview.md) 的阶段 0.5。
-核对日期：2026-10-19；源码基线：`4655e94`（`Add comment`）。
+原规划核对日期：2026-10-19；原源码基线：`4655e94`（`Add comment`）。进度更新于 2026-11-02。
 
-**当前应该先做本阶段，再实施 [Stage 1：CSM](stage-1-cascaded-shadow-maps.md)。**
-Stage 0 的计时、Diagnostics、显示调试和 CSV 采集主功能已经存在；固定硬件基线、截图和捕帧证据仍需补齐。
-本文是待实施指南，没有修改渲染代码，也不表示新版 API 路径已经通过运行验收。
-文中的新类型、字段和接口均是拟新增设计；现有接口另行注明。
+**当前状态：本阶段核心实现与 Stage 1 CSM 已接入，不需要重新从小组 A 开始。**
+本次 Linux 运行启用 Vulkan 1.3、Features2、Synchronization2 和主帧 Present/Scene/Shadow Dynamic Rendering；
+Debug/Release 构建、各 6/6 测试及两配置 30 帧检查通过。专项窗口行为、固定条件对照与其他平台仍按实际结果验收。
+具体证据和下一步见 [Stage 2 准入评估](stage-2-deferred-tiled-lighting.md#1-是否需要做当前是否可以开始)。
+下文保留原规划基线下的缺口、接口建议和 A–I 实施步骤，用于复盘及验收，不能将历史“当前/拟新增”表述当作 2026-11-02 的源码状态。
 
 ## 1. 为什么在 CSM 前安排这一阶段
 
-现在仍是 Vulkan 1.0 初始化、旧式 barrier/submit 和 RenderPass/Framebuffer 主路径。
+原规划基线仍是 Vulkan 1.0 初始化、旧式 barrier/submit 和 RenderPass/Framebuffer 主路径。
 CSM 随后会增加多层深度附件，Deferred 还会增加多个 G-buffer 附件；先整理能力、同步和附件表达，
 可以让后续算法沿用同一套约定。
 
@@ -347,8 +348,5 @@ shader 有改动时额外执行 `./scripts/compile-shaders.sh` 并同步构建�
 
 ## 13. 下一次只手敲什么
 
-**先做小组 A：能力记录与 Loader 版本查询。**
-
-第一次只完成能力值对象、Loader 查询、选卡版本日志与只读访问；保留原 1.0 渲染行为。
-能逐项解释“头文件 / Loader / Instance / Device”，并正常启动、退出，就是这次小任务的完成点。
-之后再做 B 的版本协商与 Features2，不直接把所有 `1_0` 搜索替换为 `1_3`。
+当前改为 [Stage 2 A：深度重建与 tile 索引的 CPU 契约](stage-2-deferred-tiled-lighting.md#5-提交-a只做契约和深度重建检查)。
+在扩展 G-buffer 前补齐已有主路径与 CSM 的运行/归档收口；本阶段没有实际执行的兼容设备、平台或同步验证，继续保持待验收。

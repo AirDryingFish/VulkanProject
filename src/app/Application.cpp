@@ -14,6 +14,10 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+#include <iomanip>
+#include <locale>
+#include <sstream>
+#include <utility>
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -309,7 +313,7 @@ void Application::drawFrame()
 
     const float shadowBlendFraction = shadows.mode == ShadowMode::Cascaded ? shadows.blendFraction : 0.0f;
 
-    updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction);
+    const ShadowFrameSummary shadowFrame =  updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction);
     processModelPicking();
     ImGui::Render();
 
@@ -367,6 +371,7 @@ void Application::drawFrame()
     renderData.shadowReceiverBiasWorld = shadows.receiverBiasWorld;
     renderData.shadowPreviewLayer = shadowPreviewLayer;
 
+    renderData.shadowFrame = shadowFrame;
 
     renderData.shadowConstantBias = shadows.constantBias;
     renderData.shadowSlopeBias = shadows.slopeBias;
@@ -390,6 +395,12 @@ void Application::drawFrame()
     renderData.exposureEv = display.exposureEv;
     renderData.toneMapper = display.toneMapper;
 
+    std::string requestedCaptureContext{};
+    if (diagnostics.startRequested)
+    {
+        requestedCaptureContext = buildBaselineContext();
+    }
+
     const auto updateEnd = CpuClock::now();
 
     const auto recordBegin  = CpuClock::now();
@@ -410,7 +421,8 @@ void Application::drawFrame()
         {
             diagnostics.baseline.start(
                 diagnostics.latestCpuTiming.renderer.submissionId,
-                diagnostics.latestCpuTiming.renderer.config
+                diagnostics.latestCpuTiming.renderer.config,
+                std::move(requestedCaptureContext)
             );
         }
     }
@@ -436,4 +448,175 @@ void Application::scrollCallback(GLFWwindow* window, double, double yoffset)
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app != nullptr)
         app->cameraController.addScroll(yoffset);
+}
+std::string Application::buildBaselineContext() const
+{
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << std::boolalpha
+        << std::setprecision(
+               std::numeric_limits<float>::max_digits10);
+
+    const auto write =
+        [&](const std::string &key, const auto &value)
+    {
+        out << key << '=' << value << '\n';
+    };
+
+    const auto writeVec3 =
+        [&](const std::string &key, const glm::vec3 &value)
+    {
+        out << key << '='
+            << value.x << ' '
+            << value.y << ' '
+            << value.z << '\n';
+    };
+
+    const auto writeVec4 =
+        [&](const std::string &key, const glm::vec4 &value)
+    {
+        out << key << '='
+            << value.x << ' '
+            << value.y << ' '
+            << value.z << ' '
+            << value.w << '\n';
+    };
+
+    const auto writeMatrix =
+        [&](const std::string &key, const glm::mat4 &matrix)
+    {
+        out << key << '=';
+
+        // GLM 按列保存矩阵。
+        for (int column = 0; column < 4; ++column)
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                out << matrix[column][row] << ' ';
+            }
+        }
+
+        out << '\n';
+    };
+
+    // 构建和设备环境。
+    write("project_version", VULKAN_PROJECT_VERSION);
+    write("build_type", VULKAN_PROJECT_BUILD_TYPE);
+    write("validation_requested", enableValidationLayers);
+    write("matrix_layout", "column-major");
+    write("environment.hdr_configured_path",
+          std::quoted(SKYBOX_HDR_PATH));
+
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(
+        context.physicalDevice(), &properties);
+
+    write("gpu_name", std::quoted(properties.deviceName));
+    write("gpu_vendor_id", properties.vendorID);
+    write("gpu_device_id", properties.deviceID);
+    write("driver_version_raw", properties.driverVersion);
+
+    const auto &caps = context.capabilities();
+
+    write("api_header_raw", caps.headerVersion);
+    write("api_loader_raw", caps.loaderVersion);
+    write("api_instance_raw", caps.instanceVersion);
+    write("api_device_reported_raw", caps.physicalDeviceVersion);
+    write("api_device_effective_raw", caps.deviceApiVersion);
+    write("sync2_supported", caps.synchronization2Supported);
+    write("sync2_enabled", caps.synchronization2Enabled);
+    write("dynamic_rendering_supported",
+          caps.dynamicRenderingSupported);
+    write("dynamic_rendering_enabled",
+          caps.dynamicRenderingEnabled);
+
+    // 相机状态。
+    writeVec3("camera.position", camera.position);
+    writeVec3("camera.front", camera.front);
+    writeVec3("camera.up", camera.up);
+    write("camera.yaw", camera.yaw);
+    write("camera.pitch", camera.pitch);
+    write("camera.near", camera.nearPlane);
+    write("camera.far", camera.farPlane);
+    write("camera.fov_degrees", camera.fieldOfViewDegrees);
+
+    const auto extent = swapchain.extent();
+    const float aspect =
+        static_cast<float>(extent.width) / extent.height;
+
+    writeMatrix("camera.view", camera.view());
+    writeMatrix("camera.projection", camera.projection(aspect));
+
+    // 灯光编辑输入。
+    // UBO 更新阶段仍会执行方向归一化、兜底和范围约束。
+    write("directional.enabled", scene.directionalLight.enabled);
+    writeVec3("directional.direction_input",
+              scene.directionalLight.direction);
+    writeVec3("directional.color_input",
+              scene.directionalLight.color);
+    write("directional.intensity_input",
+          scene.directionalLight.intensity);
+
+    writeVec3("ambient.color", scene.ambientLightColor);
+    write("ambient.intensity", scene.ambientLightIntensity);
+    write("ibl.intensity", scene.iblIntensity);
+
+    write("point_lights.listed_count", scene.pointLights.size());
+    write("point_lights.uploaded_count",
+          std::min<std::size_t>(
+              scene.pointLights.size(), MAX_POINT_LIGHTS));
+
+    for (std::size_t i = 0; i < scene.pointLights.size(); ++i)
+    {
+        const auto &light = scene.pointLights[i];
+        const std::string prefix =
+            "point_light." + std::to_string(i) + ".";
+
+        writeVec3(prefix + "position", light.position);
+        writeVec3(prefix + "color_input", light.color);
+        write(prefix + "intensity_input", light.intensity);
+        write(prefix + "range_input", light.range);
+        write(prefix + "enabled", light.enabled);
+    }
+
+    // 物体变换与材质参数。
+    // 这里记录的是场景对象总数，不是实际 draw call 数。
+    write("objects.count", scene.objects.size());
+
+    for (std::size_t i = 0; i < scene.objects.size(); ++i)
+    {
+        const auto &object = scene.objects[i];
+        const std::string prefix =
+            "object." + std::to_string(i) + ".";
+
+        write(prefix + "name", std::quoted(object.name));
+        write(prefix + "source",
+              static_cast<std::uint32_t>(object.source));
+        write(prefix + "source_path",
+              std::quoted(object.sourcePath));
+        writeMatrix(prefix + "model", object.modelMatrix());
+        write(prefix + "auto_rotate", object.autoRotate);
+
+        if (!object.material)
+        {
+            continue;
+        }
+
+        const auto &material = *object.material;
+
+        write(prefix + "material", std::quoted(material.name));
+        write(prefix + "alpha_mode",
+              static_cast<std::uint32_t>(material.alphaMode));
+        write(prefix + "alpha_cutoff", material.alphaCutoff);
+        write(prefix + "double_sided", material.doubleSided);
+        writeVec4(prefix + "base_color",
+                  material.baseColorFactor);
+        write(prefix + "metallic", material.metallicFactor);
+        write(prefix + "roughness", material.roughnessFactor);
+        write(prefix + "ao_strength", material.occlusionStrength);
+        write(prefix + "normal_scale", material.normalScale);
+        writeVec3(prefix + "emissive", material.emissiveFactor);
+    }
+
+    return out.str();
 }

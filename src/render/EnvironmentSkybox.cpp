@@ -284,13 +284,14 @@ void Environment::createSkyboxImage()
     BufferDesc stagingDesc{};
     stagingDesc.size = pixels.imageSize();
     stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     stagingDesc.debugName = stagingDebugName.c_str();
 
     GpuBuffer stagingBuffer = context_->createBuffer(stagingDesc);
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
     std::memcpy(data, pixels.pixels.data(), static_cast<size_t>(pixels.imageSize()));
+    VK_CHECK(stagingBuffer.flush(0, pixels.imageSize()));
     stagingBuffer.unmap();
 
     const std::string imageDebugName = SKYBOX_HDR_PATH + " image";

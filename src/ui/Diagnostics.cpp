@@ -61,6 +61,19 @@ const char* debugViewName(DebugView view)
     return "Unknown";
 }
 
+const char* shadowDepthFormatName(VkFormat format)
+{
+    switch (format)
+    {
+    case VK_FORMAT_D32_SFLOAT:
+        return "D32_SFLOAT";
+    case VK_FORMAT_D16_UNORM:
+        return "D16_UNORM";
+    default:
+        return "Unknown";
+    }
+}
+
 void drawTimingConfig(const char* id, const FrameTimingConfig& config)
 {
     if (!beginMetricTable(id))
@@ -87,6 +100,20 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
 
     metricRow("Shadow distance (requested)");
     ImGui::Text("%.3f", config.shadowDistance);
+
+    metricRow("Active cascades (UBO)");
+    ImGui::Text("%u", config.shadowFrame.activeCascadeCount);
+    metricRow("Camera near / receiver far");
+    ImGui::Text("%.3f .. %.3f", config.shadowFrame.cameraNearDistance, config.shadowFrame.receiverFarDistance);
+    metricRow("Camera vertical FOV");
+    ImGui::Text("%.2f deg", config.shadowFrame.cameraFovDegrees);
+    metricRow("Shadow image extent");
+    ImGui::Text("%u x %u", config.shadowTarget.extent.width, config.shadowTarget.extent.height);
+    metricRow("Shadow depth format");
+    ImGui::TextUnformatted(shadowDepthFormatName(config.shadowTarget.format));
+    metricRow("Allocated shadow layers");
+    ImGui::Text("%u", config.shadowTarget.arrayLayers);
+
 
     if (config.shadowMode == ShadowMode::Cascaded)
     {
@@ -125,6 +152,16 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
 
     metricRow("CSM receiver input (world)");
     ImGui::Text("%.5f", config.shadowReceiverBiasWorld);
+
+    const std::uint32_t activeCount = std::min(config.shadowFrame.activeCascadeCount, 4u);
+    for (std::uint32_t i = 0; i < activeCount; ++i)
+    {
+        char label[64];
+        std::snprintf(label, sizeof(label), "Receiver bias L%u (UBO depth)", i);
+
+        metricRow(label);
+        ImGui::Text("%.8f", config.shadowFrame.receiverBiasNormalized[static_cast<glm::length_t>(i)]);
+    }
 
     metricRow("Depth preview");
     ImGui::TextUnformatted(config.shadowPreview ? "On" : "Off");
@@ -460,8 +497,10 @@ void Application::drawDiagnosticsBaseline()
     }
     if (ImGui::Button("Export CSV"))
     {
-        diagnostics.baseline.exportMessage = diagnostics.baseline.saveCsv(diagnostics.csvPath)
-            ? "CSV saved." : "CSV write failed.";
+        // diagnostics.baseline.exportMessage = diagnostics.baseline.saveCsv(diagnostics.csvPath)
+        //     ? "CSV saved." : "CSV write failed.";
+        const bool saved = diagnostics.baseline.saveBundle(diagnostics.csvPath);
+        diagnostics.baseline.exportMessage = saved ? "CSV and config saved" : "Export incomplete. Some files may exist; retry";
     }
     ImGui::EndDisabled();
     if (!diagnostics.baseline.exportMessage.empty())

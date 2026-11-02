@@ -615,9 +615,7 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadReq
         stagingDesc.size = request.size;
         stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         // GPU 内存可以映射到 CPU 地址空间，并且 CPU 写入后不需要手动 flush (不需要 vmaFlushAllocation，gpu 就能看到数据)
-        stagingDesc.requiredMemoryProperties =
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
         stagingDesc.debugName = "synchronous upload staging buffer";
 
         GpuBuffer stagingBuffer = context_->createBuffer(stagingDesc);
@@ -625,6 +623,8 @@ std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadReq
         void* mappedData = nullptr;
         VK_CHECK(stagingBuffer.map(&mappedData));
         std::memcpy(mappedData, request.data, static_cast<size_t>(request.size));
+        VK_CHECK(stagingBuffer.flush(0, request.size));
+
         stagingBuffer.unmap();
         stagingBuffers.push_back(std::move(stagingBuffer));
     }
@@ -796,6 +796,15 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.shadowSingleCenter = data.shadowSingleCenter;
     frame.recordedTimingConfig.shadowSingleHalfExtent =
         data.shadowSingleHalfExtent;
+
+    frame.recordedTimingConfig.shadowFrame = data.shadowFrame;
+    const GpuImage& shadowDepth = shadowTargets_.at(token.frameIndex).depth;
+    const VkExtent3D shadowExtent = shadowDepth.extent();
+    frame.recordedTimingConfig.shadowTarget = {
+        {shadowExtent.width, shadowExtent.height},
+        shadowDepth.format(),
+        shadowDepth.arrayLayers()
+    };
 
     frame.recordedTimingConfig.uiDrawn = data.imguiDrawData != nullptr;
     frame.recordedTimingConfig.bypassToneMapping = data.bypassToneMapping;

@@ -125,7 +125,7 @@ GpuImage Application::uploadTexture2D(const DecodedImageData &decoded, VkFormat 
     BufferDesc stagingDesc{};
     stagingDesc.size = imageSize;
     stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    stagingDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     stagingDesc.debugName = stagingDebugName.c_str();
 
     GpuBuffer stagingBuffer = context.createBuffer(stagingDesc);
@@ -133,6 +133,7 @@ GpuImage Application::uploadTexture2D(const DecodedImageData &decoded, VkFormat 
     void *data = nullptr;
     VK_CHECK(stagingBuffer.map(&data));
     memcpy(data, decoded.rgba8.data(), expectedByteCount);
+    VK_CHECK(stagingBuffer.flush(0, imageSize));
     stagingBuffer.unmap();
 
     const std::string imageDebugName = debugName + " image";

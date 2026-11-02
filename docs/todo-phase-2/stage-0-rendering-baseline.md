@@ -4,11 +4,11 @@
 面向手敲学习：按下面的小组逐步完成，每组写清目的、改动位置、观察方法和完成标准。
 
 原规划日期：2026-09-23，原基线：`98fd00f`（`Support mask material`）。
-当前状态核对：2026-10-19，源码基线：`4655e94`（`Add comment`）。
+原状态核对：2026-10-19，源码基线：`4655e94`（`Add comment`）；主线进度更新于 2026-11-02。
 
 **结论：A–F 的主要实现已经完成，G 的采集/导出工具已有并经过功能验证；完整基线证据仍待收口。**
-不需要重新从小组 A 开发。下一次手敲从 [Stage 0.5：Vulkan 能力管理与现代化](stage-0-5-vulkan-modernization.md)
-的小组 A 开始，之后进入 [Stage 1：CSM](stage-1-cascaded-shadow-maps.md)。
+不需要重新从小组 A 开发。Stage 0.5 主帧路径现代化与 Stage 1 CSM 核心实现现已接入；
+下一步与本轮验证边界见 [Stage 2 准入评估及手敲指南](stage-2-deferred-tiled-lighting.md)。
 
 ### 当前进度与证据边界
 
@@ -27,7 +27,7 @@
   CPU/GPU ID 一致，耗时有限且非负。该文件不含采集环境/配置元数据，不能据此确定硬件来源，
   也不能擅自把它归为 STD-008 的同一次采集。
 - 原生最小化/恢复、Windows/macOS 的本轮图形运行、完整 Debug View 对照和 GPU 捕帧仍待验收。
-  当前可以推进 Stage 0.5 的能力记录，同时补齐 G 组档案；最终完成基线验收时仍需回到第 11/12 节。
+  当前可以开始 Stage 2 的 CPU 契约，同时补齐 G 组与 CSM 对照档案；最终完成基线验收时仍需回到第 11/12 节。
 
 > 下文保留 A–G 的学习顺序作为实现复盘和验收清单，不再代表“这些接口尚未写入源码”。
 > 当前计时契约位于 [FrameTiming.hpp](../../src/diagnostics/FrameTiming.hpp)，采集位于
@@ -406,16 +406,15 @@ cmake --build --preset windows-mingw-debug --parallel
 - [ ] G：至少保存材质、阴影和复杂场景的固定基线；缺失资源或不可用工具明确记录，不冒充验证。
 - [ ] 补齐专项画面对照、捕帧与目标平台运行记录；已执行项与待执行项分别记载。
 
-具备这些基线后进入阶段 0.5：版本与能力管理 → Synchronization2 → Dynamic Rendering。
-迁移期间使用本阶段的同一场景、计时范围和显示设置，比较正确性与成本。
+原实施顺序是在这些基线后进入阶段 0.5：版本与能力管理 → Synchronization2 → Dynamic Rendering。
+当前该主帧迁移与 CSM 核心实现已有；仍使用本阶段的固定条件补验收，不能因主线推进而略去未完成档案。
 
 ## 13. 下一次实际手敲范围
 
-**当前下一组：Stage 0.5 的小组 A，记录 Loader / Instance / Device 版本与设备能力。**
+**当前下一组：Stage 2 A 的深度重建与 tile 索引 CPU 契约。**
 
-具体执行 [Stage 0.5 手敲指南](stage-0-5-vulkan-modernization.md#4-小组-a先记录能力保持原有渲染)。
-首次只增加能力值对象、Loader 版本查询与选卡日志，保留现有渲染路径，再逐组迁移。
-之后才进入 [Stage 1：CSM](stage-1-cascaded-shadow-maps.md)，不跳过大纲已有的阶段 0.5。
+具体执行 [Stage 2 手敲指南](stage-2-deferred-tiled-lighting.md#5-提交-a只做契约和深度重建检查)，
+先不改主渲染链，在增加 GPU 附件前补齐本阶段与 CSM 的运行/基线收口。
 
 G 组归档可同时补齐：为一次新采集保存 CSV、截图及一份设置记录，至少包含 GPU/驱动、commit、
 Debug/Release、Validation、场景、framebuffer extent、MSAA、阴影分辨率/PCF/bias、相机、灯光/IBL、

@@ -1,8 +1,11 @@
 # 阶段 1：Cascaded Shadow Maps 手敲指南
 
-本文接续 [Phase 2 大纲](overview.md#5-阶段-1cascaded-shadow-maps)。源码核对基线为 `4655e94`，编写日期为 2026-10-19。
+本文接续 [Phase 2 大纲](overview.md#5-阶段-1cascaded-shadow-maps)。原规划基线为 `4655e94`，编写日期为 2026-10-19；进度更新于 2026-11-02。
 
-**状态：实现计划，尚未实施。下一项主线是阶段 0.5，完成其版本协商、Synchronization2 和主帧路径 Dynamic Rendering 后，再按本文接入 CSM。**
+**当前状态：Stage 0.5 主帧路径与本阶段 CSM 核心实现已有。四级 split/稳定拟合/逐层录制、Single/CSM、PCF/blend、调试及采集配置检查已接入；专项画质、生命周期和持久化基线证据尚未全部收口。**
+
+本次核对包含 `289fbc5` 及工作区未提交的诊断/采集改动。Linux Debug/Release 构建、各 6/6 测试和两配置 30 帧启动/退出检查通过，不能替代下面的视觉与窗口专项。
+详见 [Stage 2 准入评估](stage-2-deferred-tiled-lighting.md#1-是否需要做当前是否可以开始)。下文 A–I 保留为原实施顺序与复盘指南，旧布局数值/拟新增接口的表述以原基线为语境，不代表当前仍未实现。
 
 CSM 算法本身不要求 Vulkan 1.3；这里遵循项目选定的学习顺序，避免一边增加四级阴影，一边重写附件与同步。前置步骤见 [阶段 0.5 手敲指南](stage-0-5-vulkan-modernization.md)。可以先阅读本文或做独立 CPU 数学练习，但不能将练习通过等同于 CSM 已接入。
 
@@ -26,7 +29,7 @@ CSM 给近处接收区域分配更多阴影 texel；它不保证阴影没有所�
 
 ## 2. 先认清已有代码和拟新增内容
 
-以下是本次源码基线的情况。阶段 0.5 完成后，应重新检查附件录制函数的位置；不要把表中的当前 RenderPass 接口当成之后仍然存在的前提。
+以下表格描述原规划基线。当前已存在 `ShadowCascades.hpp/.cpp`，Frame UBO 为 1424 字节、draw push constants 仍为 128 字节；Shadow 每槽四层，payload 已按实际层数估算。继续开发时以实际源码为准，不把表中的旧 RenderPass 接口当成前提。
 
 | 当前入口 | 已有职责 | 本阶段拟调整内容 |
 |---|---|---|
@@ -43,7 +46,7 @@ CSM 给近处接收区域分配更多阴影 texel；它不保证阴影没有所�
 | [FrameTiming.hpp](../../src/diagnostics/FrameTiming.hpp)、[BaselineCapture.hpp](../../src/diagnostics/BaselineCapture.hpp) | 跟随提交保存配置、按 ID 配对采集 | 增加 CSM 配置，防止开关/参数变化后继续混采 |
 | [PostProcessing.cpp](../../src/render/PostProcessing.cpp) | 渲染目标 payload 估算 | 当前拒绝 `arrayLayers != 1`；必须扩展，否则数组图会显示 N/A |
 
-拟新增的 `ShadowCascades.hpp/.cpp`、`ShadowCascadeFrame`、`calculateCascadeSplits()` 等名称均为本文建议，**当前源码没有这些接口**。每组先建立数据约定，再接调用者，不需要重命名整个 Renderer。
+`ShadowCascades.hpp/.cpp`、`ShadowCascadeFrame`、`calculateCascadeSplits()` 等在原规划中是建议接口，现在已接入相应数学模块。下文仍用于解释小步实施过程，不需要照旧文档重写或重命名整个 Renderer。
 
 ## 3. 先写下数据和坐标契约
 
@@ -298,6 +301,8 @@ lightViewProjection = P * V
 
 ## 13. 收口与下一步
 
+具体修改顺序、配置侧车导出和专项实验见 [Stage 1 → Stage 2 收口手敲指南](stage-1-csm-handoff.md)，每步先说明目的，再列代码与验收点。
+
 只有实际执行后才勾选：
 
 - [ ] 阶段 0.5 主帧迁移完成，并保留正确性/生命周期回归记录。
@@ -309,4 +314,4 @@ lightViewProjection = P * V
 - [ ] resize、最小化/恢复、场景切换、模式切换、启动失败清理和退出按实际平台运行检查，无未解释的 Validation/同步错误。
 - [ ] 保存一次关键帧工具检查；没有执行的工具/平台仍注明待验收。
 
-本阶段完成后再按 [大纲的阶段 2](overview.md#6-阶段-2deferred-rendering-与多光源剔除) 进入 Deferred/G-buffer。现在的第一步仍是完成阶段 0.5；轮到本文时，从 **提交 A 的四个 split 和纯 CPU 测试** 开始，不一次敲完九组。
+当前不需要重新从四个 split 开始。可先做 [Stage 2 A 的 CPU 契约](stage-2-deferred-tiled-lighting.md#5-提交-a只做契约和深度重建检查)，在新增 GPU 附件前按其准入边界补本阶段收口；上面的完整验收项保持实际状态，不由下一阶段文档自动勾选。
