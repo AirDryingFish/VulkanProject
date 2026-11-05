@@ -99,6 +99,7 @@ struct BaselineCapture
                config.extent.width == other.extent.width &&
                config.extent.height == other.extent.height &&
                config.sceneSamples == other.sceneSamples &&
+               config.gBufferGeometry == other.gBufferGeometry &&
                config.shadowEnabled == other.shadowEnabled &&
                config.shadowMode == other.shadowMode &&
                config.shadowPcfEnabled == other.shadowPcfEnabled &&
@@ -125,26 +126,26 @@ struct BaselineCapture
                glm::all(glm::equal(
                    config.shadowSingleCenter,
                    other.shadowSingleCenter)) &&
-                config.shadowSingleHalfExtent == other.shadowSingleHalfExtent &&
-                config.shadowFrame.activeCascadeCount ==
-                    other.shadowFrame.activeCascadeCount &&
-                config.shadowFrame.cameraNearDistance ==
-                    other.shadowFrame.cameraNearDistance &&
-                config.shadowFrame.receiverFarDistance ==
-                    other.shadowFrame.receiverFarDistance &&
-                config.shadowFrame.cameraFovDegrees ==
-                    other.shadowFrame.cameraFovDegrees &&
-                glm::all(glm::equal(
-                    config.shadowFrame.receiverBiasNormalized,
-                    other.shadowFrame.receiverBiasNormalized)) &&
-                config.shadowTarget.extent.width ==
-                    other.shadowTarget.extent.width &&
-                config.shadowTarget.extent.height ==
-                    other.shadowTarget.extent.height &&
-                config.shadowTarget.format ==
-                    other.shadowTarget.format &&
-                config.shadowTarget.arrayLayers ==
-                    other.shadowTarget.arrayLayers;
+               config.shadowSingleHalfExtent == other.shadowSingleHalfExtent &&
+               config.shadowFrame.activeCascadeCount ==
+                   other.shadowFrame.activeCascadeCount &&
+               config.shadowFrame.cameraNearDistance ==
+                   other.shadowFrame.cameraNearDistance &&
+               config.shadowFrame.receiverFarDistance ==
+                   other.shadowFrame.receiverFarDistance &&
+               config.shadowFrame.cameraFovDegrees ==
+                   other.shadowFrame.cameraFovDegrees &&
+               glm::all(glm::equal(
+                   config.shadowFrame.receiverBiasNormalized,
+                   other.shadowFrame.receiverBiasNormalized)) &&
+               config.shadowTarget.extent.width ==
+                   other.shadowTarget.extent.width &&
+               config.shadowTarget.extent.height ==
+                   other.shadowTarget.extent.height &&
+               config.shadowTarget.format ==
+                   other.shadowTarget.format &&
+               config.shadowTarget.arrayLayers ==
+                   other.shadowTarget.arrayLayers;
     }
 
     // 接收延迟返回的 GPU 快照，通常在 beginFrame() 后、覆盖该槽 CPU 缓存前调用。
@@ -343,6 +344,9 @@ struct BaselineCapture
         write("height", config.extent.height);
         write("scene_samples",
               static_cast<std::uint32_t>(config.sceneSamples));
+
+        write("gbuffer_geometry", config.gBufferGeometry);
+        write("gbuffer_samples", config.gBufferGeometry ? 1 : 0);
 
         // 阴影模式及输入参数。
         const char *modeName = "Unknown";

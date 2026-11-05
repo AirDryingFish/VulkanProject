@@ -826,6 +826,22 @@ void Application::drawImGui()
 
             if (ImGui::BeginTabItem("Display"))
             {
+                const bool canBuildGBuffer = renderer.gBufferGeometryAvailable();
+                ImGui::BeginDisabled(!canBuildGBuffer);
+                if (ImGui::Checkbox("Build G-buffer", &display.buildGBuffer))
+                {
+                    diagnostics.baseline.cancel("Capture cancelled: G-buffer mode changed.");
+                    diagnostics.startRequested = false;
+                }
+                ImGui::EndDisabled();
+
+                ImGui::TextDisabled("Geometry + Forward reference");
+                if (!canBuildGBuffer)
+                {
+                    ImGui::TextWrapped("G-buffer geometry is unavailable on this configuration.");
+                }
+                ImGui::Separator();
+
                 const char *viewNames[] = {
                     "Lit",
                     "Albedo",

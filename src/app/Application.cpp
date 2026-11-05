@@ -354,6 +354,7 @@ void Application::drawFrame()
     renderData.imguiDrawData = ImGui::GetDrawData();
 
     renderData.clearColor = display.clearColor;
+    renderData.buildGBuffer = display.buildGBuffer;
     // 材质、法线、光空间视图：黑色背景
     // LinearDepth：白色背景，表示没有表面。
     // HDR luminance：保留正常场景背景和天空。

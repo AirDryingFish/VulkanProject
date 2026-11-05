@@ -35,6 +35,19 @@ private:
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
     };
 
+    struct GBufferTarget
+    {
+        // 对应 fragment shader 的 location
+        // 0: normal
+        // 1: base color
+        // 2: material
+        // 3: emissive
+        std::array<GpuImage, 4> colors{};
+        GpuImage depth{};
+        // 记录这组 G-buffer 图片当前是否已经转换到了 "供 shader 采样读取" 的 layout
+        bool sampledLayout = false;
+    };
+
     struct ShadowTarget
     {
         GpuImage depth;
@@ -92,7 +105,7 @@ private:
         VkRenderPass renderPass = VK_NULL_HANDLE;
 
         bool useDynamicRendering = false;
-        VkFormat colorAttachmentFormat = VK_FORMAT_UNDEFINED;
+        std::vector<VkFormat> colorAttachmentFormats{};
         VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
         VkFormat stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
@@ -140,6 +153,21 @@ private:
     // Present pass: 采样 HDR 图片 -> tone mapping -> 交换链图片
     VkRenderPass presentRenderPass_ = VK_NULL_HANDLE;
     // -- end --
+
+    // -- G-buffer: 每个飞行帧槽独立，全部为 1x --
+    static constexpr std::array<VkFormat, 4> gBufferColorFormats_{
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_FORMAT_R16G16B16A16_SFLOAT
+    };
+    static constexpr VkFormat gBufferDepthFormat_ = VK_FORMAT_D32_SFLOAT;
+
+    std::array<GBufferTarget, MAX_FRAMES_IN_FLIGHT> gBufferTargets_{};
+    VkPipeline gBufferPipeline_ = VK_NULL_HANDLE;
+    VkPipeline gBufferDoubleSidedPipeline_ = VK_NULL_HANDLE;
+    bool gBufferAvailable_ = false;
+    std::string gBufferUnavailableReason_;
 
     // -- 后处理 Descriptor set --
     GpuSampler postSampler_{};
@@ -214,6 +242,13 @@ private:
     void createHdrFramebuffers();
     void destroyHdrTargets() noexcept; // 释放图像
     // ----
+
+    // -- G-buffer --
+    void createGBufferTargets();
+    void destroyGBufferTargets() noexcept;
+
+    void createGBufferPipelines();
+    void recordGBufferPass(const FrameToken& token, const RenderFrameData& data);
 
     // -- post processing --
     void createPostDescriptors();
@@ -310,4 +345,6 @@ public:
     const RendererCpuTimingSnapshot& cpuTimingSnapshot() const noexcept;
 
     RenderTargetPayloadEstimate renderTargetPayloadEstimate() const noexcept;
+
+    bool gBufferGeometryAvailable() const noexcept;
 };

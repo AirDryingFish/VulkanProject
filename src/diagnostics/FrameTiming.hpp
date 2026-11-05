@@ -54,6 +54,8 @@ struct FrameTimingConfig
     VkExtent2D extent{};
     VkSampleCountFlagBits sceneSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    bool gBufferGeometry = false;
+
     std::uint32_t shadowPreviewLayer = 0;
 
     ShadowMode shadowMode = ShadowMode::Single;
@@ -149,6 +151,7 @@ struct RenderTargetPayloadEstimate
     std::uint64_t msaaColorBytes = 0;
     std::uint64_t sceneDepthBytes = 0;
     std::uint64_t shadowDepthBytes = 0;
+    std::uint64_t gbufferBytes = 0;
     std::uint64_t totalBytes = 0;
 };
 // ----

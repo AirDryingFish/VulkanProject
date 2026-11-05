@@ -12,6 +12,7 @@ pushd "%SHADER_DIR%"
 
 call :compile shader.vert vert.spv || goto :failed
 call :compile shader.frag frag.spv || goto :failed
+call :compile gbuffer.frag gbuffer.frag.spv || goto :failed
 call :compile skybox.vert skybox.vert.spv || goto :failed
 call :compile skybox.frag skybox.frag.spv || goto :failed
 call :compile irradiance.vert irradiance.vert.spv || goto :failed
@@ -32,7 +33,7 @@ echo Shader compilation complete.
 exit /b 0
 
 :compile
-glslc --target-env=vulkan1.0 "%~1" -o "%~2"
+glslc --target-env=vulkan1.0 -I "%SHADER_DIR%" "%~1" -o "%~2"
 exit /b %errorlevel%
 
 :failed

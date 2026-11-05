@@ -109,6 +109,8 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createShadowPipeline();
         // -- hdr 资源--
         createHdrTargets();
+        // -- g-buffer --
+        createGBufferTargets();
         if (!useDynamicRenderingForScene())
         {
             createSceneRenderPass();
@@ -124,6 +126,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
 
         // -- 创建 pipeline --
         createGraphicsPipeline();
+        createGBufferPipelines();
         createSkyboxPipeline();
         createShadowPreviewPipeline();
         createTonemapPipeline();
@@ -264,7 +267,20 @@ void Renderer::shutdown() noexcept
                 presentRenderPass_ = VK_NULL_HANDLE;
             }
 
+            if (gBufferPipeline_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, gBufferPipeline_, nullptr);
+                gBufferPipeline_ = VK_NULL_HANDLE;
+            }
+
+            if (gBufferDoubleSidedPipeline_ != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, gBufferDoubleSidedPipeline_, nullptr);
+                gBufferDoubleSidedPipeline_ = VK_NULL_HANDLE;
+            }
+
             destroyPostDescriptors();
+            destroyGBufferTargets();
             destroyHdrTargets();
             if (sceneRenderPass_ != VK_NULL_HANDLE)
             {
@@ -777,6 +793,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.sceneId = data.sceneId;
     frame.recordedTimingConfig.extent = swapchain_->extent();
     frame.recordedTimingConfig.sceneSamples = sceneSamples_;
+    frame.recordedTimingConfig.gBufferGeometry = data.buildGBuffer && gBufferGeometryAvailable();
+
     frame.recordedTimingConfig.shadowEnabled = data.directionalShadowsEnabled;
     frame.recordedTimingConfig.shadowPreview = data.showShadowDepth;
     frame.recordedTimingConfig.shadowPreviewLayer = data.shadowPreviewLayer;
@@ -896,6 +914,11 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     clearValues[1].depthStencil = {1.0f, 0};
 
     beginGpuPass(GpuPass::Scene);
+    if (frame.recordedTimingConfig.gBufferGeometry)
+    {
+        recordGBufferPass(token, data);
+    }
+
     beginScenePass(token, clearValues);
 
     VkViewport viewport{};

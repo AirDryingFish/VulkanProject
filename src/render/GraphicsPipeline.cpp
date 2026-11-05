@@ -17,6 +17,7 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 // binding 0: Frame UBO
 // binding 1: Irradiance
@@ -129,7 +130,7 @@ void Renderer::createGraphicsPipeline()
     config.useDynamicRendering = useDynamicRenderingForScene();
     config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : sceneRenderPass_;
 
-    config.colorAttachmentFormat = hdrFormat_;
+    config.colorAttachmentFormats = {hdrFormat_};
     config.depthAttachmentFormat = sceneDepthFormat_;
     config.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
     config.samples = sceneSamples_;
@@ -156,7 +157,7 @@ void Renderer::createSkyboxPipeline()
     config.useDynamicRendering = useDynamicRenderingForScene();
     config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : sceneRenderPass_;
 
-    config.colorAttachmentFormat = hdrFormat_;
+    config.colorAttachmentFormats = {hdrFormat_};
     config.depthAttachmentFormat = sceneDepthFormat_;
     config.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
     config.samples = sceneSamples_;
@@ -181,7 +182,7 @@ void Renderer::createShadowPreviewPipeline()
     config.useDynamicRendering = useDynamicRenderingForPresent();
     // 预览属于显示段叠图，不参与场景 tone mapping
     config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : presentRenderPass_;
-    config.colorAttachmentFormat = swapchain_->format();
+    config.colorAttachmentFormats = {swapchain_->format()};
 
     config.samples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -200,6 +201,26 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
         throw std::logic_error("graphics pipeline requires a Vulkan context");
     }
 
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(
+        context_->physicalDevice(),
+        &properties
+    );
+    if (config.colorAttachmentFormats.size() > properties.limits.maxColorAttachments)
+    {
+        throw std::invalid_argument("Color attachment count exceeds maxColorAttachments");
+    }
+
+    for (VkFormat format : config.colorAttachmentFormats)
+    {
+        if (format == VK_FORMAT_UNDEFINED)
+        {
+            throw std::invalid_argument("Color attachment format must be defined");
+        }
+    }
+
+    const std::uint32_t colorAttachmentCount = static_cast<std::uint32_t>(config.colorAttachmentFormats.size());
+
     if (config.useDynamicRendering)
     {
         if (!context_->capabilities().dynamicRenderingEnabled)
@@ -212,10 +233,6 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
             throw std::invalid_argument("Dynamic rendering pipeline requires a null render pass");
         }
 
-        if (config.colorAttachmentFormat == VK_FORMAT_UNDEFINED)
-        {
-            throw std::invalid_argument("This pipeline factory requires one color attachment format");
-        }
 
         if ((config.depthTest || config.depthWrite) && config.depthAttachmentFormat == VK_FORMAT_UNDEFINED)
         {
@@ -304,11 +321,13 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_FALSE;
 
+    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(config.colorAttachmentFormats.size(), colorBlendAttachment);
+
     VkPipelineColorBlendStateCreateInfo colorBlending{};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
+    colorBlending.attachmentCount = colorAttachmentCount;
+    colorBlending.pAttachments = colorBlendAttachments.empty() ? nullptr : colorBlendAttachments.data();
 
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -320,8 +339,8 @@ VkPipeline Renderer::createGraphicsPipelineFromConfig(const GraphicsPipelineConf
 
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = &config.colorAttachmentFormat;
+    renderingInfo.colorAttachmentCount = colorAttachmentCount;
+    renderingInfo.pColorAttachmentFormats = config.colorAttachmentFormats.empty() ? nullptr : config.colorAttachmentFormats.data();
     renderingInfo.depthAttachmentFormat = config.depthAttachmentFormat;
     renderingInfo.stencilAttachmentFormat = config.stencilAttachmentFormat;
 

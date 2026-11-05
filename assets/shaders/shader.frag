@@ -1,4 +1,6 @@
 #version 450
+// 告诉 GLSL 编译器，启动 #include 功能而且必须支持，否则编译报错
+#extension GL_GOOGLE_include_directive : require
 
 const float PI = 3.14159265359;
 const int MAX_POINT_LIGHTS = 16;
@@ -10,13 +12,6 @@ struct PointLight
     vec4 color;
     vec4 params;
 };
-
-layout(location = 0) in vec4 fragColor;
-layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in vec3 fragWorldPos;
-layout(location = 3) in vec3 fragNormal;
-layout(location = 4) in vec4 fragTangent;
-layout(location = 5) in vec2 fragTexCoord1;
 
 layout(location = 0) out vec4 outColor;
 
@@ -48,147 +43,13 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
 
 } frame;
 
-layout(push_constant) uniform DrawPushConstants
-{
-    mat4 model;
-    vec4 baseColorFactor;
-    // x: metallic
-    // y: roughness
-    // z: AO
-    // w: reserved
-    vec4 materialFactors;
-    vec4 emissiveFactor;
-    uvec4 textureInfo;
-} draw;
 
-layout(set = 1, binding = 0) uniform sampler2D albedoMap;
-layout(set = 1, binding = 1) uniform sampler2D normalMap;
-layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessMap;
-layout(set = 1, binding = 3) uniform sampler2D aoMap;
-layout(set = 1, binding = 4) uniform sampler2D emissiveMap;
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilterMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 layout(set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
 
-// 按 slot index 去找要用第几套 uv
-vec2 materialUv(uint slot)
-{
-    bool useUv1 = (draw.textureInfo.x & (1u << slot)) != 0u;
-    return useUv1 ? fragTexCoord1 : fragTexCoord;
-}
-
-vec3 getNormalFromNormalMap()
-{
-    // vec2 normalUv = fragTexCoord;
-    vec2 normalUv = materialUv(1u);
-    vec3 tangentSpaceNormal = texture(normalMap, normalUv).xyz * 2.0 - 1.0;
-    // 使用 normal strength。法线侧向倾斜变弱了，所以凹凸效果会变弱
-    tangentSpaceNormal.xy *= draw.materialFactors.w;
-    float normalLengthSquared = dot(tangentSpaceNormal, tangentSpaceNormal);
-    // inversesqrt 代表开根分之一，相当于 normalize
-    tangentSpaceNormal = normalLengthSquared > 1e-8 ? tangentSpaceNormal * inversesqrt(normalLengthSquared) : vec3(0.0, 0.0, 1.0);
-    vec3 n = normalize(fragNormal);
-    // 路径 1：glTF primitive 自带有效 tangent
-    if (draw.textureInfo.y != 0u)
-    {
-        vec3 t = fragTangent.xyz;
-        // 插值后再次正交化
-        t -= n * dot(n, t);
-        float tangentLength = length(t);
-        if (tangentLength < 0.0001 || abs(fragTangent.w) < 0.5)
-        {
-            return n;
-        }
-        t /= tangentLength;
-        float handedness = fragTangent.w < 0.0 ? -1.0 : 1.0;
-        vec3 b = normalize(cross(n, t)) * handedness;
-        mat3 tbn = mat3(t, b, n);
-        return normalize(tbn * tangentSpaceNormal);
-    }
-    // 没有 tangent，通过位置与 UV 导数恢复 T/B
-    else
-    {
-        vec3 q1 =
-            dFdx(fragWorldPos);
-
-        vec3 q2 =
-            dFdy(fragWorldPos);
-
-        vec2 st1 =
-            dFdx(normalUv);
-
-        vec2 st2 =
-            dFdy(normalUv);
-
-        float uvDeterminant =
-            st1.x * st2.y -
-            st1.y * st2.x;
-
-        // 没有 UV 或 UV 退化时，禁用 normal map 影响。
-        if (abs(uvDeterminant) < 0.00000001)
-        {
-            return n;
-        }
-
-        vec3 tangentRaw =
-            (
-                q1 * st2.y -
-                q2 * st1.y
-            ) /
-            uvDeterminant;
-
-        vec3 bitangentRaw =
-            (
-                -q1 * st2.x +
-                q2 * st1.x
-            ) /
-            uvDeterminant;
-
-        vec3 t =
-            tangentRaw -
-            n *
-            dot(n, tangentRaw);
-
-        float tangentLength =
-            length(t);
-
-        if (tangentLength < 0.0001)
-        {
-            return n;
-        }
-
-        t /= tangentLength;
-
-        vec3 crossNT =
-            cross(n, t);
-
-        float crossLength =
-            length(crossNT);
-
-        if (crossLength < 0.0001)
-        {
-            return n;
-        }
-
-        float handedness =
-            dot(crossNT, bitangentRaw) < 0.0
-                ? -1.0
-                : 1.0;
-
-        vec3 b =
-            crossNT /
-            crossLength *
-            handedness;
-
-        mat3 tbn =
-            mat3(t, b, n);
-
-        return normalize(
-            tbn *
-            tangentSpaceNormal);
-    }
-}
+#include "material.glsl"
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
@@ -399,8 +260,8 @@ float directionalShadowVisibility(vec3 worldPosition)
 void main()
 {
     // 主画面执行 alpha 裁剪，把 alpha 值小于 cutoff 的丢弃。大于的当作不透明片元绘制
-    vec4 baseColor = texture(albedoMap, materialUv(0u)) * draw.baseColorFactor * fragColor;
-    bool alphaRejected = draw.textureInfo.z == 1u && baseColor.a < draw.emissiveFactor.w;
+    vec4 baseColor = sampleBaseColor();
+    bool alphaRejected = materialAlphaRejected(baseColor);
 
     if (frame.shadowFlags.w == 8)
     {
@@ -468,24 +329,12 @@ void main()
         return;
     }
 
-    vec4 metallicRoughness = texture(metallicRoughnessMap, materialUv(2u));
-    float metallic = clamp(metallicRoughness.b * draw.materialFactors.x, 0.0, 1.0);
-    float roughness = clamp(metallicRoughness.g * draw.materialFactors.y, 0.04, 1.0);
-    // float ao = clamp(texture(aoMap, fragTexCoord).r * draw.materialFactors.z, 0.0, 1.0);
-    float samplerdOcclusion = texture(aoMap, materialUv(3u)).r;
-    // AO = 1 + strength(sampledOcclusion - 1)
-    // AO = 1 表示不遮蔽
-    // AO = 0 表示环境光几乎完全被挡住
-    // draw.materialFactors.z(strength) 控制 AO 贴图对最终光照产生多大影响
-    float ao = mix(1.0, samplerdOcclusion, clamp(draw.materialFactors.z, 0.0, 1.0));
-
-    vec3 albedo = baseColor.rgb;
-
-    vec3 normal = getNormalFromNormalMap();
-    if (!gl_FrontFacing)
-    {
-        normal = -normal;
-    }
+    MaterialSample material = evalueteMaterial(baseColor);
+    float metallic = material.metallic;
+    float roughness = material.roughness;
+    float ao = material.ao;
+    vec3 albedo = material.baseColor.rgb;
+    vec3 normal = material.normal;
 
     // Lit = 0,
     // Albedo = 1,
@@ -603,7 +452,7 @@ void main()
 
     vec3 ibl = (kD * diffuse + specular) * ao * iblIntensity;
 
-    vec3 emissive = texture(emissiveMap, materialUv(4u)).rgb * draw.emissiveFactor.rgb;
+    vec3 emissive = material.emissive;
 
     vec3 color = ambient + ibl + Lo + emissive;
 

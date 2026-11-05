@@ -3,6 +3,18 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
+enum class RenderPath : std::uint32_t
+{
+    Forward = 0,
+    Deferred = 1
+};
+
+enum class LightCullingMode : std::uint32_t
+{
+    None = 0,
+    Tiled = 1
+};
+
 // -- 定义曝光和 tone mapper --
 enum class ToneMapper : std::uint32_t
 {
@@ -31,6 +43,7 @@ inline bool isSurfaceDebugView(DebugView view) noexcept
 
 struct DisplaySettings
 {
+    bool buildGBuffer = false;
     glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
     DebugView debugView = DebugView::Lit;
     float debugDepthFar = 50.0f;

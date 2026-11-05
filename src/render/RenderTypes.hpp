@@ -67,6 +67,8 @@ struct RenderFrameData
     glm::vec3 shadowSingleCenter{0.0f};
     float shadowSingleHalfExtent = 0.0f;
 
+    bool buildGBuffer = false;
+
     std::string sceneId;
 
     bool bypassToneMapping = false;

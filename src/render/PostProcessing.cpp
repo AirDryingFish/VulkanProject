@@ -37,7 +37,7 @@ namespace
         {
         case VK_FORMAT_R16G16B16A16_SFLOAT:
             return 8;
-
+        case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_D32_SFLOAT:
             return 4;
 
@@ -1034,7 +1034,7 @@ void Renderer::createTonemapPipeline()
 
     config.useDynamicRendering = useDynamicRenderingForPresent();
     config.renderPass = config.useDynamicRendering ? VK_NULL_HANDLE : presentRenderPass_;
-    config.colorAttachmentFormat = swapchain_->format();
+    config.colorAttachmentFormats = {swapchain_->format()};
 
     config.samples = VK_SAMPLE_COUNT_1_BIT;
     config.useVertexInput = false;
@@ -1073,6 +1073,8 @@ void Renderer::recreateHdrTargets()
     }
     // 原来的 post set 指向旧 imageView。图像重建后需要让每帧的 set 指向新 view，而且更新时不能还有 GPU 提交在使用他们
     writePostDescriptors();
+    createGBufferTargets();
+    createGBufferPipelines();
 }
 
 RenderTargetPayloadEstimate Renderer::renderTargetPayloadEstimate() const noexcept
@@ -1113,8 +1115,27 @@ RenderTargetPayloadEstimate Renderer::renderTargetPayloadEstimate() const noexce
             return result;
         }
     }
+    for (const GBufferTarget& target : gBufferTargets_)
+    {
+        for (const GpuImage& color : target.colors)
+        {
+            if (!addImage(color, result.gbufferBytes))
+            {
+                return result;
+            }
+        }
+        if (!addImage(target.depth, result.gbufferBytes))
+        {
+            return result;
+        }
+    }
 
-    result.totalBytes = result.hdrColorBytes + result.msaaColorBytes + result.sceneDepthBytes + result.shadowDepthBytes;
+    result.totalBytes = result.hdrColorBytes + result.msaaColorBytes + result.sceneDepthBytes + result.shadowDepthBytes + result.gbufferBytes;
     result.complete = true;
     return result;
+}
+
+bool Renderer::gBufferGeometryAvailable() const noexcept
+{
+    return gBufferAvailable_ && gBufferPipeline_ != VK_NULL_HANDLE && gBufferDoubleSidedPipeline_ != VK_NULL_HANDLE;
 }

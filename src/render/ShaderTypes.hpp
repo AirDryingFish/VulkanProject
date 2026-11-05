@@ -105,6 +105,30 @@ static_assert(
 
 static_assert(sizeof(UniformBufferObject) == 1424);
 
+struct alignas(16) DeferredFrameUniforms
+{
+    alignas(16) glm::mat4 inverseViewProjection{1.0f};
+    alignas(16) glm::mat4 inverseProjection{1.0f};
+    // width, height, tileCountX, tileCountY
+    alignas(16) glm::uvec4 extentAndTiles{0u};
+    // tileSize, maxLightPerTile, cullingMode, debugMode
+    alignas(16) glm::uvec4 tileParams{16u, 128u, 0u, 0u};
+};
+static_assert(
+    offsetof(DeferredFrameUniforms, inverseViewProjection) == 0);
+
+static_assert(
+    offsetof(DeferredFrameUniforms, inverseProjection) == 64);
+
+static_assert(
+    offsetof(DeferredFrameUniforms, extentAndTiles) == 128);
+
+static_assert(
+    offsetof(DeferredFrameUniforms, tileParams) == 144);
+
+static_assert(alignof(DeferredFrameUniforms) == 16);
+static_assert(sizeof(DeferredFrameUniforms) == 160);
+
 // 每个 draw 单独推送模型矩阵和材质参数；相机/灯光等整帧共享数据放在 UBO。
 struct alignas(16) DrawPushConstants
 {

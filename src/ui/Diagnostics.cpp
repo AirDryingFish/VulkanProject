@@ -87,6 +87,10 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     ImGui::Text("%u x %u", config.extent.width, config.extent.height);
     metricRow("Scene MSAA");
     ImGui::Text("%ux", static_cast<unsigned int>(config.sceneSamples));
+
+    metricRow("Scene work");
+    ImGui::TextUnformatted(config.gBufferGeometry ? "G-buffer 1x + forward" : "Forward");
+
     metricRow("Shadows");
     ImGui::TextUnformatted(config.shadowEnabled ? "Draw enabled" : "Clear only");
 
@@ -589,6 +593,7 @@ void Application::drawDiagnosticsResources()
         showBytes("MSAA color", targets.msaaColorBytes);
         showBytes("Scene depth", targets.sceneDepthBytes);
         showBytes("Shadow depth", targets.shadowDepthBytes);
+        showBytes("G-buffer", targets.gbufferBytes);
         showBytes("Total", targets.totalBytes);
         ImGui::EndTable();
     }
