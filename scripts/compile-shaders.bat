@@ -13,6 +13,7 @@ pushd "%SHADER_DIR%"
 call :compile shader.vert vert.spv || goto :failed
 call :compile shader.frag frag.spv || goto :failed
 call :compile gbuffer.frag gbuffer.frag.spv || goto :failed
+call :compile gbuffer_preview.frag gbuffer_preview.frag.spv || goto :failed
 call :compile skybox.vert skybox.vert.spv || goto :failed
 call :compile skybox.frag skybox.frag.spv || goto :failed
 call :compile irradiance.vert irradiance.vert.spv || goto :failed

@@ -1075,6 +1075,7 @@ void Renderer::recreateHdrTargets()
     writePostDescriptors();
     createGBufferTargets();
     createGBufferPipelines();
+    createGBufferPreviewResources();
 }
 
 RenderTargetPayloadEstimate Renderer::renderTargetPayloadEstimate() const noexcept

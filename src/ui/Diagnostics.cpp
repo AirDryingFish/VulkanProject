@@ -91,6 +91,9 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     metricRow("Scene work");
     ImGui::TextUnformatted(config.gBufferGeometry ? "G-buffer 1x + forward" : "Forward");
 
+    metricRow("G-buffer view");
+    ImGui::Text("%d", static_cast<int>(config.gBufferView));
+
     metricRow("Shadows");
     ImGui::TextUnformatted(config.shadowEnabled ? "Draw enabled" : "Clear only");
 

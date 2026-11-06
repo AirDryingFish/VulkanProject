@@ -55,6 +55,7 @@ struct FrameTimingConfig
     VkSampleCountFlagBits sceneSamples = VK_SAMPLE_COUNT_1_BIT;
 
     bool gBufferGeometry = false;
+    GBufferView gBufferView = GBufferView::Off;
 
     std::uint32_t shadowPreviewLayer = 0;
 

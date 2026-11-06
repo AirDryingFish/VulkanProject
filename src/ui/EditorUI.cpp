@@ -835,12 +835,35 @@ void Application::drawImGui()
                 }
                 ImGui::EndDisabled();
 
+                ImGui::BeginDisabled(!canBuildGBuffer || !display.buildGBuffer);
+                const char *gBufferViews[] = {
+                    "Forward output",
+                    "World normal",
+                    "Base color",
+                    "Metallic",
+                    "Roughness",
+                    "Ambient occlusion",
+                    "Emissive",
+                    "Linear depth"};
+                int selectedBufferView = static_cast<int>(display.gBufferView);
+                if (ImGui::Combo("G-buffer attachment", &selectedBufferView, gBufferViews, IM_ARRAYSIZE(gBufferViews)))
+                {
+                    display.gBufferView = static_cast<GBufferView>(selectedBufferView);
+                    diagnostics.baseline.cancel("Capture cancelled: G-buffer view changed.");
+                    diagnostics.startRequested = false;
+                }
+                ImGui::EndDisabled();
+
+                const bool previewActive = canBuildGBuffer && display.buildGBuffer && display.gBufferView != GBufferView::Off;
+
                 ImGui::TextDisabled("Geometry + Forward reference");
                 if (!canBuildGBuffer)
                 {
                     ImGui::TextWrapped("G-buffer geometry is unavailable on this configuration.");
                 }
                 ImGui::Separator();
+
+                ImGui::BeginDisabled(previewActive);
 
                 const char *viewNames[] = {
                     "Lit",
@@ -851,50 +874,103 @@ void Application::drawImGui()
                     "Linear depth",
                     "HDR luminance",
                     "Shadow projection",
-                    "Shadow cascades"
-                };
+                    "Shadow cascades"};
+
                 int selectedView = static_cast<int>(display.debugView);
-                if (ImGui::Combo("Debug View", &selectedView, viewNames, IM_ARRAYSIZE(viewNames)))
+
+                if (ImGui::Combo(
+                        "Debug View",
+                        &selectedView,
+                        viewNames,
+                        IM_ARRAYSIZE(viewNames)))
                 {
-                    display.debugView = static_cast<DebugView>(selectedView);
+                    display.debugView =
+                        static_cast<DebugView>(selectedView);
                 }
 
-                if (display.debugView == DebugView::LinearDepth)
+                ImGui::EndDisabled();
+
+                const bool showDepthRange =
+                    (!previewActive &&
+                     display.debugView == DebugView::LinearDepth) ||
+                    (previewActive &&
+                     display.gBufferView == GBufferView::LinearDepth);
+
+                if (showDepthRange)
                 {
-                    // display.debugDepthFar: 表示多元的位置映射成白色
-                    ImGui::DragFloat("Depth display far", &display.debugDepthFar, 0.5f, camera.nearPlane + 0.001f, camera.farPlane, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::Text("Forward distance: %.3f .. %.3f", camera.nearPlane, std::max(display.debugDepthFar, camera.nearPlane + 0.001f));
-                }
-                if (display.debugView == DebugView::Roughness)
-                {
-                    ImGui::TextUnformatted("Shading roughness: clamped to [0.04, 1].");
-                }
-                if (display.debugView == DebugView::HdrLuminance)
-                {
-                    ImGui::TextUnformatted("log2(Y): [-8, +8], scene-linear, before EV.");
+                    ImGui::DragFloat(
+                        "Depth display far",
+                        &display.debugDepthFar,
+                        0.5f,
+                        camera.nearPlane + 0.001f,
+                        camera.farPlane,
+                        "%.2f",
+                        ImGuiSliderFlags_AlwaysClamp);
+
+                    ImGui::Text(
+                        "Forward distance: %.3f .. %.3f",
+                        camera.nearPlane,
+                        std::max(
+                            display.debugDepthFar,
+                            camera.nearPlane + 0.001f));
                 }
 
-                ImGui::BeginDisabled(display.debugView != DebugView::Lit);
-
-                ImGui::SliderFloat("Exposure EV", &display.exposureEv, -8.0f, 8.0f, "%.2f");
-                const char* mapperNames[] = {"Reinhard", "ACES fitted (Narkowicz)"};
-                int selectedMapper = static_cast<int>(display.toneMapper);
-
-                // 下拉框
-                if (ImGui::Combo("Tone mapper", &selectedMapper, mapperNames, 2))
+                if (!previewActive &&
+                    display.debugView == DebugView::Roughness)
                 {
-                    display.toneMapper = static_cast<ToneMapper>(selectedMapper);
+                    ImGui::TextUnformatted(
+                        "Shading roughness: clamped to [0.04, 1].");
                 }
+
+                if (!previewActive &&
+                    display.debugView == DebugView::HdrLuminance)
+                {
+                    ImGui::TextUnformatted(
+                        "log2(Y): [-8, +8], scene-linear, before EV.");
+                }
+
+                const bool usesToneMapping = previewActive
+                                                 ? display.gBufferView == GBufferView::Emissive
+                                                 : display.debugView == DebugView::Lit;
+
+                ImGui::BeginDisabled(!usesToneMapping);
+
+                ImGui::SliderFloat(
+                    "Exposure EV",
+                    &display.exposureEv,
+                    -8.0f,
+                    8.0f,
+                    "%.2f");
+
+                const char *mapperNames[] = {
+                    "Reinhard",
+                    "ACES fitted (Narkowicz)"};
+
+                int selectedMapper =
+                    static_cast<int>(display.toneMapper);
+
+                if (ImGui::Combo(
+                        "Tone mapper",
+                        &selectedMapper,
+                        mapperNames,
+                        IM_ARRAYSIZE(mapperNames)))
+                {
+                    display.toneMapper =
+                        static_cast<ToneMapper>(selectedMapper);
+                }
+
                 if (ImGui::Button("Reset display"))
                 {
                     display.exposureEv = 0.0f;
                     display.toneMapper = ToneMapper::Reinhard;
                 }
+
                 ImGui::EndDisabled();
 
-                if (display.debugView != DebugView::Lit)
+                if (!usesToneMapping)
                 {
-                    ImGui::TextUnformatted("Data view: exposure and tone mapping bypassed");
+                    ImGui::TextUnformatted(
+                        "Data view: exposure and tone mapping bypassed");
                 }
 
                 ImGui::EndTabItem();

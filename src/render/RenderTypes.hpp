@@ -68,6 +68,7 @@ struct RenderFrameData
     float shadowSingleHalfExtent = 0.0f;
 
     bool buildGBuffer = false;
+    GBufferView gBufferView = GBufferView::Off;
 
     std::string sceneId;
 

@@ -100,6 +100,7 @@ struct BaselineCapture
                config.extent.height == other.extent.height &&
                config.sceneSamples == other.sceneSamples &&
                config.gBufferGeometry == other.gBufferGeometry &&
+               config.gBufferView == other.gBufferView &&
                config.shadowEnabled == other.shadowEnabled &&
                config.shadowMode == other.shadowMode &&
                config.shadowPcfEnabled == other.shadowPcfEnabled &&
@@ -347,6 +348,7 @@ struct BaselineCapture
 
         write("gbuffer_geometry", config.gBufferGeometry);
         write("gbuffer_samples", config.gBufferGeometry ? 1 : 0);
+        write("gbuffer_view", static_cast<std::int32_t>(config.gBufferView));
 
         // 阴影模式及输入参数。
         const char *modeName = "Unknown";

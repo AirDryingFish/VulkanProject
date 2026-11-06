@@ -52,6 +52,8 @@ inline const std::string SHADOW_DEBUG_FRAGMENT_SHADER_PATH = assetPath("shaders/
 inline const std::string FULLSCREEN_VERTEX_SHADER_PATH = assetPath("shaders/fullscreen.vert.spv");
 inline const std::string TONEMAP_FRAGMENT_SHADER_PATH = assetPath("shaders/tonemap.frag.spv");
 inline const std::string GBUFFER_FRAGMENT_SHADER_PATH = assetPath("shaders/gbuffer.frag.spv");
+inline const std::string GBUFFER_PREVIEW_FRAGMENT_SHADER_PATH = assetPath("shaders/gbuffer_preview.frag.spv");
+
 
 inline const std::vector<const char *> validationLayers = {
     "VK_LAYER_KHRONOS_validation"};

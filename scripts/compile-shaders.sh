@@ -16,6 +16,7 @@ compile() {
 compile shader.vert vert.spv
 compile shader.frag frag.spv
 compile gbuffer.frag gbuffer.frag.spv
+compile gbuffer_preview.frag gbuffer_preview.frag.spv
 compile skybox.vert skybox.vert.spv
 compile skybox.frag skybox.frag.spv
 compile irradiance.vert irradiance.vert.spv

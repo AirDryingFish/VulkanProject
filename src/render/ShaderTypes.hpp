@@ -181,3 +181,22 @@ static_assert(offsetof(DrawPushConstants, emissiveFactor) == 96);
 static_assert(offsetof(DrawPushConstants, textureInfo) == 112);
 static_assert(sizeof(DrawPushConstants) == 128);
 static_assert(sizeof(DrawPushConstants) <= 128);
+
+
+struct alignas(16) GBufferPreviewPushConstants
+{
+    // x: 深度显示近界
+    // y: 深度显示远界
+    // z: 曝光 EV
+    // w: reserved
+    glm::vec4 params{0.0f};
+
+    // x: GBufferView
+    // y: ToneMapper
+    // z/w: reserved
+    glm::ivec4 modes{0};
+};
+static_assert(offsetof(GBufferPreviewPushConstants, params) == 0);
+static_assert(offsetof(GBufferPreviewPushConstants, modes) == 16);
+static_assert(sizeof(GBufferPreviewPushConstants) == 32);
+

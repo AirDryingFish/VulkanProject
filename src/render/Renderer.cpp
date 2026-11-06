@@ -130,6 +130,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createSkyboxPipeline();
         createShadowPreviewPipeline();
         createTonemapPipeline();
+        createGBufferPreviewResources();
 
         std::cout << "Present path: " << (useDynamicRenderingForPresent() ? "Dynamic Rendering" : "RenderPass") << "\n";
         std::cout << "Scene path: "
@@ -249,6 +250,8 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
+            destroyGBufferPreviewResources();
+
             if (tonemapPipeline_ != VK_NULL_HANDLE)
             {
                 vkDestroyPipeline(device, tonemapPipeline_, nullptr);
@@ -794,6 +797,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedTimingConfig.extent = swapchain_->extent();
     frame.recordedTimingConfig.sceneSamples = sceneSamples_;
     frame.recordedTimingConfig.gBufferGeometry = data.buildGBuffer && gBufferGeometryAvailable();
+    frame.recordedTimingConfig.gBufferView = frame.recordedTimingConfig.gBufferGeometry && gBufferPreviewPipeline_ != VK_NULL_HANDLE ? data.gBufferView : GBufferView::Off;
 
     frame.recordedTimingConfig.shadowEnabled = data.directionalShadowsEnabled;
     frame.recordedTimingConfig.shadowPreview = data.showShadowDepth;
@@ -1053,33 +1057,41 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     // 使用前面已设置好的全窗口 viewport/scissor
     vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
-    vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapPipeline_);
-    // 绑定 descriptor set
-    const VkDescriptorSet postSet = postDescriptorSets_.at(token.frameIndex);
-    vkCmdBindDescriptorSets(
-        token.commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        postPipelineLayout_,
-        0,
-        1,
-        &postSet,
-        0,
-        nullptr
-    );
 
-    // params.x: exposure EV
-    // params.y/z: 固定亮度显示范围：log2(Y) ∈ [-8, +8]
-    // modes.x: ToneMapper
-    // modes.y: bypass exposure and tone mapping
-    PostPushConstants post{};
-    post.params.x = data.exposureEv;
-    post.params.y = -8.0f;
-    post.params.z = 8.0f;
-    post.modes.x = static_cast<std::uint32_t>(data.toneMapper);
-    post.modes.y = data.bypassToneMapping ? 1 : 0;
-    post.modes.z = static_cast<std::int32_t>(data.debugView);
-    vkCmdPushConstants(token.commandBuffer, postPipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(sizeof(PostPushConstants)), &post);
-    vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);
+    if (frame.recordedTimingConfig.gBufferView != GBufferView::Off)
+    {
+        recordGBufferPreview(token, data);
+    }
+    else
+    {
+        vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapPipeline_);
+        // 绑定 descriptor set
+        const VkDescriptorSet postSet = postDescriptorSets_.at(token.frameIndex);
+        vkCmdBindDescriptorSets(
+            token.commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            postPipelineLayout_,
+            0,
+            1,
+            &postSet,
+            0,
+            nullptr);
+
+        // params.x: exposure EV
+        // params.y/z: 固定亮度显示范围：log2(Y) ∈ [-8, +8]
+        // modes.x: ToneMapper
+        // modes.y: bypass exposure and tone mapping
+        PostPushConstants post{};
+        post.params.x = data.exposureEv;
+        post.params.y = -8.0f;
+        post.params.z = 8.0f;
+        post.modes.x = static_cast<std::uint32_t>(data.toneMapper);
+        post.modes.y = data.bypassToneMapping ? 1 : 0;
+        post.modes.z = static_cast<std::int32_t>(data.debugView);
+        vkCmdPushConstants(token.commandBuffer, postPipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(sizeof(PostPushConstants)), &post);
+        vkCmdDraw(token.commandBuffer, 3, 1, 0, 0);
+    }
+
     // ----
 
     if (data.showShadowDepth)

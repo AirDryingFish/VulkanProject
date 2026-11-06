@@ -41,9 +41,24 @@ inline bool isSurfaceDebugView(DebugView view) noexcept
     return view >= DebugView::Albedo && view <= DebugView::LinearDepth;
 };
 
+enum class GBufferView : std::uint32_t
+{
+    Off = 0,
+    WorldNormal = 1,
+    BaseColor = 2,
+    metallic = 3,
+    Roughness = 4,
+    AmbientOcclusion= 5,
+    Emissive = 6,
+    LinearDepth = 7
+};
+
+
 struct DisplaySettings
 {
     bool buildGBuffer = false;
+    GBufferView gBufferView = GBufferView::Off;
+
     glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
     DebugView debugView = DebugView::Lit;
     float debugDepthFar = 50.0f;

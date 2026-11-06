@@ -169,6 +169,14 @@ private:
     bool gBufferAvailable_ = false;
     std::string gBufferUnavailableReason_;
 
+    GpuSampler gBufferPreviewSampler_{};
+    VkDescriptorSetLayout gBufferPreviewSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorPool gBufferPreviewPool_ = VK_NULL_HANDLE;
+    std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> gBufferPreviewSets_{};
+    VkPipelineLayout gBufferPreviewLayout_ = VK_NULL_HANDLE;
+    VkPipeline gBufferPreviewPipeline_ = VK_NULL_HANDLE;
+
+
     // -- 后处理 Descriptor set --
     GpuSampler postSampler_{};
     VkDescriptorSetLayout postDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -249,6 +257,12 @@ private:
 
     void createGBufferPipelines();
     void recordGBufferPass(const FrameToken& token, const RenderFrameData& data);
+
+    // -- G-buffer Preview --
+    void createGBufferPreviewResources();
+    void writeGBufferPreviewDescriptors();
+    void destroyGBufferPreviewResources() noexcept;
+    void recordGBufferPreview(const FrameToken& token, const RenderFrameData& data);
 
     // -- post processing --
     void createPostDescriptors();
