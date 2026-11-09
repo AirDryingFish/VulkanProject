@@ -42,6 +42,9 @@ struct RenderFrameData
 
     glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 
+    RenderPath renderPath = RenderPath::Forward;
+    DeferredFrameUniforms deferredUniforms{};
+
     bool directionalShadowsEnabled = false;
     ShadowMode shadowMode = ShadowMode::Single;
     float shadowBlendFraction = 0.0f;

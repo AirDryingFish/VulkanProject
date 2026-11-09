@@ -89,7 +89,12 @@ private:
     void releaseMesh(MeshHandle& mesh);
     void destroyBufferDeferred(GpuBuffer& buffer);
     void createUniformBuffer();
-    ShadowFrameSummary updateUniformBuffer(std::uint32_t frameSlot, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction);
+    ShadowFrameSummary updateUniformBuffer(
+        std::uint32_t frameSlot,
+        float deltaTime,
+        std::uint32_t shadowPreviewLayer,
+        float shadowBlendFraction, 
+        DeferredFrameUniforms &deferredUniforms);
 
     void createDescriptorPool();
     void createFrameDescriptorSets();

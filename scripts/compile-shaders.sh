@@ -10,12 +10,16 @@ if ! command -v glslc >/dev/null 2>&1; then
 fi
 
 compile() {
-    glslc --target-env=vulkan1.0 "$SHADER_DIR/$1" -o "$SHADER_DIR/$2"
+    glslc --target-env=vulkan1.0 \
+        -I "$SHADER_DIR" \
+        "$SHADER_DIR/$1" \
+        -o "$SHADER_DIR/$2"
 }
 
 compile shader.vert vert.spv
 compile shader.frag frag.spv
 compile gbuffer.frag gbuffer.frag.spv
+compile deferred_lighting.frag deferred_lighting.frag.spv
 compile gbuffer_preview.frag gbuffer_preview.frag.spv
 compile skybox.vert skybox.vert.spv
 compile skybox.frag skybox.frag.spv

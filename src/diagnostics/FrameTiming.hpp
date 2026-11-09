@@ -54,6 +54,8 @@ struct FrameTimingConfig
     VkExtent2D extent{};
     VkSampleCountFlagBits sceneSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    RenderPath renderPath = RenderPath::Forward;
+
     bool gBufferGeometry = false;
     GBufferView gBufferView = GBufferView::Off;
 
@@ -153,6 +155,7 @@ struct RenderTargetPayloadEstimate
     std::uint64_t sceneDepthBytes = 0;
     std::uint64_t shadowDepthBytes = 0;
     std::uint64_t gbufferBytes = 0;
+    std::uint64_t deferredHdrBytes = 0;
     std::uint64_t totalBytes = 0;
 };
 // ----

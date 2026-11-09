@@ -99,6 +99,7 @@ struct BaselineCapture
                config.extent.width == other.extent.width &&
                config.extent.height == other.extent.height &&
                config.sceneSamples == other.sceneSamples &&
+               config.renderPath == other.renderPath &&
                config.gBufferGeometry == other.gBufferGeometry &&
                config.gBufferView == other.gBufferView &&
                config.shadowEnabled == other.shadowEnabled &&
@@ -346,6 +347,7 @@ struct BaselineCapture
         write("scene_samples",
               static_cast<std::uint32_t>(config.sceneSamples));
 
+        write("render_path", config.renderPath == RenderPath::Deferred ? "Deferred" : "Forward");
         write("gbuffer_geometry", config.gBufferGeometry);
         write("gbuffer_samples", config.gBufferGeometry ? 1 : 0);
         write("gbuffer_view", static_cast<std::int32_t>(config.gBufferView));

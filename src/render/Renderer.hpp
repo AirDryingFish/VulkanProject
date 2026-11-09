@@ -35,6 +35,19 @@ private:
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
     };
 
+    struct DeferredTarget
+    {
+        GpuImage hdrColor;
+
+        GpuBuffer uniforms;
+        void* mapped = nullptr;
+
+        VkDescriptorSet inputSet = VK_NULL_HANDLE;
+        VkDescriptorSet postSet = VK_NULL_HANDLE;
+
+        bool sampledLayout = false;
+    };
+
     struct GBufferTarget
     {
         // 对应 fragment shader 的 location
@@ -177,6 +190,14 @@ private:
     VkPipeline gBufferPreviewPipeline_ = VK_NULL_HANDLE;
 
 
+
+    std::array<DeferredTarget, MAX_FRAMES_IN_FLIGHT> deferredTargets_{};
+    VkDescriptorSetLayout deferredSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorPool deferredPool_ = VK_NULL_HANDLE;
+    VkPipelineLayout deferredPipelineLayout_ = VK_NULL_HANDLE;
+    VkPipeline deferredPipeline_ = VK_NULL_HANDLE;
+
+
     // -- 后处理 Descriptor set --
     GpuSampler postSampler_{};
     VkDescriptorSetLayout postDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -263,6 +284,10 @@ private:
     void writeGBufferPreviewDescriptors();
     void destroyGBufferPreviewResources() noexcept;
     void recordGBufferPreview(const FrameToken& token, const RenderFrameData& data);
+
+    void createDeferredResources();
+    void destroyDeferredResources() noexcept;
+    void recordDeferredLightingPass(const FrameToken& token, const RenderFrameData& data);
 
     // -- post processing --
     void createPostDescriptors();
@@ -361,4 +386,6 @@ public:
     RenderTargetPayloadEstimate renderTargetPayloadEstimate() const noexcept;
 
     bool gBufferGeometryAvailable() const noexcept;
+
+    bool deferredLightingAvailable() const noexcept;
 };

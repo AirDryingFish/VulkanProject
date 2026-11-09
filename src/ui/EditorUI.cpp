@@ -826,18 +826,72 @@ void Application::drawImGui()
 
             if (ImGui::BeginTabItem("Display"))
             {
-                const bool canBuildGBuffer = renderer.gBufferGeometryAvailable();
-                ImGui::BeginDisabled(!canBuildGBuffer);
-                if (ImGui::Checkbox("Build G-buffer", &display.buildGBuffer))
+                const bool canBuildGBuffer =
+                    renderer.gBufferGeometryAvailable();
+
+                const bool canUseDeferred =
+                    renderer.deferredLightingAvailable();
+
+                const char *pathNames[] = {
+                    "Forward",
+                    "Deferred"};
+
+                int selectedPath =
+                    static_cast<int>(display.renderPath);
+
+                if (ImGui::Combo(
+                        "Render path",
+                        &selectedPath,
+                        pathNames,
+                        IM_ARRAYSIZE(pathNames)))
                 {
-                    diagnostics.baseline.cancel("Capture cancelled: G-buffer mode changed.");
+                    display.renderPath =
+                        selectedPath == 1 && canUseDeferred
+                            ? RenderPath::Deferred
+                            : RenderPath::Forward;
+
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: render path changed.");
                     diagnostics.startRequested = false;
                 }
+
+                if (!canUseDeferred)
+                {
+                    ImGui::TextDisabled(
+                        "Deferred is unavailable on this configuration.");
+                }
+
+                const bool deferredSelected =
+                    display.renderPath == RenderPath::Deferred &&
+                    canUseDeferred;
+
+                bool buildGBuffer =
+                    deferredSelected || display.buildGBuffer;
+
+                ImGui::BeginDisabled(
+                    !canBuildGBuffer || deferredSelected);
+
+                if (ImGui::Checkbox("Build G-buffer", &buildGBuffer))
+                {
+                    display.buildGBuffer = buildGBuffer;
+
+                    if (!buildGBuffer)
+                    {
+                        display.gBufferView = GBufferView::Off;
+                    }
+
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: G-buffer mode changed.");
+                    diagnostics.startRequested = false;
+                }
+
                 ImGui::EndDisabled();
 
-                ImGui::BeginDisabled(!canBuildGBuffer || !display.buildGBuffer);
+                ImGui::BeginDisabled(
+                    !canBuildGBuffer || !buildGBuffer);
+
                 const char *gBufferViews[] = {
-                    "Forward output",
+                    "Rendered output",
                     "World normal",
                     "Base color",
                     "Metallic",
@@ -845,22 +899,38 @@ void Application::drawImGui()
                     "Ambient occlusion",
                     "Emissive",
                     "Linear depth"};
-                int selectedBufferView = static_cast<int>(display.gBufferView);
-                if (ImGui::Combo("G-buffer attachment", &selectedBufferView, gBufferViews, IM_ARRAYSIZE(gBufferViews)))
+
+                int selectedBufferView =
+                    static_cast<int>(display.gBufferView);
+
+                if (ImGui::Combo(
+                        "G-buffer attachment",
+                        &selectedBufferView,
+                        gBufferViews,
+                        IM_ARRAYSIZE(gBufferViews)))
                 {
-                    display.gBufferView = static_cast<GBufferView>(selectedBufferView);
-                    diagnostics.baseline.cancel("Capture cancelled: G-buffer view changed.");
+                    display.gBufferView =
+                        static_cast<GBufferView>(selectedBufferView);
+
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: G-buffer view changed.");
                     diagnostics.startRequested = false;
                 }
+
                 ImGui::EndDisabled();
 
-                const bool previewActive = canBuildGBuffer && display.buildGBuffer && display.gBufferView != GBufferView::Off;
+                const bool previewActive =
+                    canBuildGBuffer &&
+                    buildGBuffer &&
+                    display.gBufferView != GBufferView::Off;
 
-                ImGui::TextDisabled("Geometry + Forward reference");
-                if (!canBuildGBuffer)
-                {
-                    ImGui::TextWrapped("G-buffer geometry is unavailable on this configuration.");
-                }
+                ImGui::TextDisabled(
+                    deferredSelected
+                        ? "Geometry + Lighting (1x)"
+                        : (buildGBuffer
+                               ? "G-buffer + Forward reference"
+                               : "Forward"));
+
                 ImGui::Separator();
 
                 ImGui::BeginDisabled(previewActive);

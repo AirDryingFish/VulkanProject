@@ -89,7 +89,8 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     ImGui::Text("%ux", static_cast<unsigned int>(config.sceneSamples));
 
     metricRow("Scene work");
-    ImGui::TextUnformatted(config.gBufferGeometry ? "G-buffer 1x + forward" : "Forward");
+
+    ImGui::TextUnformatted(config.renderPath == RenderPath::Deferred ? "Geometry + Lighting (1x)" : (config.gBufferGeometry ? "G-buffer + Forward" : "Forward"));
 
     metricRow("G-buffer view");
     ImGui::Text("%d", static_cast<int>(config.gBufferView));
@@ -306,7 +307,7 @@ void Application::drawDiagnosticsLive()
         ImGui::TextWrapped("%s", scenePresetInfo(activeScenePreset).id);
         metricRow("Extent");
         ImGui::Text("%u x %u", swapchain.extent().width, swapchain.extent().height);
-        metricRow("Scene MSAA");
+        metricRow("Scene samples");
         ImGui::Text("%ux", static_cast<unsigned int>(renderer.sceneSamples()));
         metricRow("Swapchain images");
         ImGui::Text("%zu", swapchain.imageCount());
@@ -597,6 +598,7 @@ void Application::drawDiagnosticsResources()
         showBytes("Scene depth", targets.sceneDepthBytes);
         showBytes("Shadow depth", targets.shadowDepthBytes);
         showBytes("G-buffer", targets.gbufferBytes);
+        showBytes("Deferred HDR", targets.deferredHdrBytes);
         showBytes("Total", targets.totalBytes);
         ImGui::EndTable();
     }

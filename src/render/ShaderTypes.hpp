@@ -46,10 +46,10 @@ struct alignas(16) UniformBufferObject
     alignas(16) glm::vec4 shadowParams{};
 
     // shadowFlags:
-    // x: shadows enabled
-    // y: shadow projection view
-    // z: PCF enabled
-    // w: DebugView
+    // x: shadows enabled 是否启用阴影
+    // y: shadow projection view 是否显示阴影投影调试视图
+    // z: PCF enabled 是否启用 PCF 阴影过滤
+    // w: DebugView 当前 DebugView 模式编号
     alignas(16) glm::ivec4 shadowFlags{};
 
     // 世界空间 -> 每级 light clip space

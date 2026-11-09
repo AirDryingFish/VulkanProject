@@ -181,6 +181,7 @@ add_executable(vulkan
     src/render/DeferredMath.hpp
     src/render/DeferredMath.cpp
     src/render/DeferredRendering.cpp
+    src/render/DeferredLighting.cpp
 )
 
 target_include_directories(vulkan PRIVATE

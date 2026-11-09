@@ -313,7 +313,8 @@ void Application::drawFrame()
 
     const float shadowBlendFraction = shadows.mode == ShadowMode::Cascaded ? shadows.blendFraction : 0.0f;
 
-    const ShadowFrameSummary shadowFrame =  updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction);
+    DeferredFrameUniforms deferredUniforms{};
+    const ShadowFrameSummary shadowFrame = updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction, deferredUniforms);
     processModelPicking();
     ImGui::Render();
 
@@ -356,6 +357,8 @@ void Application::drawFrame()
     renderData.clearColor = display.clearColor;
     renderData.buildGBuffer = display.buildGBuffer;
     renderData.gBufferView = display.gBufferView;
+    renderData.renderPath = display.renderPath;
+    renderData.deferredUniforms = deferredUniforms;
     // 材质、法线、光空间视图：黑色背景
     // LinearDepth：白色背景，表示没有表面。
     // HDR luminance：保留正常场景背景和天空。

@@ -85,7 +85,7 @@ void main()
     {
         float depth = texelFetch(gDepth, pixel, 0).r;
 
-        float viewDepth = frame.proj[3][2] / depth + frame.proj[2][2];
+        float viewDepth = frame.proj[3][2] / (depth + frame.proj[2][2]);
         float gray = clamp((viewDepth - preview.params.x) / max(preview.params.y - preview.params.x, 1e-4), 0.0, 1.0);
 
         result = vec3(gray);

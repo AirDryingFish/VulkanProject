@@ -131,6 +131,7 @@ void Renderer::initialize(VulkanContext &context, Swapchain &swapchain)
         createShadowPreviewPipeline();
         createTonemapPipeline();
         createGBufferPreviewResources();
+        createDeferredResources();
 
         std::cout << "Present path: " << (useDynamicRenderingForPresent() ? "Dynamic Rendering" : "RenderPass") << "\n";
         std::cout << "Scene path: "
@@ -250,6 +251,7 @@ void Renderer::shutdown() noexcept
 
         if (device != VK_NULL_HANDLE)
         {
+            destroyDeferredResources();
             destroyGBufferPreviewResources();
 
             if (tonemapPipeline_ != VK_NULL_HANDLE)
@@ -795,8 +797,13 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     frame.recordedGpuPassMask = 0;
     frame.recordedTimingConfig.sceneId = data.sceneId;
     frame.recordedTimingConfig.extent = swapchain_->extent();
-    frame.recordedTimingConfig.sceneSamples = sceneSamples_;
-    frame.recordedTimingConfig.gBufferGeometry = data.buildGBuffer && gBufferGeometryAvailable();
+    const bool useDeferred =
+        data.renderPath == RenderPath::Deferred &&
+        deferredLightingAvailable();
+
+    frame.recordedTimingConfig.renderPath = useDeferred ? RenderPath::Deferred : RenderPath::Forward;
+    frame.recordedTimingConfig.sceneSamples = useDeferred ? VK_SAMPLE_COUNT_1_BIT : sceneSamples_;
+    frame.recordedTimingConfig.gBufferGeometry = (useDeferred || data.buildGBuffer) && gBufferGeometryAvailable();
     frame.recordedTimingConfig.gBufferView = frame.recordedTimingConfig.gBufferGeometry && gBufferPreviewPipeline_ != VK_NULL_HANDLE ? data.gBufferView : GBufferView::Off;
 
     frame.recordedTimingConfig.shadowEnabled = data.directionalShadowsEnabled;
@@ -917,14 +924,6 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     }};
     clearValues[1].depthStencil = {1.0f, 0};
 
-    beginGpuPass(GpuPass::Scene);
-    if (frame.recordedTimingConfig.gBufferGeometry)
-    {
-        recordGBufferPass(token, data);
-    }
-
-    beginScenePass(token, clearValues);
-
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -939,100 +938,115 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     scissor.extent = swapchain_->extent();
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
 
-    // -- 绘制 skybox (表面数据视图不绘制) --
-    const bool drawSkybox = data.debugView == DebugView::Lit || data.debugView == DebugView::HdrLuminance;
-    if (drawSkybox)
+    beginGpuPass(GpuPass::Scene);
+    if (frame.recordedTimingConfig.gBufferGeometry)
     {
-        vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
-
-        vkCmdBindDescriptorSets(
-            token.commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            skyboxPipelineLayout_,
-            0,
-            1,
-            &data.skyboxDescriptorSet,
-            0,
-            nullptr);
-        vkCmdDraw(
-            token.commandBuffer,
-            36,
-            1,
-            0,
-            0);
+        recordGBufferPass(token, data);
     }
-    // ----
 
-    vkCmdBindDescriptorSets(
-        token.commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        scenePipelineLayout_,
-        0,
-        1,
-        &data.frameDescriptorSet,
-        0,
-        nullptr);
-
-    if (data.objects != nullptr)
+    if (useDeferred)
     {
-        const VkDeviceSize offset = 0;
-        for (const RenderObjectView &object : *data.objects)
-        {
-            if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE || object.materialDescriptorSet == VK_NULL_HANDLE)
-            {
-                continue;
-            }
+        recordDeferredLightingPass(token, data);
+    }
+    else
+    {
 
-            const VkPipeline pipeline = object.doubleSided ? graphicsDoubleSidedPipeline_ : graphicsPipeline_;
-            vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        beginScenePass(token, clearValues);
+
+        // -- 绘制 skybox (表面数据视图不绘制) --
+        const bool drawSkybox = data.debugView == DebugView::Lit || data.debugView == DebugView::HdrLuminance;
+        if (drawSkybox)
+        {
+            vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline_);
 
             vkCmdBindDescriptorSets(
                 token.commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                scenePipelineLayout_,
-                1, // 绑定 set 1
-                1,
-                &object.materialDescriptorSet,
-                0,
-                nullptr
-            );
-            vkCmdPushConstants(
-                token.commandBuffer,
-                scenePipelineLayout_,
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                0,
-                sizeof(DrawPushConstants),
-                &object.pushConstants);
-            vkCmdBindVertexBuffers(
-                token.commandBuffer,
+                skyboxPipelineLayout_,
                 0,
                 1,
-                &object.vertexBuffer,
-                &offset);
-
-            vkCmdBindIndexBuffer(
-                token.commandBuffer,
-                object.indexBuffer,
+                &data.skyboxDescriptorSet,
                 0,
-                VK_INDEX_TYPE_UINT32);
-
-            vkCmdDrawIndexed(
+                nullptr);
+            vkCmdDraw(
                 token.commandBuffer,
-                object.indexCount,
+                36,
                 1,
-                0,
                 0,
                 0);
-
-            ++frame.recordedDraws.sceneDraws;
-            frame.recordedDraws.sceneTriangles += static_cast<std::uint64_t>(object.indexCount / 3);
         }
-    }
-    // ----
+        // ----
 
-    // -- 结束 HDR scene pass --
-    // hdrColor 的最终布局及输出依赖由 sceneRenderPass_ 处理
-    endScenePass(token);
+        vkCmdBindDescriptorSets(
+            token.commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            scenePipelineLayout_,
+            0,
+            1,
+            &data.frameDescriptorSet,
+            0,
+            nullptr);
+
+        if (data.objects != nullptr)
+        {
+            const VkDeviceSize offset = 0;
+            for (const RenderObjectView &object : *data.objects)
+            {
+                if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE || object.indexBuffer == VK_NULL_HANDLE || object.materialDescriptorSet == VK_NULL_HANDLE)
+                {
+                    continue;
+                }
+
+                const VkPipeline pipeline = object.doubleSided ? graphicsDoubleSidedPipeline_ : graphicsPipeline_;
+                vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+                vkCmdBindDescriptorSets(
+                    token.commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    scenePipelineLayout_,
+                    1, // 绑定 set 1
+                    1,
+                    &object.materialDescriptorSet,
+                    0,
+                    nullptr);
+                vkCmdPushConstants(
+                    token.commandBuffer,
+                    scenePipelineLayout_,
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                    0,
+                    sizeof(DrawPushConstants),
+                    &object.pushConstants);
+                vkCmdBindVertexBuffers(
+                    token.commandBuffer,
+                    0,
+                    1,
+                    &object.vertexBuffer,
+                    &offset);
+
+                vkCmdBindIndexBuffer(
+                    token.commandBuffer,
+                    object.indexBuffer,
+                    0,
+                    VK_INDEX_TYPE_UINT32);
+
+                vkCmdDrawIndexed(
+                    token.commandBuffer,
+                    object.indexCount,
+                    1,
+                    0,
+                    0,
+                    0);
+
+                ++frame.recordedDraws.sceneDraws;
+                frame.recordedDraws.sceneTriangles += static_cast<std::uint64_t>(object.indexCount / 3);
+            }
+        }
+        // ----
+
+        // -- 结束 HDR scene pass --
+        // hdrColor 的最终布局及输出依赖由 sceneRenderPass_ 处理
+        endScenePass(token);
+    }
     endGpuPass(GpuPass::Scene);
 
     VkClearValue presentClear{};
@@ -1066,7 +1080,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     {
         vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapPipeline_);
         // 绑定 descriptor set
-        const VkDescriptorSet postSet = postDescriptorSets_.at(token.frameIndex);
+        const VkDescriptorSet postSet = useDeferred ? deferredTargets_.at(token.frameIndex).postSet : postDescriptorSets_.at(token.frameIndex);
         vkCmdBindDescriptorSets(
             token.commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1112,6 +1126,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     VK_CHECK(vkEndCommandBuffer(token.commandBuffer));
 
     hasRecordedFrame_ = true;
+
 }
 
 // endFrame 负责提交与请求呈现，返回不代表 GPU 或屏幕显示已经完成。

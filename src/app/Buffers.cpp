@@ -1,6 +1,7 @@
 #include "app/Application.hpp"
 #include "render/ShaderTypes.hpp"
 #include "render/ShadowCascades.hpp"
+#include "render/DeferredMath.hpp"
 
 #include <glm/matrix.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
@@ -86,7 +87,12 @@ void Application::createUniformBuffer()
     }
 }
 
-ShadowFrameSummary Application::updateUniformBuffer(uint32_t currentImage, float deltaTime, std::uint32_t shadowPreviewLayer, float shadowBlendFraction)
+ShadowFrameSummary Application::updateUniformBuffer(
+    uint32_t currentImage,
+    float deltaTime,
+    std::uint32_t shadowPreviewLayer,
+    float shadowBlendFraction,
+    DeferredFrameUniforms &deferredUniforms)
 {
     // currentImage 在这里实际是 frameIndex（帧资源槽），不是交换链 imageIndex。
     // 调用前 beginFrame() 已等待该槽的 fence，当前槽的 UBO 才可以安全覆写。
@@ -97,6 +103,24 @@ ShadowFrameSummary Application::updateUniformBuffer(uint32_t currentImage, float
     // ubo.proj = camera.projection(swapchain.extent().width / static_cast<float>(swapchain.extent().height));
     const float aspectRatio = swapchain.extent().width / static_cast<float>(swapchain.extent().height);
     ubo.proj = camera.projection(aspectRatio);
+    const VkExtent2D extent = swapchain.extent();
+
+    const deferred::TileGrid grid =
+        deferred::makeTileGrid(extent.width, extent.height);
+
+    deferredUniforms = {};
+
+    deferredUniforms.inverseViewProjection =
+        glm::inverse(ubo.proj * ubo.view);
+
+    deferredUniforms.inverseProjection =
+        glm::inverse(ubo.proj);
+
+    deferredUniforms.extentAndTiles = {
+        extent.width,
+        extent.height,
+        grid.tilesX,
+        grid.tilesY};
 
     const float minimumShadowDistance = std::min(camera.nearPlane + 0.01f, camera.farPlane);
     if (!std::isfinite(shadows.shadowDistance))

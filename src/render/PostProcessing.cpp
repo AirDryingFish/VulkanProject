@@ -1076,6 +1076,7 @@ void Renderer::recreateHdrTargets()
     createGBufferTargets();
     createGBufferPipelines();
     createGBufferPreviewResources();
+    createDeferredResources();
 }
 
 RenderTargetPayloadEstimate Renderer::renderTargetPayloadEstimate() const noexcept
@@ -1131,7 +1132,15 @@ RenderTargetPayloadEstimate Renderer::renderTargetPayloadEstimate() const noexce
         }
     }
 
-    result.totalBytes = result.hdrColorBytes + result.msaaColorBytes + result.sceneDepthBytes + result.shadowDepthBytes + result.gbufferBytes;
+    for (const DeferredTarget &target : deferredTargets_)
+    {
+        if (!addImage(target.hdrColor, result.deferredHdrBytes))
+        {
+            return result;
+        }
+    }
+
+    result.totalBytes = result.hdrColorBytes + result.msaaColorBytes + result.sceneDepthBytes + result.shadowDepthBytes + result.gbufferBytes + result.deferredHdrBytes;
     result.complete = true;
     return result;
 }
