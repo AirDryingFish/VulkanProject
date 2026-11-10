@@ -569,6 +569,22 @@ std::string Application::buildBaselineContext() const
     write("ambient.intensity", scene.ambientLightIntensity);
     write("ibl.intensity", scene.iblIntensity);
 
+    if (activeScenePreset == ScenePreset::ManyLights)
+    {
+        write("many_lights.generator", "lcg32-v1");
+        write("many_lights.seed", manyLightsSettings.seed);
+        write(
+            "many_lights.generated_count",
+            manyLightsSettings.count);
+        write(
+            "many_lights.generated_range",
+            manyLightsSettings.range);
+    }
+
+    write(
+        "ui.point_light_markers",
+        editor.showPointLightMarkers);
+
     write("point_lights.listed_count", scene.pointLights.size());
     write(
         "point_lights.uploaded_count",

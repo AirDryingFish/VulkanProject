@@ -622,6 +622,81 @@ void Application::drawImGui()
                 ImGui::ColorEdit3("Color##DirectionalLight", &scene.directionalLight.color.x);
                 ImGui::DragFloat("Intensity##DirectionalLight", &scene.directionalLight.intensity, 0.05f, 0.0f, 20.0f);
 
+                if (ImGui::Checkbox("Show point light markers", &editor.showPointLightMarkers))
+                {
+                    diagnostics.baseline.cancel("Capture cancelled: light markers changed.");
+                    diagnostics.startRequested = false;
+                }
+
+                if (activeScenePreset == ScenePreset::ManyLights)
+                {
+                    ImGui::PushID("ManyLightsControls");
+                    ImGui::SeparatorText("Generated lights");
+
+                    ManyLightsSettings next = manyLightsSettings;
+                    int count = static_cast<int>(next.count);
+
+                    bool regenerate = ImGui::SliderInt(
+                        "Generated count",
+                        &count,
+                        0,
+                        static_cast<int>(MAX_POINT_LIGHTS),
+                        "%d",
+                        ImGuiSliderFlags_AlwaysClamp);
+
+                    next.count = static_cast<std::uint32_t>(count);
+
+                    const std::array<std::uint32_t, 6> counts{0u, 1u, 16u, 64u, 256u, 1024u};
+
+                    for (std::size_t i = 0; i < counts.size(); ++i)
+                    {
+                        if (i != 0)
+                        {
+                            ImGui::SameLine();
+                        }
+
+                        ImGui::PushID(static_cast<int>(i));
+
+                        const std::string label =
+                            std::to_string(counts[i]);
+
+                        if (ImGui::Button(label.c_str()))
+                        {
+                            next.count = counts[i];
+                            regenerate = true;
+                        }
+
+                        ImGui::PopID();
+                    }
+
+                    regenerate |= ImGui::SliderFloat(
+                        "Generated range",
+                        &next.range,
+                        1.0f,
+                        12.0f,
+                        "%.2f",
+                        ImGuiSliderFlags_AlwaysClamp);
+
+                    ImGui::Text(
+                        "Seed: 0x%X",
+                        static_cast<unsigned int>(next.seed));
+
+                    if (ImGui::Button("Rebuild generated lights"))
+                    {
+                        regenerate = true;
+                    }
+
+                    ImGui::TextWrapped(
+                        "Changing generation settings replaces point lights and their edits.");
+
+                    if (regenerate)
+                    {
+                        applyManyLightsSettings(next);
+                    }
+
+                    ImGui::PopID();
+                }
+
                 ImGui::SeparatorText("Point lights");
                 const bool canAddLight = scene.pointLights.size() < MAX_POINT_LIGHTS;
                 if (!canAddLight)
@@ -1082,7 +1157,7 @@ void Application::drawImGui()
 
 void Application::drawLightOverlays()
 {
-    if (scene.pointLights.empty())
+    if (!editor.showPointLightMarkers || scene.pointLights.empty())
     {
         return;
     }

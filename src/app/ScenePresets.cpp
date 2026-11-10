@@ -107,6 +107,71 @@ void Application::buildPresetObjects(ScenePreset preset)
         return;
     }
 
+    if (preset == ScenePreset::ManyLights)
+    {
+        const auto floor = createPresetMaterial(
+            "Many lights floor",
+            {0.45f, 0.45f, 0.45f, 1.0f},
+            0.0f,
+            0.85f);
+
+        const auto diffuse = createPresetMaterial(
+            "Many lights diffuse",
+            {0.7f, 0.7f, 0.7f, 1.0f},
+            0.0f,
+            0.5f);
+
+        const auto metal = createPresetMaterial(
+            "Many lights metal",
+            {0.8f, 0.75f, 0.65f, 1.0f},
+            1.0f,
+            0.25f);
+
+        add(
+            MeshSource::Cube,
+            "Many lights ground",
+            {0.0f, 0.0f, -0.2f},
+            {11.0f, 11.0f, 0.2f},
+            floor);
+
+        for (int row = 0; row < 5; ++row)
+        {
+            for (int column = 0; column < 5; ++column)
+            {
+                const std::string name =
+                    "Many lights sphere " +
+                    std::to_string(row * 5 + column);
+
+                add(
+                    MeshSource::Sphere,
+                    name.c_str(),
+                    {-8.0f + 4.0f * column,
+                     -8.0f + 4.0f * row,
+                     0.75f},
+                    glm::vec3(0.75f),
+                    (row + column) % 2 == 0 ? diffuse : metal);
+            }
+        }
+
+        for (int i = 0; i < 4; ++i)
+        {
+            const float x = (i & 1) != 0 ? 6.0f : -6.0f;
+            const float y = (i & 2) != 0 ? 6.0f : -6.0f;
+
+            const std::string name =
+                "Many lights pillar " + std::to_string(i);
+
+            add(
+                MeshSource::Cube,
+                name.c_str(),
+                {x, y, 2.0f},
+                {0.6f, 0.6f, 2.0f},
+                diffuse);
+        }
+
+        return;
+    }
+
     if (preset == ScenePreset::Original)
     {
         add(MeshSource::Sphere, "Rusted Iron Sphere", {-1.2f, 0.0f, 0.0f}, glm::vec3(1.0f), defaultMaterial);
@@ -177,11 +242,22 @@ void Application::loadScenePreset(ScenePreset preset)
     glm::vec3 minimum{}, maximum{};
     glm::vec3 center{};
     float radius = 0.0f;
+
     Camera preparedCamera = camera;
+    const ManyLightsSettings preparedManyLights{};
+    std::vector<PointLight> preparedPointLights;
+
+    editor.showPointLightMarkers = preset != ScenePreset::ManyLights;
+
     preparingScenePreset = true;
     try
     {
         buildPresetObjects(preset);
+        if (preset == ScenePreset::ManyLights)
+        {
+            preparedPointLights = makeManyLights(preparedManyLights);
+        }
+
         scene.bounds(minimum, maximum);
         if (!std::isfinite(glm::length(maximum - minimum)))
             throw std::runtime_error("Scene bounds exceed the supported numeric range");
@@ -207,6 +283,21 @@ void Application::loadScenePreset(ScenePreset preset)
             preparedCamera.lookAt({14.0f, -22.0f, 14.0f}, {0.0f, 15.0f, 0.0f});
         else if (preset == ScenePreset::Original)
             preparedCamera.lookAt({6.0f, -8.0f, 5.0f}, {0.0f, 0.0f, 0.0f});
+
+        else if (preset == ScenePreset::ManyLights)
+        {
+            preparedCamera.fieldOfViewDegrees = 45.0f;
+            preparedCamera.nearPlane = 0.1f;
+            preparedCamera.farPlane = 150.0f;
+
+            preparedCamera.moveSpeed = 10.0f;
+            preparedCamera.scrollSpeed = 2.0f;
+            preparedCamera.panSpeed = 0.02f;
+
+            preparedCamera.lookAt(
+                {20.0f, -28.0f, 24.0f},
+                {0.0f, 0.0f, 1.0f});
+        }
 
         const glm::mat4 preparedView = preparedCamera.view();
         const glm::mat4 preparedProjection = preparedCamera.projection(aspect);
@@ -258,7 +349,8 @@ void Application::loadScenePreset(ScenePreset preset)
         material.emissiveFactor = initial.emissiveFactor;
     }
 
-    scene.pointLights.clear();
+    // scene.pointLights.clear();
+    scene.pointLights.swap(preparedPointLights);
     scene.directionalLight = DirectionalLight{};
     scene.directionalLight.direction = {-0.6f, 0.7f, -1.0f};
     scene.directionalLight.intensity = 3.0f;
@@ -274,6 +366,20 @@ void Application::loadScenePreset(ScenePreset preset)
     shadows.receiverBias = 0.0005f;
     shadows.center = center;
     shadows.halfExtent = std::max(radius * 1.05f, 1.0f);
+
+    if (preset == ScenePreset::ManyLights)
+    {
+        manyLightsSettings = preparedManyLights;
+
+        scene.directionalLight.enabled = false;
+        scene.ambientLightIntensity = 0.02f;
+        scene.iblIntensity = 0.0f;
+        shadows.enabled = false;
+
+        display.gBufferView = GBufferView::Off;
+        display.exposureEv = 0.0f;
+        display.toneMapper = ToneMapper::Reinhard;
+    }
 
     editor.clearSelection();
     editor.leftMouseWasDown = false;
@@ -305,4 +411,30 @@ void Application::processPendingScenePreset()
         editor.scenePresetError = error.what();
         std::cerr << "Scene switch failed (previous scene retained): " << error.what() << '\n';
     }
+}
+
+void Application::applyManyLightsSettings(
+    const ManyLightsSettings &settings)
+{
+    if (activeScenePreset != ScenePreset::ManyLights)
+    {
+        throw std::logic_error(
+            "Many-lights controls require the many-lights scene");
+    }
+
+    auto prepared = makeManyLights(settings);
+
+    scene.pointLights.swap(prepared);
+    manyLightsSettings = settings;
+
+    if (editor.selection == SelectionKind::PointLight)
+    {
+        editor.clearSelection();
+    }
+
+    editor.sceneClickConsumed = true;
+
+    diagnostics.baseline.cancel(
+        "Capture cancelled: generated lights changed.");
+    diagnostics.startRequested = false;
 }

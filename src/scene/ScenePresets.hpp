@@ -15,6 +15,7 @@ enum class ScenePreset
     Box,
     Sponza,
     MetalRoughSpheresNoTextures,
+    ManyLights
 };
 
 struct ScenePresetInfo
@@ -29,7 +30,7 @@ struct ScenePresetInfo
     float presentationScale = 1.0f;
 };
 
-inline constexpr std::array<ScenePresetInfo, 8> scenePresets{{
+inline constexpr std::array<ScenePresetInfo, 9> scenePresets{{
     {ScenePreset::MaterialLab, "material-lab", "Material Lab",
      "Two rows of spheres: dielectric / metal, increasing roughness, plus a floor.", "", ""},
     {ScenePreset::ShadowPlayground, "shadow-playground", "Shadow Playground",
@@ -57,6 +58,9 @@ inline constexpr std::array<ScenePresetInfo, 8> scenePresets{{
      "models/gltf/MetalRoughSpheresNoTextures/MetalRoughSpheresNoTextures.gltf",
      "",
      1000.0f},
+    {ScenePreset::ManyLights, "many-lights", "Many Lights",
+     "Static geometry and seeded point lights with adjustable count and range.",
+     "", ""},
 }};
 
 inline const ScenePresetInfo& scenePresetInfo(ScenePreset preset)

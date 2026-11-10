@@ -28,6 +28,8 @@ struct EditorState
     glm::vec3 gizmoDragPlaneNormal{0.0f};
     glm::vec3 gizmoDragStartHitPoint{0.0f};
 
+    bool showPointLightMarkers = true;
+
     char importModelPath[1024]{};
     char importGltfPath[1024]{};
     std::string gltfImportSummary;

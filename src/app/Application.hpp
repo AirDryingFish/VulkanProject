@@ -15,6 +15,7 @@
 #include "vulkan/VulkanCheck.hpp"
 #include "vulkan/VulkanContext.hpp"
 #include "render/ShadowFrameSummary.hpp"
+#include "scene/ManyLights.hpp"
 
 #include <array>
 #include <map>
@@ -130,7 +131,10 @@ private:
     std::string scenePresetUnavailableReason(ScenePreset preset) const;
     MaterialHandle createPresetMaterial(const std::string& name, const glm::vec4& color,
                                         float metallic, float roughness);
+
     void buildPresetObjects(ScenePreset preset);
+    void applyManyLightsSettings(const ManyLightsSettings& settings);
+
     void releaseSceneMaterialDescriptors(std::size_t first, std::size_t end);
     void pruneSceneCaches();
 
@@ -150,6 +154,7 @@ private:
     DiagnosticsState diagnostics;
     DisplaySettings display;
     ShadowSettings shadows;
+    ManyLightsSettings manyLightsSettings{};
 
     bool rendererReady = false;
     bool framebufferResized = false;
