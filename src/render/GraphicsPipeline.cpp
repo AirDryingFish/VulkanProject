@@ -27,13 +27,13 @@
 void Renderer::createDescriptorSetLayouts()
 {
     // UBO, vertex和fragement shader都可见
-    std::array<VkDescriptorSetLayoutBinding, frameImageDescriptorCount + 1> frameBindings{};
+    std::array<VkDescriptorSetLayoutBinding, frameImageDescriptorCount + 2> frameBindings{};
     frameBindings[0].binding = 0;
     frameBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     frameBindings[0].descriptorCount = 1;
     frameBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    for (uint32_t binding = 1; binding < static_cast<uint32_t>(frameBindings.size()); binding++)
+    for (uint32_t binding = 1; binding <= static_cast<uint32_t>(frameImageDescriptorCount); ++binding)
     {
         frameBindings[binding].binding = binding;
         frameBindings[binding].descriptorCount = 1;
@@ -41,6 +41,12 @@ void Renderer::createDescriptorSetLayouts()
         frameBindings[binding].pImmutableSamplers = nullptr;
         frameBindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     }
+
+    // binding 6: 点光源 SSBO
+    frameBindings[6].binding = 6;
+    frameBindings[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    frameBindings[6].descriptorCount = 1;
+    frameBindings[6].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;

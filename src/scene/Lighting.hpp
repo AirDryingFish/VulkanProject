@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
-inline constexpr uint32_t MAX_POINT_LIGHTS = 16;
+inline constexpr uint32_t MAX_POINT_LIGHTS = 1024;
 
 struct PointLight
 {

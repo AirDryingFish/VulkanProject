@@ -2,7 +2,6 @@
 #define PROJECT_LIGHTING_GLSL
 
 const float PI = 3.14159265359;
-const int MAX_POINT_LIGHTS = 16;
 const float MAX_REFLECTION_LOD = 4.0;
 
 struct PointLight
@@ -20,8 +19,6 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 ambientLight;
     ivec4 lightCounts;
     vec4 renderParams;
-
-    PointLight pointLights[MAX_POINT_LIGHTS];
 
     vec4 directionalDirectionEnabled;
     vec4 directionalColorIntensity;
@@ -49,6 +46,11 @@ layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilterMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 layout(set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
+// binding 5: shadow preview
+layout(std430, set = 0, binding = 6) readonly buffer PointLightBuffer
+{
+    PointLight pointLights[];
+} lightBuffer;
 
 // specular 的 反射率 F 项
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
@@ -276,9 +278,11 @@ vec3 evaluateSurfaceLighting(
     F0 = mix(F0, albedo, metallic);
 
     vec3 Lo = vec3(0.0);
-    for (int i = 0; i < clamp(frame.lightCounts.x, 0, MAX_POINT_LIGHTS); i++)
+
+    int lightCount = clamp(frame.lightCounts.x, 0, lightBuffer.pointLights.length());
+    for (int i = 0; i < lightCount; i++)
     {
-        PointLight light = frame.pointLights[i];
+        PointLight light = lightBuffer.pointLights[i];
         if (light.params.y < 0.5)
         {
             continue;

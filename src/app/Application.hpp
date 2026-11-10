@@ -88,12 +88,15 @@ private:
     MeshHandle getOrCreateMesh(MeshSource source, const std::string& path);
     void releaseMesh(MeshHandle& mesh);
     void destroyBufferDeferred(GpuBuffer& buffer);
+
     void createUniformBuffer();
+    std::uint32_t updatePointLightBuffer(std::uint32_t frameSlot);
+
     ShadowFrameSummary updateUniformBuffer(
         std::uint32_t frameSlot,
         float deltaTime,
         std::uint32_t shadowPreviewLayer,
-        float shadowBlendFraction, 
+        float shadowBlendFraction,
         DeferredFrameUniforms &deferredUniforms);
 
     void createDescriptorPool();
@@ -184,6 +187,10 @@ private:
     // UBO 和 frame/skybox set 按飞行帧资源槽分配，不按交换链图像编号分配。
     std::vector<GpuBuffer> uniformBuffers;
     std::vector<void*> uniformBufferMapped;
+
+    std::vector<GpuBuffer> pointLightBuffers;
+    std::vector<void*> pointLightBufferMapped;
+
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> frameDescriptorSets;
     std::vector<VkDescriptorSet> skyboxDescriptorSets;

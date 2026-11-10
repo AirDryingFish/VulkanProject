@@ -643,7 +643,15 @@ void Application::drawImGui()
                     ImGui::EndDisabled();
                 }
                 ImGui::SameLine();
-                ImGui::Text("%zu / %u", scene.pointLights.size(), MAX_POINT_LIGHTS);
+                // ImGui::Text("%zu / %u", scene.pointLights.size(), MAX_POINT_LIGHTS);
+                const auto activeLights = static_cast<std::size_t>(std::count_if(scene.pointLights.begin(), scene.pointLights.end(),
+                    [](const PointLight& light)
+                    {
+                        return light.enabled;
+                    }
+                ));
+                ImGui::Text("%zu active / %zu listed / %u capacity", activeLights, scene.pointLights.size(), MAX_POINT_LIGHTS);
+
 
                 for (size_t i = 0; i < scene.pointLights.size(); i++)
                 {

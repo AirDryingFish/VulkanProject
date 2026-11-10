@@ -1,14 +1,5 @@
 #version 450
 
-const int MAX_POINT_LIGHTS = 16;
-
-struct PointLight
-{
-    vec4 position;
-    vec4 color;
-    vec4 params;
-};
-
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec4 inColor;
 layout(location = 2) in vec2 inTexCoord;
@@ -26,8 +17,6 @@ layout(std140, set = 0, binding = 0) uniform UniformBufferObject
     vec4 ambientLight;
     ivec4 lightCounts;
     vec4 renderParams;
-
-    PointLight pointLights[MAX_POINT_LIGHTS];
 
     vec4 directionalDirectionEnabled;
     vec4 directionalColorIntensity;

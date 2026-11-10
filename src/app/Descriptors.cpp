@@ -14,7 +14,7 @@ constexpr uint32_t skyboxImageDescriptorCount = 1;
 void Application::createDescriptorPool()
 {
     const uint32_t frameCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    std::array<VkDescriptorPoolSize, 3> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // 每个飞行帧槽有两个 UBO 描述符，frame/skybox set 引用该槽同一份 UBO。
     poolSizes[0].descriptorCount = frameCount * descriptorSetGroupCount;
@@ -26,6 +26,9 @@ void Application::createDescriptorPool()
         frameCount *
         static_cast<uint32_t>(frameImageDescriptorCount + skyboxImageDescriptorCount) +
         materialPoolCapacity * static_cast<uint32_t>(materialImageDescriptorCount);
+
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[2].descriptorCount = frameCount;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -47,6 +50,7 @@ void Application::createFrameDescriptorSets()
     // set=0 提供整帧共享数据；每个槽绑定自己的 UBO/阴影资源，IBL 贴图跨槽共享。
     // 这里的 binding 顺序必须与 GraphicsPipeline.cpp 和 shader 中的声明一致。
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, renderer.frameDescriptorSetLayout());
+
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = descriptorPool;
@@ -60,7 +64,7 @@ void Application::createFrameDescriptorSets()
     imageInfos[1] = environment.prefilterDescriptorInfo();
     imageInfos[2] = environment.brdfLutDescriptorInfo();
 
-    for (std::size_t frameIndex = 0; frameIndex < MAX_FRAMES_IN_FLIGHT; frameIndex++)
+    for (std::size_t frameIndex = 0; frameIndex < MAX_FRAMES_IN_FLIGHT; ++frameIndex)
     {
         imageInfos[3] = renderer.shadowDescriptorInfo(frameIndex);
         imageInfos[4] = renderer.shadowPreviewDescriptorInfo(frameIndex);
@@ -70,7 +74,12 @@ void Application::createFrameDescriptorSets()
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
-        std::array<VkWriteDescriptorSet, frameImageDescriptorCount + 1> descriptorWrites{};
+        VkDescriptorBufferInfo lightInfo{};
+        lightInfo.buffer = pointLightBuffers[frameIndex].get();
+        lightInfo.offset = 0;
+        lightInfo.range = static_cast<VkDeviceSize>(pointLightBufferBytes);
+
+        std::array<VkWriteDescriptorSet, frameImageDescriptorCount + 2> descriptorWrites{};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = frameDescriptorSets[frameIndex];
         descriptorWrites[0].dstBinding = 0;
@@ -78,7 +87,7 @@ void Application::createFrameDescriptorSets()
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-        for (uint32_t binding = 1; binding < static_cast<uint32_t>(descriptorWrites.size()); ++binding)
+        for (uint32_t binding = 1; binding <= static_cast<uint32_t>(frameImageDescriptorCount); ++binding)
         {
             descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[binding].dstSet = frameDescriptorSets[frameIndex];
@@ -87,6 +96,13 @@ void Application::createFrameDescriptorSets()
             descriptorWrites[binding].descriptorCount = 1;
             descriptorWrites[binding].pImageInfo = &imageInfos[binding - 1];
         }
+        descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[6].dstSet = frameDescriptorSets[frameIndex];
+        descriptorWrites[6].dstBinding = 6;
+        descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[6].descriptorCount = 1;
+        descriptorWrites[6].pBufferInfo = &lightInfo;
+
         vkUpdateDescriptorSets(context.device(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 }

@@ -146,8 +146,11 @@ void Application::cleanup() noexcept
     // DeletionQueue 按注册的逆序执行；这里的 GPU 等待由上方统一完成。
     mainDeletionQueue.flush();
 
+    pointLightBufferMapped.clear();
+    pointLightBuffers.clear();
     uniformBufferMapped.clear();
     uniformBuffers.clear();
+
     scene.objects.clear();
     meshCache.clear();
     materialLibrary.clear();
@@ -567,9 +570,17 @@ std::string Application::buildBaselineContext() const
     write("ibl.intensity", scene.iblIntensity);
 
     write("point_lights.listed_count", scene.pointLights.size());
-    write("point_lights.uploaded_count",
-          std::min<std::size_t>(
-              scene.pointLights.size(), MAX_POINT_LIGHTS));
+    write(
+        "point_lights.uploaded_count",
+        std::count_if(
+            scene.pointLights.begin(),
+            scene.pointLights.end(),
+            [](const PointLight &light)
+            {
+                return light.enabled;
+            }));
+
+    write("point_lights.capacity", MAX_POINT_LIGHTS);
 
     for (std::size_t i = 0; i < scene.pointLights.size(); ++i)
     {

@@ -9,12 +9,20 @@
 
 // CPU 与 GLSL 共享的二进制布局：字段顺序、类型、对齐都属于接口约定。
 // 修改时同步检查使用这些结构的 shader；下方 static_assert 只能验证 C++ 一侧的布局。
-struct GpuPointLight
+struct alignas(16) GpuPointLight
 {
-    alignas(16) glm::vec4 position;
-    alignas(16) glm::vec4 color;
-    alignas(16) glm::vec4 params;
+    glm::vec4 position{0.0f};
+    glm::vec4 color{0.0f};
+    glm::vec4 params{0.0f};
 };
+
+static_assert(alignof(GpuPointLight) == 16);
+static_assert(offsetof(GpuPointLight, position) == 0);
+static_assert(offsetof(GpuPointLight, color) == 16);
+static_assert(offsetof(GpuPointLight, params) == 32);
+static_assert(sizeof(GpuPointLight) == 48);
+
+inline constexpr std::size_t pointLightBufferBytes = sizeof(GpuPointLight) * MAX_POINT_LIGHTS;
 
 struct alignas(16) UniformBufferObject
 {
@@ -31,8 +39,6 @@ struct alignas(16) UniformBufferObject
     // z: debug depth far
     // w: reserved
     alignas(16) glm::vec4 renderParams;
-
-    GpuPointLight pointLights[MAX_POINT_LIGHTS];
 
     alignas(16) glm::vec4 directionalDirectionEnabled{}; // xyz: 归一化传播方向 w: enabled
     alignas(16) glm::vec4 directionalColorIntensity{}; // xyz: 光的颜色 w: 强度
@@ -73,37 +79,36 @@ struct alignas(16) UniformBufferObject
     // 各级向下一级混合的起点，末级等于 far
     alignas(16) glm::vec4 cascadeBlendStarts{};
 };
-
 static_assert(offsetof(UniformBufferObject, proj) == 64);
 static_assert(offsetof(UniformBufferObject, cameraPosition) == 128);
 static_assert(offsetof(UniformBufferObject, ambientLight) == 144);
 static_assert(offsetof(UniformBufferObject, lightCounts) == 160);
 static_assert(offsetof(UniformBufferObject, renderParams) == 176);
-static_assert(offsetof(UniformBufferObject, pointLights) == 192);
-static_assert(offsetof(UniformBufferObject, directionalDirectionEnabled) == 960);
-static_assert(offsetof(UniformBufferObject, directionalColorIntensity) == 976);
-static_assert(offsetof(UniformBufferObject, lightViewProjection) == 992);
-static_assert(offsetof(UniformBufferObject, shadowParams) == 1056);
-static_assert(offsetof(UniformBufferObject, shadowFlags) == 1072);
-static_assert(
-    offsetof(UniformBufferObject, cascadeLightViewProjection) == 1088);
 
 static_assert(
-    offsetof(UniformBufferObject, cascadeSplits) == 1344);
-
+    offsetof(UniformBufferObject, directionalDirectionEnabled) == 192);
 static_assert(
-    offsetof(UniformBufferObject, cascadeTexelWorldSize) == 1360);
-
+    offsetof(UniformBufferObject, directionalColorIntensity) == 208);
 static_assert(
-    offsetof(UniformBufferObject, cascadeReceiverBias) == 1376);
-
+    offsetof(UniformBufferObject, lightViewProjection) == 224);
 static_assert(
-    offsetof(UniformBufferObject, cascadeInfo) == 1392);
-
+    offsetof(UniformBufferObject, shadowParams) == 288);
 static_assert(
-    offsetof(UniformBufferObject, cascadeBlendStarts) == 1408);
+    offsetof(UniformBufferObject, shadowFlags) == 304);
+static_assert(
+    offsetof(UniformBufferObject, cascadeLightViewProjection) == 320);
+static_assert(
+    offsetof(UniformBufferObject, cascadeSplits) == 576);
+static_assert(
+    offsetof(UniformBufferObject, cascadeTexelWorldSize) == 592);
+static_assert(
+    offsetof(UniformBufferObject, cascadeReceiverBias) == 608);
+static_assert(
+    offsetof(UniformBufferObject, cascadeInfo) == 624);
+static_assert(
+    offsetof(UniformBufferObject, cascadeBlendStarts) == 640);
 
-static_assert(sizeof(UniformBufferObject) == 1424);
+static_assert(sizeof(UniformBufferObject) == 656);
 
 struct alignas(16) DeferredFrameUniforms
 {

@@ -68,22 +68,45 @@ Mesh Application::createMesh(const MeshBuildData &meshData)
 
 void Application::createUniformBuffer()
 {
-    // 每个飞行帧槽独占一份 UBO，CPU 写当前槽时不会覆盖其他在途帧的数据。
-    // 持久映射避免逐帧 map/unmap；HOST_COHERENT 使这里的写入无需额外 flush。
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+    constexpr VkDeviceSize lightBytes = static_cast<VkDeviceSize>(pointLightBufferBytes);
+
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(
+        context.physicalDevice(),
+        &properties
+    );
+    if (lightBytes > properties.limits.maxStorageBufferRange ||
+        properties.limits.maxPerStageDescriptorStorageBuffers < 1 ||
+        properties.limits.maxDescriptorSetStorageBuffers < 1)
+    {
+        throw std::runtime_error("1024-point-light storage buffer is unsupported");
+    }
+
     uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     uniformBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
 
+    pointLightBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    pointLightBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
     BufferDesc uniformDesc{};
-    uniformDesc.size = bufferSize;
+    uniformDesc.size = sizeof(UniformBufferObject);
     uniformDesc.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     uniformDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     uniformDesc.debugName = "frame uniform buffer";
+
+    BufferDesc lightDesc{};
+    lightDesc.size = lightBytes;
+    lightDesc.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    lightDesc.requiredMemoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    lightDesc.debugName = "point light storage buffer";
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
         uniformBuffers[i] = context.createBuffer(uniformDesc);
         VK_CHECK(uniformBuffers[i].map(&uniformBufferMapped[i]));
+
+        pointLightBuffers[i] = context.createBuffer(lightDesc);
+        VK_CHECK(pointLightBuffers[i].map(&pointLightBufferMapped[i]));
     }
 }
 
@@ -145,7 +168,9 @@ ShadowFrameSummary Application::updateUniformBuffer(
 
     ubo.cameraPosition = glm::vec4(camera.position, 1.0f);
     ubo.ambientLight = glm::vec4(scene.ambientLightColor, scene.ambientLightIntensity);
-    ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
+    // ubo.lightCounts = glm::ivec4(static_cast<int>(std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS)), 0, 0, 0);
+    const std::uint32_t pointLightCount = updatePointLightBuffer(currentImage);
+    ubo.lightCounts = glm::ivec4(pointLightCount, 0, 0, 0);
     ubo.renderParams = glm::vec4(scene.iblIntensity, camera.nearPlane, std::max(display.debugDepthFar, camera.nearPlane + 0.001f), 0.0f);
 
     // UI 可能输入零向量或无效值；先兜底再归一化，防止 NaN 传播到整个阴影矩阵。
@@ -271,14 +296,6 @@ ShadowFrameSummary Application::updateUniformBuffer(
 
     ubo.cascadeInfo.z = shadowPreviewLayer;
 
-    for (size_t i = 0; i < std::min<size_t>(scene.pointLights.size(), MAX_POINT_LIGHTS); i++)
-    {
-        const PointLight &light = scene.pointLights[i];
-        ubo.pointLights[i].position = glm::vec4(light.position, 1.0f);
-        ubo.pointLights[i].color = glm::vec4(light.color, light.intensity);
-        ubo.pointLights[i].params = glm::vec4(light.range, light.enabled ? 1.0f : 0.0f, 0.0f, 0.0f);
-    }
-
     // 一次拷贝整份 CPU/GLSL 共享布局；字段偏移和总大小由 ShaderTypes.hpp 的断言约束。
     memcpy(uniformBufferMapped[currentImage], &ubo, sizeof(ubo));
     VK_CHECK(uniformBuffers[currentImage].flush(0, sizeof(ubo)));
@@ -317,4 +334,63 @@ void Application::destroyBufferDeferred(GpuBuffer& buffer)
         return;
     }
     renderer.retireBuffer(std::move(buffer));
+}
+
+std::uint32_t Application::updatePointLightBuffer(std::uint32_t frameSlot)
+{
+    void* mapped = pointLightBufferMapped.at(frameSlot);
+    if (mapped == nullptr)
+    {
+        throw std::logic_error("Point light buffer is not mapped");
+    }
+
+    // cpu 上的临时数据
+    std::array<GpuPointLight, MAX_POINT_LIGHTS> packed{};
+    std::size_t count = 0;
+
+    const auto finiteVector = [](const glm::vec3& value){
+        return std::isfinite(value.x) &&
+               std::isfinite(value.y) &&
+               std::isfinite(value.z);
+    };
+
+    for (std::size_t index = 0; index < scene.pointLights.size(); ++index)
+    {
+        const PointLight& light = scene.pointLights[index];
+        if (!light.enabled)
+        {
+            continue;
+        }
+
+        if (!finiteVector(light.position) ||
+            !finiteVector(light.color) ||
+            light.color.x < 0.0f ||
+            light.color.y < 0.0f ||
+            light.color.z < 0.0f ||
+            !std::isfinite(light.intensity) ||
+            light.intensity < 0.0f ||
+            !std::isfinite(light.range))
+        {
+            throw std::runtime_error("Invalid point light at scene index");
+        }
+
+        if (count == packed.size())
+        {
+            throw std::runtime_error("Enabled point lights exceed GPU capacity");
+        }
+
+        GpuPointLight& gpu = packed[count++];
+        gpu.position = glm::vec4(light.position, 1.0f);
+        gpu.color = glm::vec4(light.color, light.intensity);
+        gpu.params = glm::vec4(std::max(light.range, 0.0001f), 1.0f, 0.0f, 0.0f);
+    }
+
+    if (count != 0)
+    {
+        const std::size_t bytes = count * sizeof(GpuPointLight);
+        // 把 packed 的内容复制到 mapped 指向的 buffer 内存里
+        std::memcpy(mapped, packed.data(), bytes);
+        VK_CHECK(pointLightBuffers.at(frameSlot).flush(0, static_cast<VkDeviceSize>(bytes)));
+    }
+    return static_cast<std::uint32_t>(count);
 }
