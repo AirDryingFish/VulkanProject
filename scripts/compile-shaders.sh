@@ -20,6 +20,7 @@ compile shader.vert vert.spv
 compile shader.frag frag.spv
 compile gbuffer.frag gbuffer.frag.spv
 compile deferred_lighting.frag deferred_lighting.frag.spv
+compile tile_lights.comp tile_lights.comp.spv
 compile gbuffer_preview.frag gbuffer_preview.frag.spv
 compile skybox.vert skybox.vert.spv
 compile skybox.frag skybox.frag.spv

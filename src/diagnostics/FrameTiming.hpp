@@ -55,6 +55,7 @@ struct FrameTimingConfig
     VkSampleCountFlagBits sceneSamples = VK_SAMPLE_COUNT_1_BIT;
 
     RenderPath renderPath = RenderPath::Forward;
+    LightCullingMode lightCullingMode = LightCullingMode::None;
 
     bool gBufferGeometry = false;
     GBufferView gBufferView = GBufferView::Off;

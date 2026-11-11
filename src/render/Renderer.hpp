@@ -42,6 +42,13 @@ private:
         GpuBuffer uniforms;
         void* mapped = nullptr;
 
+        // 每个 tile 的描述信息，例如 灯数量、是否溢出
+        GpuBuffer tileHeaders;
+        // 每个 tile 对应的灯光索引
+        GpuBuffer tileIndices;
+        // 是否已经录制过 compute 写入
+        bool tileListsWritten = false;
+
         VkDescriptorSet inputSet = VK_NULL_HANDLE;
         VkDescriptorSet postSet = VK_NULL_HANDLE;
 
@@ -197,6 +204,13 @@ private:
     VkPipelineLayout deferredPipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline deferredPipeline_ = VK_NULL_HANDLE;
 
+    VkPipeline tileCullPipeline_ = VK_NULL_HANDLE;
+    std::uint32_t tileCountX_ = 0;
+    std::uint32_t tileCountY_ = 0;
+
+    bool tiledConfigurationSupported_ = false;
+    std::string tiledUnavailableReason_;
+
 
     // -- 后处理 Descriptor set --
     GpuSampler postSampler_{};
@@ -284,6 +298,11 @@ private:
     void writeGBufferPreviewDescriptors();
     void destroyGBufferPreviewResources() noexcept;
     void recordGBufferPreview(const FrameToken& token, const RenderFrameData& data);
+
+    void createTileBuffers();
+    void createTilePipeline();
+    void recordTileLightLists(const FrameToken &token, const RenderFrameData &data);
+    void destroyTileResources() noexcept;
 
     void createDeferredResources();
     void destroyDeferredResources() noexcept;
@@ -388,4 +407,7 @@ public:
     bool gBufferGeometryAvailable() const noexcept;
 
     bool deferredLightingAvailable() const noexcept;
+
+    bool tiledLightingAvailable() const noexcept;
+    const std::string& tiledUnavailableReason() const noexcept;
 };

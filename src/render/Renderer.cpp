@@ -802,6 +802,7 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         deferredLightingAvailable();
 
     frame.recordedTimingConfig.renderPath = useDeferred ? RenderPath::Deferred : RenderPath::Forward;
+    frame.recordedTimingConfig.lightCullingMode = useDeferred && data.lightCullingMode == LightCullingMode::Tiled && tiledLightingAvailable() ? LightCullingMode::Tiled : LightCullingMode::None;
     frame.recordedTimingConfig.sceneSamples = useDeferred ? VK_SAMPLE_COUNT_1_BIT : sceneSamples_;
     frame.recordedTimingConfig.gBufferGeometry = (useDeferred || data.buildGBuffer) && gBufferGeometryAvailable();
     frame.recordedTimingConfig.gBufferView = frame.recordedTimingConfig.gBufferGeometry && gBufferPreviewPipeline_ != VK_NULL_HANDLE ? data.gBufferView : GBufferView::Off;

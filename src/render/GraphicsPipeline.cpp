@@ -31,7 +31,7 @@ void Renderer::createDescriptorSetLayouts()
     frameBindings[0].binding = 0;
     frameBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     frameBindings[0].descriptorCount = 1;
-    frameBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    frameBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
     for (uint32_t binding = 1; binding <= static_cast<uint32_t>(frameImageDescriptorCount); ++binding)
     {

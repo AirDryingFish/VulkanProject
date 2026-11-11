@@ -57,6 +57,7 @@ enum class GBufferView : std::uint32_t
 struct DisplaySettings
 {
     RenderPath renderPath = RenderPath::Forward;
+    LightCullingMode lightCullingMode = LightCullingMode::None;
 
     bool buildGBuffer = false;
     GBufferView gBufferView = GBufferView::Off;

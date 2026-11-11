@@ -1,0 +1,102 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#define TILE_LIST_COMPUTE_WRITE
+#include "tile_layout.glsl"
+
+// 一个工作组，有 16*16*1=256 个线程
+layout(
+    local_size_x = 16,
+    local_size_y = 16,
+    local_size_z = 1
+) in;
+
+struct PointLight
+{
+    vec4 position;
+    vec4 color;
+    vec4 params;
+};
+
+//
+layout(std140, set = 0, binding = 0) uniform TileFrameUniforms
+{
+    mat4 view;
+    mat4 proj;
+
+    vec4 cameraPosition;
+    vec4 ambientLight;
+
+    ivec4 lightCounts;
+} frame;
+
+
+layout(std430, set = 0, binding = 6) readonly buffer PointLightBuffer
+{
+    PointLight pointLights[];
+} lightBuffer;
+
+// 一个工作组所有线程共用的计数器
+shared uint candidateCount;
+
+void main()
+{
+    // lane 是当前线程在组内的一堆编号，范围 0~255
+    uint lane = gl_LocalInvocationIndex;
+    if (lane == 0u)
+    {
+        candidateCount = 0u;
+    }
+
+    barrier();
+
+    uvec2 tile = gl_WorkGroupID.xy;
+    uvec2 grid = deferredFrame.extentAndTiles.zw;
+
+    uint tileId = tile.y * grid.x + tile.x;
+
+    bool validTile = all(lessThan(tile, grid)) && tileId < uint(tileHeaders.headers.length()) && tileId < uint(tileIndices.indices.length()) / TILE_LIGHT_CAPACITY;
+    uint offset = validTile ? tileId * TILE_LIGHT_CAPACITY : 0u;
+    uint lightCount = uint(clamp(frame.lightCounts.x, 0, lightBuffer.pointLights.length()));
+
+    // version 1: 所有 enabled 灯都进入每个 tile。 256 个线程分摊灯光遍历
+    if (validTile)
+    {
+        // 每个线程从自己的编号 lane 开始，每次跳过 256 个灯
+        // lane           遍历的 index
+        // 0             0、256、512、768
+        // 1             1、257、513、769
+        // ...
+        // 255           255、511、767、1023
+        for (uint lightIndex = lane; lightIndex < lightCount; lightIndex += 256u)
+        {
+            // 跳过没有启用的灯光
+            if (lightBuffer.pointLights[lightIndex].params.y < 0.5)
+            {
+                continue;
+            }
+
+            // 一个 group 内，一个线程领取一个 slot
+            uint slot = atomicAdd(candidateCount, 1u);
+            if (slot < TILE_LIGHT_CAPACITY)
+            {
+                tileIndices.indices[offset + slot] = lightIndex;
+            }
+        }
+    }
+
+    // 所有线程都必须到这里才能往下执行
+    barrier();
+
+    // 第 0 lane 负责写这组 group 的 header 信息
+    if (lane == 0u && validTile)
+    {
+        tileHeaders.headers[tileId] =
+        uvec4(
+            min(candidateCount, TILE_LIGHT_CAPACITY),       // 实际存下的数量，最多128
+            candidateCount > TILE_LIGHT_CAPACITY ? 1u : 0u, // 是否溢出
+            0u,
+            0u
+        );
+    }
+}

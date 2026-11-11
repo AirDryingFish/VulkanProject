@@ -948,6 +948,51 @@ void Application::drawImGui()
                     display.renderPath == RenderPath::Deferred &&
                     canUseDeferred;
 
+                ImGui::BeginDisabled(!deferredSelected);
+
+                const char *cullingNames[] = {
+                    "None (all lights)",
+                    "Tiled lists (all lights)"};
+
+                int cullingMode = static_cast<int>(display.lightCullingMode);
+
+                if (ImGui::Combo(
+                        "Light culling",
+                        &cullingMode,
+                        cullingNames,
+                        IM_ARRAYSIZE(cullingNames)))
+                {
+                    display.lightCullingMode =
+                        cullingMode == 1
+                            ? LightCullingMode::Tiled
+                            : LightCullingMode::None;
+
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: light culling mode changed.");
+
+                    diagnostics.startRequested = false;
+                }
+
+                ImGui::EndDisabled();
+
+                if (deferredSelected &&
+                    display.lightCullingMode == LightCullingMode::Tiled)
+                {
+                    if (!renderer.tiledLightingAvailable())
+                    {
+                        ImGui::TextWrapped(
+                            "Using None: %s",
+                            renderer.tiledUnavailableReason().c_str());
+                    }
+                    else
+                    {
+                        ImGui::TextWrapped(
+                            "All lights enter every tile. "
+                            "More than 128 lights uses the full light loop. "
+                            "Spatial culling is not enabled yet.");
+                    }
+                }
+
                 bool buildGBuffer =
                     deferredSelected || display.buildGBuffer;
 

@@ -3,6 +3,7 @@
 #include "vulkan/Swapchain.hpp"
 #include "vulkan/VulkanCheck.hpp"
 #include "vulkan/VulkanContext.hpp"
+#include "render/DeferredMath.hpp"
 
 #include <array>
 #include <cstring>
@@ -82,17 +83,21 @@ void Renderer::createDeferredResources()
         }
     }
 
+    createTileBuffers();
+
     if (deferredSetLayout_ == VK_NULL_HANDLE)
     {
-        std::array<VkDescriptorSetLayoutBinding, 6> bindings{};
+        std::array<VkDescriptorSetLayoutBinding, 8> bindings{};
         for (std::uint32_t i = 0; i < bindings.size(); ++i)
         {
             bindings[i].binding = i;
-            bindings[i].descriptorType = i == 5
-                                             ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                                             : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            bindings[i].descriptorType = i < 5 ? VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : (i == 5 ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
             bindings[i].descriptorCount = 1;
             bindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            if (i >= 5)
+            {
+                bindings[i].stageFlags |= VK_SHADER_STAGE_COMPUTE_BIT;
+            }
         }
 
         VkDescriptorSetLayoutCreateInfo info{};
@@ -105,8 +110,11 @@ void Renderer::createDeferredResources()
 
     if (deferredPool_ == VK_NULL_HANDLE)
     {
-        const std::array<VkDescriptorPoolSize, 2> poolSizes{{{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, count},
-                                                             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, count * 6}}};
+        const std::array<VkDescriptorPoolSize, 3> poolSizes{
+            {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, count},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, count * 6},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, count * 2}
+        }};
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -153,7 +161,7 @@ void Renderer::createDeferredResources()
         // 4: Depth, 引用 images[4]
         // 5: Deferred UBO, 单独的 bufferInfo
         // 6: Lighting HDR, 引用 images[5]
-        std::array<VkWriteDescriptorSet, 7> writes{};
+        std::array<VkWriteDescriptorSet, 9> writes{};
 
         for (std::uint32_t i = 0; i < 5; ++i)
         {
@@ -186,6 +194,7 @@ void Renderer::createDeferredResources()
         writes[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         writes[5].pBufferInfo = &bufferInfo;
 
+        // post
         images[5].sampler = postSampler_.get();
         images[5].imageView = target.hdrColor.view();
         images[5].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -196,6 +205,22 @@ void Renderer::createDeferredResources()
         writes[6].descriptorCount = 1;
         writes[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[6].pImageInfo = &images[5];
+
+        const std::array<VkDescriptorBufferInfo, 2> tileBuffers{{
+            {target.tileHeaders.get(), 0, target.tileHeaders.size()},
+            {target.tileIndices.get(), 0, target.tileIndices.size()}
+        }};
+        for (std::uint32_t i = 0; i < tileBuffers.size(); ++i)
+        {
+            auto& write = writes[i + 7];
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = target.inputSet;
+            write.dstBinding = 6 + i;
+
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            write.pBufferInfo = &tileBuffers[i];
+        }
 
         vkUpdateDescriptorSets(
             device,
@@ -241,6 +266,8 @@ void Renderer::createDeferredResources()
         config.depthWrite = false;
         deferredPipeline_ = createGraphicsPipelineFromConfig(config);
     }
+
+    createTilePipeline();
 }
 
 void Renderer::recordDeferredLightingPass(
@@ -251,10 +278,18 @@ void Renderer::recordDeferredLightingPass(
     const VkExtent2D extent = swapchain_->extent();
     const auto &functions = context_->deviceFunctions();
 
+
+    const auto mode = frames_.at(token.frameIndex).recordedTimingConfig.lightCullingMode;
+    DeferredFrameUniforms uniforms = data.deferredUniforms;
+    uniforms.tileParams = glm::uvec4(deferred::tileSize, deferred::maxLightsPerTile, static_cast<std::uint32_t>(mode), 0u);
+
     // beginFrame has already waited for this frame slot's fence.
-    std::memcpy(target.mapped, &data.deferredUniforms,
-                sizeof(DeferredFrameUniforms));
-    VK_CHECK(target.uniforms.flush(0, sizeof(DeferredFrameUniforms)));
+    std::memcpy(target.mapped, &uniforms, sizeof(uniforms));
+    VK_CHECK(target.uniforms.flush(0, sizeof(uniforms)));
+    if (mode == LightCullingMode::Tiled)
+    {
+        recordTileLightLists(token, data);
+    }
 
     const auto transition = [&](bool toAttachment)
     {
@@ -334,10 +369,12 @@ void Renderer::recordDeferredLightingPass(
     vkCmdBindPipeline(
         token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, deferredPipeline_);
 
+    // 这里决定 inputSet 写入 set = 1
     const std::array<VkDescriptorSet, 3> sets{
         data.frameDescriptorSet,
         target.inputSet,
         data.skyboxDescriptorSet};
+
     vkCmdBindDescriptorSets(
         token.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -365,6 +402,7 @@ void Renderer::recordDeferredLightingPass(
 
 void Renderer::destroyDeferredResources() noexcept
 {
+    destroyTileResources();
     const VkDevice device = context_->device();
     if (deferredPipeline_ != VK_NULL_HANDLE)
     {
@@ -406,7 +444,7 @@ bool Renderer::deferredLightingAvailable() const noexcept
     }
     for (const DeferredTarget &target : deferredTargets_)
     {
-        if (!target.hdrColor || target.hdrColor.view() == VK_NULL_HANDLE ||
+        if (!target.tileHeaders || !target.tileIndices || !target.hdrColor || target.hdrColor.view() == VK_NULL_HANDLE ||
             !target.uniforms || target.mapped == nullptr ||
             target.inputSet == VK_NULL_HANDLE || target.postSet == VK_NULL_HANDLE)
         {

@@ -1,6 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
+#define DEFERRED_TILED_LIGHTING
+#include "tile_layout.glsl"
 #include "lighting.glsl"
 
 layout(set = 1, binding = 0) uniform sampler2D gNormal;
@@ -8,16 +10,6 @@ layout(set = 1, binding = 1) uniform sampler2D gBaseColor;
 layout(set = 1, binding = 2) uniform sampler2D gMaterial;
 layout(set = 1, binding = 3) uniform sampler2D gEmissive;
 layout(set = 1, binding = 4) uniform sampler2D gDepth;
-
-layout(std140, set = 1, binding = 5) uniform DeferredFrameUniforms
-{
-    mat4 inverseViewProjection;
-    mat4 inverProjection;
-    // width, height, tileCountX, tileCountY
-    uvec4 extentAndTiles;
-    // tileSize, maxLightPerTile, cullingMode, debugMode
-    uvec4 tileParams;
-} deferredFrame;
 
 layout(set = 2, binding = 1) uniform samplerCube skyboxSampler;
 
@@ -27,6 +19,55 @@ layout(push_constant) uniform DeferredLightingPushConstants
 } deferredPush;
 
 layout(location = 0) out vec4 outColor;
+
+// 让 Deferred lighting 为当前像素选择灯列表
+// out offset: 输出当前 tile 的索引区域起点
+// inout lightCount: 输入全部灯数，成功时修改成 tile 内的灯数
+bool selectTileLightList(out uint offset, inout int lightCount)
+{
+    offset = 0u;
+    // 不开启 tile 模式
+    if (deferredFrame.tileParams.z != 1u)
+    {
+        return false;
+    }
+
+    // 获取当前像素坐标对于的 tile
+    uvec2 tile = uvec2(gl_FragCoord.xy / TILE_SIZE);
+    uvec2 grid = deferredFrame.extentAndTiles.zw;
+    if (any(greaterThanEqual(tile, grid)))
+    {
+        return false;
+    }
+
+    uint tileId = tile.y * grid.x + tile.x;
+    if (tileId >= uint(tileHeaders.headers.length()))
+    {
+        return false;
+    }
+
+    uvec4 header = tileHeaders.headers[tileId];
+    if (header.y != 0u || header.x > TILE_LIGHT_CAPACITY || header.x > uint(lightCount))
+    {
+        return false;
+    }
+
+    uint indexCount = uint(tileIndices.indices.length());
+    if (tileId >= indexCount / TILE_LIGHT_CAPACITY)
+    {
+        return false;
+    }
+
+    offset = tileId * TILE_LIGHT_CAPACITY;
+    lightCount = int(header.x);
+    return true;
+}
+
+// iteration: tile 列表里的第几个位置
+uint tileLightIndex(uint offset, uint iteration)
+{
+    return tileIndices.indices[offset + iteration];
+}
 
 // 生成表面调试颜色：需要调试显示时，把结果写入 result 并返回 true
 bool surfaceDebugColor(
@@ -114,7 +155,7 @@ void main()
     vec2 ndc = (vec2(pixel) + vec2(0.5)) / vec2(deferredFrame.extentAndTiles.xy) * 2.0 - 1.0;
 
     // 选取 ndc 远平面上的位置
-    vec4 viewFar = deferredFrame.inverProjection * vec4(ndc, 1.0, 1.0);
+    vec4 viewFar = deferredFrame.inverseProjection * vec4(ndc, 1.0, 1.0);
     // 计算 “从相机穿过这个像素” 的世界空间方向，用于天空盒
     // 相机旋转矩阵通常是正交矩阵，转置相当于取逆
     vec3 worldDirection = transpose(mat3(frame.view)) * viewFar.xyz;

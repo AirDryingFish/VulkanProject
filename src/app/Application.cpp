@@ -361,6 +361,7 @@ void Application::drawFrame()
     renderData.buildGBuffer = display.buildGBuffer;
     renderData.gBufferView = display.gBufferView;
     renderData.renderPath = display.renderPath;
+    renderData.lightCullingMode = display.lightCullingMode;
     renderData.deferredUniforms = deferredUniforms;
     // 材质、法线、光空间视图：黑色背景
     // LinearDepth：白色背景，表示没有表面。

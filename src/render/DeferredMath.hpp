@@ -6,6 +6,8 @@
 namespace deferred
 {
     inline constexpr std::uint32_t tileSize = 16;
+    inline constexpr std::uint32_t maxLightsPerTile = 128;
+
     struct TileGrid
     {
         std::uint32_t tilesX = 0;

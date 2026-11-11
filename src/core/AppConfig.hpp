@@ -54,6 +54,7 @@ inline const std::string TONEMAP_FRAGMENT_SHADER_PATH = assetPath("shaders/tonem
 inline const std::string GBUFFER_FRAGMENT_SHADER_PATH = assetPath("shaders/gbuffer.frag.spv");
 inline const std::string GBUFFER_PREVIEW_FRAGMENT_SHADER_PATH = assetPath("shaders/gbuffer_preview.frag.spv");
 inline const std::string DEFERRED_LIGHTING_FRAGMENT_SHADER_PATH = assetPath("shaders/deferred_lighting.frag.spv");
+inline const std::string TILE_LIGHTS_COMPUTE_SHADER_PATH = assetPath("shaders/tile_lights.comp.spv");
 
 inline const std::vector<const char *> validationLayers = {
     "VK_LAYER_KHRONOS_validation"};

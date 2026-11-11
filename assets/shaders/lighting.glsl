@@ -262,6 +262,10 @@ float directionalShadowVisibility(vec3 worldPosition)
     return mix(currectVisibility, nextVisibility, weight);
 }
 
+#ifdef DEFERRED_TILED_LIGHTING
+bool selectTileLightList(out uint offset, inout int lightCount);
+uint tileLightIndex(uint offset, uint iteration);
+#endif
 
 vec3 evaluateSurfaceLighting(
     vec3 worldPosition,
@@ -280,9 +284,25 @@ vec3 evaluateSurfaceLighting(
     vec3 Lo = vec3(0.0);
 
     int lightCount = clamp(frame.lightCounts.x, 0, lightBuffer.pointLights.length());
+
+    #ifdef DEFERRED_TILED_LIGHTING
+    uint tileOffset = 0u;
+    bool useTileList = selectTileLightList(tileOffset, lightCount);
+    #endif
+
     for (int i = 0; i < lightCount; i++)
     {
-        PointLight light = lightBuffer.pointLights[i];
+
+        uint lightIndex = uint(i);
+
+        #ifdef DEFERRED_TILED_LIGHTING
+        if (useTileList)
+        {
+            lightIndex = tileLightIndex(tileOffset, uint(i));
+        }
+        #endif
+
+        PointLight light = lightBuffer.pointLights[lightIndex];
         if (light.params.y < 0.5)
         {
             continue;

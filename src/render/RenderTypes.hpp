@@ -43,6 +43,7 @@ struct RenderFrameData
     glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 
     RenderPath renderPath = RenderPath::Forward;
+    LightCullingMode lightCullingMode = LightCullingMode::None;
     DeferredFrameUniforms deferredUniforms{};
 
     bool directionalShadowsEnabled = false;
