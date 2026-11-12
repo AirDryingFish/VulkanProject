@@ -57,6 +57,8 @@ const char* debugViewName(DebugView view)
     case DebugView::HdrLuminance: return "HDR luminance";
     case DebugView::ShadowProjection: return "Shadow projection";
     case DebugView::ShadowCascades: return "Shadow cascades";
+    case DebugView::TileLightCount: return "Tile light count";
+    case DebugView::TileOverflow: return "Tile overflow";
     }
     return "Unknown";
 }

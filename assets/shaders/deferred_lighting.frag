@@ -20,6 +20,87 @@ layout(push_constant) uniform DeferredLightingPushConstants
 
 layout(location = 0) out vec4 outColor;
 
+const int DEBUG_TILE_LIGHT_COUNT = 9;
+const int DEBUG_TILE_OVERFLOW = 10;
+
+vec3 tileCountColor(uint count)
+{
+    const vec3 blue = vec3(0.05, 0.15, 0.80);
+    const vec3 cyan = vec3(0.0, 0.80, 1.0);
+    const vec3 green = vec3(0.0, 0.80, 0.10);
+    const vec3 yellow = vec3(1.0, 0.85, 0.0);
+    const vec3 red = vec3(1.0, 0.05, 0.02);
+
+    if (count == 0u)
+    {
+        return vec3(0.0);
+    }
+
+    if (count <= 16u)
+    {
+        return mix(blue, cyan, (float(count) - 1.0) / 15.0);
+    }
+
+    if (count <= 32u)
+    {
+        return mix(cyan, green, (float(count) - 16.0) / 16.0);
+    }
+
+    if (count <= 64u)
+    {
+        return mix(green, yellow, (float(count) - 32.0) / 32.0);
+    }
+
+    return mix(yellow, red, clamp((float(count) - 64.0) / 64.0, 0.0, 1.0));
+}
+
+vec3 tileDebugColor(uvec2 pixel, int debugView)
+{
+    const vec3 invalidColor = vec3(1.0);
+    const vec3 overflowColor = vec3(1.0, 0.0, 1.0);
+
+    if (deferredFrame.tileParams.z != 1u ||
+        deferredFrame.tileParams.x != TILE_SIZE ||
+        deferredFrame.tileParams.y != TILE_LIGHT_CAPACITY)
+    {
+        return invalidColor;
+    }
+
+    uvec2 tile = pixel / TILE_SIZE;
+    uvec2 grid = deferredFrame.extentAndTiles.zw;
+    if (any(greaterThan(tile, grid)))
+    {
+        return invalidColor;
+    }
+
+    uint tileId = tile.y * grid.x + tile.x;
+    if (tileId >= uint(tileHeaders.headers.length()))
+    {
+        return invalidColor;
+    }
+
+    uvec4 header = tileHeaders.headers[tileId];
+    if (header.x > TILE_LIGHT_CAPACITY || header.y > 1u)
+    {
+        return invalidColor;
+    }
+
+    // 候选灯 为 0    -> 黑色
+    // 有1~128候选灯  -> 暗灰色
+    // 候选灯超过 128 -> 紫色
+    if (header.y != 0u)
+    {
+        return overflowColor;
+    }
+
+    if (debugView == DEBUG_TILE_OVERFLOW)
+    {
+        return header.x == 0u ? vec3(0.0) : vec3(0.03);
+    }
+    return tileCountColor(header.x);
+
+}
+
 // 让 Deferred lighting 为当前像素选择灯列表
 // out offset: 输出当前 tile 的索引区域起点
 // inout lightCount: 输入全部灯数，成功时修改成 tile 内的灯数
@@ -163,6 +244,13 @@ void main()
 
     vec3 cubeDx = dFdx(cubeDirection);
     vec3 cubeDy = dFdy(cubeDirection);
+
+    int debugView = frame.shadowFlags.w;
+    if (debugView == DEBUG_TILE_LIGHT_COUNT || debugView == DEBUG_TILE_OVERFLOW)
+    {
+        outColor = vec4(tileDebugColor(uvec2(pixel), debugView), 1.0);
+        return;
+    }
 
     // 当前像素没有模型表面的情况，alpha 是有效标记不是透明度
     vec4 normalData = texelFetch(gNormal, pixel, 0);

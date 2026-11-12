@@ -33,12 +33,20 @@ enum class DebugView : std::int32_t
     LinearDepth = 5,
     HdrLuminance = 6,
     ShadowProjection = 7,
-    ShadowCascades = 8
+    ShadowCascades = 8,
+
+    TileLightCount = 9,
+    TileOverflow = 10
 };
 
 inline bool isSurfaceDebugView(DebugView view) noexcept
 {
     return view >= DebugView::Albedo && view <= DebugView::LinearDepth;
+};
+
+inline bool isTileDebugView(DebugView view) noexcept
+{
+    return view == DebugView::TileLightCount || view == DebugView::TileOverflow;
 };
 
 enum class GBufferView : std::uint32_t

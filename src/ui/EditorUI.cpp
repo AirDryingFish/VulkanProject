@@ -1060,6 +1060,22 @@ void Application::drawImGui()
 
                 ImGui::Separator();
 
+                const bool tileViewsAvailable =
+                    deferredSelected &&
+                    display.lightCullingMode == LightCullingMode::Tiled &&
+                    renderer.tiledLightingAvailable() &&
+                    !previewActive;
+
+                if (!tileViewsAvailable && isTileDebugView(display.debugView))
+                {
+                    display.debugView = DebugView::Lit;
+
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: tile debug view became unavailable.");
+
+                    diagnostics.startRequested = false;
+                }
+
                 ImGui::BeginDisabled(previewActive);
 
                 const char *viewNames[] = {
@@ -1071,7 +1087,14 @@ void Application::drawImGui()
                     "Linear depth",
                     "HDR luminance",
                     "Shadow projection",
-                    "Shadow cascades"};
+                    "Shadow cascades",
+                    "Tile light count",
+                    "Tile overflow"};
+
+                // 不具备 Tiled 条件时，只显示原来的前九项。
+                const int viewCount = tileViewsAvailable
+                                          ? IM_ARRAYSIZE(viewNames)
+                                          : static_cast<int>(DebugView::TileLightCount);
 
                 int selectedView = static_cast<int>(display.debugView);
 
@@ -1079,13 +1102,36 @@ void Application::drawImGui()
                         "Debug View",
                         &selectedView,
                         viewNames,
-                        IM_ARRAYSIZE(viewNames)))
+                        viewCount))
                 {
-                    display.debugView =
-                        static_cast<DebugView>(selectedView);
+                    display.debugView = static_cast<DebugView>(selectedView);
+
+                    diagnostics.baseline.cancel(
+                        "Capture cancelled: debug view changed.");
+
+                    diagnostics.startRequested = false;
                 }
 
                 ImGui::EndDisabled();
+
+                if (tileViewsAvailable && isTileDebugView(display.debugView))
+                {
+                    if (display.debugView == DebugView::TileLightCount)
+                    {
+                        ImGui::TextWrapped(
+                            "0 black; 1 blue; 16 cyan; 32 green; "
+                            "64 yellow; 128 red.");
+                    }
+                    else
+                    {
+                        ImGui::TextWrapped(
+                            "Black: zero candidates. Gray: no overflow.");
+                    }
+
+                    ImGui::TextWrapped(
+                        "Magenta: overflow (>128), full-light fallback. "
+                        "White: invalid tile data.");
+                }
 
                 const bool showDepthRange =
                     (!previewActive &&

@@ -312,6 +312,20 @@ void Application::drawFrame()
     ImGui::NewFrame();
     drawImGui();
 
+    // 如果当前正在看 tile 热图或溢出视图，但运行条件已经不满足，就自动切回正常光照视图
+    const bool tileDebugAvailable =
+        display.renderPath == RenderPath::Deferred &&
+        display.lightCullingMode == LightCullingMode::Tiled &&
+        renderer.tiledLightingAvailable() &&
+        display.gBufferView == GBufferView::Off;
+    if (isTileDebugView(display.debugView) && !tileDebugAvailable)
+    {
+        display.debugView = DebugView::Lit;
+        diagnostics.baseline.cancel("Capture cancelled: tile debug view became unavailable.");
+        diagnostics.startRequested = false;
+    }
+
+
     const std::uint32_t shadowPreviewLayer = shadows.mode == ShadowMode::Single ? 0u : static_cast<std::uint32_t>(std::clamp(shadows.previewLayer, 0, static_cast<int>(shadowCascadeCount) - 1));
 
     const float shadowBlendFraction = shadows.mode == ShadowMode::Cascaded ? shadows.blendFraction : 0.0f;
