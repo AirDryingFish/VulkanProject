@@ -1,0 +1,187 @@
+#pragma once
+#include "vulkan/VulkanHeaders.hpp"
+
+#include <cstdint>
+#include <vk_mem_alloc.h>
+
+struct BufferDesc
+{
+    VkDeviceSize size = 0;
+    VkBufferUsageFlags usage = 0;
+    VkMemoryPropertyFlags requiredMemoryProperties = 0;
+    const char* debugName = nullptr;
+};
+
+struct ImageDesc
+{
+    VkExtent3D extent{0, 0, 1};
+    uint32_t mipLevels = 1;
+    uint32_t arrayLayers = 1;
+    VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+    VkImageUsageFlags usage = 0;
+    VkMemoryPropertyFlags requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    VkImageCreateFlags flags = 0;
+    const char* debugName = nullptr;
+};
+
+struct SamplerDesc
+{
+    VkFilter magFilter = VK_FILTER_LINEAR;
+    VkFilter minFilter = VK_FILTER_LINEAR;
+    VkSamplerAddressMode addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VkSamplerAddressMode addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VkSamplerAddressMode addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    VkBool32 anisotropyEnable = VK_FALSE;
+    float maxAnisotropy = 1.0f;
+    VkBorderColor borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    VkBool32 unnormalizedCoordinates = VK_FALSE;
+    VkBool32 compareEnable = VK_FALSE;
+    VkCompareOp compareOp = VK_COMPARE_OP_ALWAYS;
+    VkSamplerMipmapMode mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    float mipLodBias = 0.0f;
+    float minLod = 0.0f;
+    float maxLod = 0.0f;
+    const char* debugName = nullptr;
+};
+
+// 移动独占的 VMA buffer；reset 前须结束 GPU 使用，allocator 必须仍然有效。
+class GpuBuffer
+{
+private:
+    VmaAllocator allocator_ = nullptr;
+    VkBuffer buffer_ = VK_NULL_HANDLE;
+    VmaAllocation allocation_ = nullptr;
+    void* mappedData_ = nullptr;
+
+    VkDeviceSize size_ = 0;
+    VkBufferUsageFlags usage_ = 0;
+    VkMemoryPropertyFlags requiredMemoryProperties_ = 0;
+    VkMemoryPropertyFlags memoryProperties_ = 0;
+
+    void moveFrom(GpuBuffer& other) noexcept;
+
+public:
+    GpuBuffer() noexcept = default;
+
+    GpuBuffer(VmaAllocator allocator, VkBuffer buffer, VmaAllocation allocation, VkDeviceSize size,
+              VkBufferUsageFlags usage, VkMemoryPropertyFlags requiredMemoryProperties,
+              VkMemoryPropertyFlags actualMemoryProperties) noexcept;
+
+    ~GpuBuffer() noexcept;
+
+    GpuBuffer(const GpuBuffer&) = delete;            // 拷贝构造
+    GpuBuffer& operator=(const GpuBuffer&) = delete; // 拷贝赋值
+    GpuBuffer(GpuBuffer&& other) noexcept;
+    GpuBuffer& operator=(GpuBuffer&& other) noexcept;
+
+    // 映射缓存由本对象管理；重复 map 返回已有映射，不增加 VMA 映射计数。
+    VkResult map(void** data) noexcept;
+
+    // CPU 写入后、GPU 读取前刷新已映射范围；VMA 处理非 coherent 内存的原子对齐。
+    VkResult flush(VkDeviceSize offset = 0, VkDeviceSize byteSize = VK_WHOLE_SIZE) noexcept;
+
+    void unmap() noexcept;
+    void reset() noexcept;
+
+    // 借用句柄与创建时记录的实际分配属性。
+    explicit operator bool() const noexcept;
+    VkBuffer get() const noexcept;
+    VkDeviceSize size() const noexcept;
+    VkBufferUsageFlags usage() const noexcept;
+    VkMemoryPropertyFlags requiredMemoryProperties() const noexcept;
+    VkMemoryPropertyFlags memoryProperties() const noexcept;
+};
+
+// 移动独占的图像及其主 view；销毁顺序为 view、image/VMA allocation。
+class GpuImage
+{
+private:
+    VmaAllocator allocator_ = nullptr;
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkImage image_ = VK_NULL_HANDLE;
+    VkImageView imageView_ = VK_NULL_HANDLE;
+    VmaAllocation allocation_ = nullptr;
+
+    VkExtent3D extent_{0, 0, 0};
+    VkFormat format_ = VK_FORMAT_UNDEFINED;
+    VkImageUsageFlags usage_ = 0;
+    uint32_t mipLevels_ = 0;
+    uint32_t arrayLayers_ = 0;
+    VkSampleCountFlagBits samples_ = VK_SAMPLE_COUNT_1_BIT;
+
+    void moveFrom(GpuImage& other) noexcept;
+
+public:
+    GpuImage() noexcept = default;
+    GpuImage(VmaAllocator allocator, VkDevice device, VkImage image, VmaAllocation allocation, VkExtent3D extent,
+             VkFormat format, VkImageUsageFlags usage, uint32_t mipLevels, uint32_t arrayLayers,
+             VkSampleCountFlagBits samples) noexcept;
+
+    ~GpuImage() noexcept;
+
+    GpuImage(const GpuImage&) = delete;
+    GpuImage& operator=(const GpuImage&) = delete;
+    GpuImage(GpuImage&& other) noexcept;
+    GpuImage& operator=(GpuImage&& other) noexcept;
+
+    // 接管主 view 并销毁旧 view；调用方须先结束对旧 view 的 GPU 使用。
+    void setView(VkImageView imageView) noexcept;
+    void reset() noexcept;
+
+    // 借用图像、view 和创建属性；不转移所有权。
+    explicit operator bool() const noexcept;
+    VkImage get() const noexcept;
+    VkImageView view() const noexcept;
+    VkExtent3D extent() const noexcept;
+    VkFormat format() const noexcept;
+    VkImageUsageFlags usage() const noexcept;
+    uint32_t mipLevels() const noexcept;
+    uint32_t arrayLayers() const noexcept;
+    VkSampleCountFlagBits samples() const noexcept;
+};
+
+class GpuSampler
+{
+private:
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkSampler sampler_ = VK_NULL_HANDLE;
+
+public:
+    GpuSampler() noexcept = default;
+    GpuSampler(VkDevice device, VkSampler sampler) noexcept;
+    ~GpuSampler() noexcept;
+
+    GpuSampler(const GpuSampler&) = delete;
+    GpuSampler& operator=(const GpuSampler&) = delete;
+    GpuSampler(GpuSampler&& other) noexcept;
+    GpuSampler& operator=(GpuSampler&& other) noexcept;
+
+    void reset() noexcept;
+
+    explicit operator bool() const noexcept;
+    VkSampler get() const noexcept;
+};
+
+class UniqueShaderModule
+{
+private:
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkShaderModule shaderModule_ = VK_NULL_HANDLE;
+
+public:
+    UniqueShaderModule() noexcept = default;
+    UniqueShaderModule(VkDevice device, VkShaderModule shaderModule) noexcept;
+    ~UniqueShaderModule() noexcept;
+
+    UniqueShaderModule(const UniqueShaderModule&) = delete;
+    UniqueShaderModule& operator=(const UniqueShaderModule&) = delete;
+    UniqueShaderModule(UniqueShaderModule&& other) noexcept;
+    UniqueShaderModule& operator=(UniqueShaderModule&& other) noexcept;
+
+    void reset() noexcept;
+
+    explicit operator bool() const noexcept;
+    VkShaderModule get() const noexcept;
+};

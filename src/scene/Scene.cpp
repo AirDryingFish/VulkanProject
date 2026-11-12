@@ -49,10 +49,9 @@ void Scene::bounds(glm::vec3& minimum, glm::vec3& maximum) const
         // corner 的低三位分别选择 X/Y/Z 的 min 或 max；再逐点合并得到保守的世界 AABB。
         for (int corner = 0; corner < 8; ++corner)
         {
-            const glm::vec3 local{
-                (corner & 1) ? mesh.boundsMax.x : mesh.boundsMin.x,
-                (corner & 2) ? mesh.boundsMax.y : mesh.boundsMin.y,
-                (corner & 4) ? mesh.boundsMax.z : mesh.boundsMin.z};
+            const glm::vec3 local{(corner & 1) ? mesh.boundsMax.x : mesh.boundsMin.x,
+                                  (corner & 2) ? mesh.boundsMax.y : mesh.boundsMin.y,
+                                  (corner & 4) ? mesh.boundsMax.z : mesh.boundsMin.z};
             const glm::vec3 world = glm::vec3(model * glm::vec4(local, 1.0f));
             // 拒绝坏变换，防止 NaN/无穷传播到包围盒、相机拟合和阴影覆盖范围。
             if (!std::isfinite(world.x) || !std::isfinite(world.y) || !std::isfinite(world.z))

@@ -1,6 +1,8 @@
 #include "app/Application.hpp"
+#include "render/frame/SceneFrameBuilder.hpp"
+#include "diagnostics/BaselineContext.hpp"
 #include <GLFW/glfw3.h>
-#include "vulkan/DebugUtils.hpp"
+#include "vulkan/debug/DebugUtils.hpp"
 #include "diagnostics/CpuTiming.hpp"
 
 #include <algorithm>
@@ -85,7 +87,7 @@ void Application::initializeRendering()
         swapchain.createFramebuffers(renderer.presentRenderPass());
     }
 
-    initImGui();
+    imguiBackend.initialize(context, renderer, swapchain, window);
 
     // 先创建实际资源，再让 descriptor set 引用它们；描述符本身不拥有纹理/缓冲区。
     createTextureSampler();
@@ -135,16 +137,14 @@ void Application::cleanup() noexcept
     const VkResult result = context.waitIdle();
     if (result != VK_SUCCESS)
     {
-        std::fprintf(
-            stderr,
-            "vkDeviceWaitIdle failed during cleanup: %s (%d)\n",
-            vkResultToString(result),
-            static_cast<int>(result));
+        std::fprintf(stderr, "vkDeviceWaitIdle failed during cleanup: %s (%d)\n", vkResultToString(result),
+                     static_cast<int>(result));
     }
 
     // 先关闭 ImGui、销毁应用的 descriptor pool，再释放其引用的 UBO/纹理。
     // DeletionQueue 按注册的逆序执行；这里的 GPU 等待由上方统一完成。
     mainDeletionQueue.flush();
+    imguiBackend.shutdown();
 
     pointLightBufferMapped.clear();
     pointLightBuffers.clear();
@@ -210,15 +210,11 @@ void Application::recreateSwapchain()
     }
 
     // 当前重建路径只更新尺寸相关资源；格式/图像数量变化还需要重建 pipeline/ImGui 等。
-    if (oldFormat != swapchain.format() ||
-        oldColorSpace != swapchain.colorSpace() ||
-        oldMinImageCount != swapchain.minImageCount() ||
-        oldImageCount != swapchain.imageCount()
-    )
+    if (oldFormat != swapchain.format() || oldColorSpace != swapchain.colorSpace() ||
+        oldMinImageCount != swapchain.minImageCount() || oldImageCount != swapchain.imageCount())
     {
-        throw std::runtime_error(
-            "swapchain format changed; renderer "
-            "resources must be rebuilt");
+        throw std::runtime_error("swapchain format changed; renderer "
+                                 "resources must be rebuilt");
     }
     renderer.recreateHdrTargets();
     if (!renderer.useDynamicRenderingForPresent())
@@ -228,13 +224,12 @@ void Application::recreateSwapchain()
     framebufferResized = false;
 }
 
-void Application::framebufferResizeCallback(GLFWwindow *window, int width, int height)
+void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
     // 回调只记下事件；实际重建留到 drawFrame() 的安全边界处理。
-    auto app = reinterpret_cast<Application *>(glfwGetWindowUserPointer(window));
+    auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
 }
-
 
 void Application::drawFrame()
 {
@@ -294,7 +289,7 @@ void Application::drawFrame()
     }
 
     // frameIndex 是可复用资源槽；imageIndex 才是本次 acquire 获得的交换链图像。
-    const FrameToken &frame = beginResult.frame;
+    const FrameToken& frame = beginResult.frame;
 
     const float now = static_cast<float>(glfwGetTime());
     float deltaTime = now - lastFrameTime;
@@ -313,11 +308,9 @@ void Application::drawFrame()
     drawImGui();
 
     // 如果当前正在看 tile 热图或溢出视图，但运行条件已经不满足，就自动切回正常光照视图
-    const bool tileDebugAvailable =
-        display.renderPath == RenderPath::Deferred &&
-        display.lightCullingMode == LightCullingMode::Tiled &&
-        renderer.tiledLightingAvailable() &&
-        display.gBufferView == GBufferView::Off;
+    const bool tileDebugAvailable = display.renderPath == RenderPath::Deferred &&
+                                    display.lightCullingMode == LightCullingMode::Tiled &&
+                                    renderer.tiledLightingAvailable() && display.gBufferView == GBufferView::Off;
     if (isTileDebugView(display.debugView) && !tileDebugAvailable)
     {
         display.debugView = DebugView::Lit;
@@ -325,115 +318,52 @@ void Application::drawFrame()
         diagnostics.startRequested = false;
     }
 
-
-    const std::uint32_t shadowPreviewLayer = shadows.mode == ShadowMode::Single ? 0u : static_cast<std::uint32_t>(std::clamp(shadows.previewLayer, 0, static_cast<int>(shadowCascadeCount) - 1));
+    const std::uint32_t shadowPreviewLayer =
+        shadows.mode == ShadowMode::Single
+            ? 0u
+            : static_cast<std::uint32_t>(std::clamp(shadows.previewLayer, 0, static_cast<int>(shadowCascadeCount) - 1));
 
     const float shadowBlendFraction = shadows.mode == ShadowMode::Cascaded ? shadows.blendFraction : 0.0f;
 
     DeferredFrameUniforms deferredUniforms{};
-    const ShadowFrameSummary shadowFrame = updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction, deferredUniforms);
+    const ShadowFrameSummary shadowFrame =
+        updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction, deferredUniforms);
     processModelPicking();
     ImGui::Render();
 
     // 将场景对象整理成渲染所需的只读视图，renderer 无需依赖编辑器或资产导入细节。
-    std::vector<RenderObjectView> renderObjects;
-    renderObjects.reserve(scene.objects.size());
-
-    for (const SceneObject& object : scene.objects)
-    {
-        if (!object.mesh || !object.mesh->valid() || !object.material || object.material->descriptorSet == VK_NULL_HANDLE)
-        {
-            continue;
-        }
-        const Mesh& mesh = *object.mesh;
-        const Material& material = *object.material;
-
-        RenderObjectView view{};
-        view.vertexBuffer = mesh.vertexBuffer.get();
-        view.indexBuffer = mesh.indexBuffer.get();
-        view.indexCount = mesh.indexCount;
-        view.doubleSided = material.doubleSided;
-        view.pushConstants.model = object.modelMatrix();
-        view.pushConstants.baseColorFactor = material.baseColorFactor;
-        view.pushConstants.materialFactors = glm::vec4(material.metallicFactor, material.roughnessFactor, material.occlusionStrength, material.normalScale);
-        view.pushConstants.emissiveFactor = glm::vec4(material.emissiveFactor, material.alphaCutoff);
-        const bool useVertexTangents = mesh.hasTangents && material.normalTexture.texCoord == 0u;
-        view.pushConstants.textureInfo = glm::uvec4(material.textureUvMask(), useVertexTangents, material.alphaMode == MaterialAlphaMode::Mask ? 1u : 0u, 0u);
-        view.materialDescriptorSet = material.descriptorSet;
-
-        renderObjects.push_back(view);
-    }
+    std::vector<RenderObjectView> renderObjects = buildRenderObjects(scene);
 
     // objects/ImGui 数据只在 recordFrame() 同步读取；底层 GPU 资源则必须活到提交完成。
-    RenderFrameData renderData{};
+    RenderFrameData renderData = buildSceneRenderData(scene, camera, display, shadows);
     renderData.objects = &renderObjects;
     renderData.frameDescriptorSet = frameDescriptorSets.at(frame.frameIndex);
     renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);
     renderData.imguiDrawData = ImGui::GetDrawData();
-
-    renderData.clearColor = display.clearColor;
-    renderData.buildGBuffer = display.buildGBuffer;
-    renderData.gBufferView = display.gBufferView;
-    renderData.renderPath = display.renderPath;
-    renderData.lightCullingMode = display.lightCullingMode;
     renderData.deferredUniforms = deferredUniforms;
-    // 材质、法线、光空间视图：黑色背景
-    // LinearDepth：白色背景，表示没有表面。
-    // HDR luminance：保留正常场景背景和天空。
-    if (isSurfaceDebugView(display.debugView) || display.debugView == DebugView::ShadowProjection || display.debugView == DebugView::ShadowCascades)
-    {
-        renderData.clearColor = display.debugView == DebugView::LinearDepth ? glm::vec4(1.0f) : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    }
-
-
-    renderData.directionalShadowsEnabled = shadows.enabled && scene.directionalLight.enabled;
-    renderData.shadowMode = shadows.mode;
     renderData.shadowBlendFraction = shadowBlendFraction;
-    renderData.shadowPcfEnabled = shadows.pcfEnabled;
-    renderData.shadowReceiverBiasNormalized = shadows.receiverBias;
-    renderData.shadowReceiverBiasWorld = shadows.receiverBiasWorld;
     renderData.shadowPreviewLayer = shadowPreviewLayer;
-
     renderData.shadowFrame = shadowFrame;
-
-    renderData.shadowConstantBias = shadows.constantBias;
-    renderData.shadowSlopeBias = shadows.slopeBias;
-    renderData.showShadowDepth = shadows.showDepth;
-
-    renderData.shadowDistance = shadows.shadowDistance;
-    renderData.shadowSplitLambda = shadows.splitLambda;
-    renderData.shadowDepthMargin = shadows.depthMargin;
-    renderData.shadowCsmLightNear = shadows.lightNear;
-    renderData.shadowSingleCenter = shadows.center;
-    renderData.shadowSingleHalfExtent = shadows.halfExtent;
-
-    renderData.debugView = display.debugView;
-    renderData.debugDepthNear = camera.nearPlane;
-    renderData.debugDepthFar = std::max(display.debugDepthFar, camera.nearPlane + 0.001f);
-
-
-    // 调试视图的数值/颜色已有专门含义，不能再经过正常画面的曝光和色调映射。
-    renderData.bypassToneMapping = display.debugView != DebugView::Lit;
     renderData.sceneId = scenePresetInfo(activeScenePreset).id;
-    renderData.exposureEv = display.exposureEv;
-    renderData.toneMapper = display.toneMapper;
 
     std::string requestedCaptureContext{};
     if (diagnostics.startRequested)
     {
-        requestedCaptureContext = buildBaselineContext();
+        requestedCaptureContext = buildBaselineContext({context, camera, scene, swapchain.extent(), activeScenePreset,
+                                                        manyLightsSettings, editor.showPointLightMarkers});
     }
 
     const auto updateEnd = CpuClock::now();
 
-    const auto recordBegin  = CpuClock::now();
+    const auto recordBegin = CpuClock::now();
     renderer.recordFrame(frame, renderData);
     const auto recordEnd = CpuClock::now();
 
     // recordFrame 只录制命令；endFrame 提交并请求呈现，返回时 GPU 未必已完成。
     const FrameStatus endStatus = renderer.endFrame(frame);
 
-    diagnostics.latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd), cpuElapsedMs(recordBegin, recordEnd)};
+    diagnostics.latestCpuTiming = {renderer.cpuTimingSnapshot(), cpuElapsedMs(updateBegin, updateEnd),
+                                   cpuElapsedMs(recordBegin, recordEnd)};
 
     // 按钮只设置请求；等成功提交后再取真实 submissionId/config 作为采集起点。
     if (diagnostics.startRequested)
@@ -442,11 +372,8 @@ void Application::drawFrame()
 
         if (endStatus == FrameStatus::Ready && !framebufferResized)
         {
-            diagnostics.baseline.start(
-                diagnostics.latestCpuTiming.renderer.submissionId,
-                diagnostics.latestCpuTiming.renderer.config,
-                std::move(requestedCaptureContext)
-            );
+            diagnostics.baseline.start(diagnostics.latestCpuTiming.renderer.submissionId,
+                                       diagnostics.latestCpuTiming.renderer.config, std::move(requestedCaptureContext));
         }
     }
 
@@ -471,199 +398,4 @@ void Application::scrollCallback(GLFWwindow* window, double, double yoffset)
     auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     if (app != nullptr)
         app->cameraController.addScroll(yoffset);
-}
-std::string Application::buildBaselineContext() const
-{
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out << std::boolalpha
-        << std::setprecision(
-               std::numeric_limits<float>::max_digits10);
-
-    const auto write =
-        [&](const std::string &key, const auto &value)
-    {
-        out << key << '=' << value << '\n';
-    };
-
-    const auto writeVec3 =
-        [&](const std::string &key, const glm::vec3 &value)
-    {
-        out << key << '='
-            << value.x << ' '
-            << value.y << ' '
-            << value.z << '\n';
-    };
-
-    const auto writeVec4 =
-        [&](const std::string &key, const glm::vec4 &value)
-    {
-        out << key << '='
-            << value.x << ' '
-            << value.y << ' '
-            << value.z << ' '
-            << value.w << '\n';
-    };
-
-    const auto writeMatrix =
-        [&](const std::string &key, const glm::mat4 &matrix)
-    {
-        out << key << '=';
-
-        // GLM 按列保存矩阵。
-        for (int column = 0; column < 4; ++column)
-        {
-            for (int row = 0; row < 4; ++row)
-            {
-                out << matrix[column][row] << ' ';
-            }
-        }
-
-        out << '\n';
-    };
-
-    // 构建和设备环境。
-    write("project_version", VULKAN_PROJECT_VERSION);
-    write("build_type", VULKAN_PROJECT_BUILD_TYPE);
-    write("validation_requested", enableValidationLayers);
-    write("matrix_layout", "column-major");
-    write("environment.hdr_configured_path",
-          std::quoted(SKYBOX_HDR_PATH));
-
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(
-        context.physicalDevice(), &properties);
-
-    write("gpu_name", std::quoted(properties.deviceName));
-    write("gpu_vendor_id", properties.vendorID);
-    write("gpu_device_id", properties.deviceID);
-    write("driver_version_raw", properties.driverVersion);
-
-    const auto &caps = context.capabilities();
-
-    write("api_header_raw", caps.headerVersion);
-    write("api_loader_raw", caps.loaderVersion);
-    write("api_instance_raw", caps.instanceVersion);
-    write("api_device_reported_raw", caps.physicalDeviceVersion);
-    write("api_device_effective_raw", caps.deviceApiVersion);
-    write("sync2_supported", caps.synchronization2Supported);
-    write("sync2_enabled", caps.synchronization2Enabled);
-    write("dynamic_rendering_supported",
-          caps.dynamicRenderingSupported);
-    write("dynamic_rendering_enabled",
-          caps.dynamicRenderingEnabled);
-
-    // 相机状态。
-    writeVec3("camera.position", camera.position);
-    writeVec3("camera.front", camera.front);
-    writeVec3("camera.up", camera.up);
-    write("camera.yaw", camera.yaw);
-    write("camera.pitch", camera.pitch);
-    write("camera.near", camera.nearPlane);
-    write("camera.far", camera.farPlane);
-    write("camera.fov_degrees", camera.fieldOfViewDegrees);
-
-    const auto extent = swapchain.extent();
-    const float aspect =
-        static_cast<float>(extent.width) / extent.height;
-
-    writeMatrix("camera.view", camera.view());
-    writeMatrix("camera.projection", camera.projection(aspect));
-
-    // 灯光编辑输入。
-    // UBO 更新阶段仍会执行方向归一化、兜底和范围约束。
-    write("directional.enabled", scene.directionalLight.enabled);
-    writeVec3("directional.direction_input",
-              scene.directionalLight.direction);
-    writeVec3("directional.color_input",
-              scene.directionalLight.color);
-    write("directional.intensity_input",
-          scene.directionalLight.intensity);
-
-    writeVec3("ambient.color", scene.ambientLightColor);
-    write("ambient.intensity", scene.ambientLightIntensity);
-    write("ibl.intensity", scene.iblIntensity);
-
-    if (activeScenePreset == ScenePreset::ManyLights)
-    {
-        write("many_lights.generator", "lcg32-v1");
-        write("many_lights.seed", manyLightsSettings.seed);
-        write(
-            "many_lights.generated_count",
-            manyLightsSettings.count);
-        write(
-            "many_lights.generated_range",
-            manyLightsSettings.range);
-    }
-
-    write(
-        "ui.point_light_markers",
-        editor.showPointLightMarkers);
-
-    write("point_lights.listed_count", scene.pointLights.size());
-    write(
-        "point_lights.uploaded_count",
-        std::count_if(
-            scene.pointLights.begin(),
-            scene.pointLights.end(),
-            [](const PointLight &light)
-            {
-                return light.enabled;
-            }));
-
-    write("point_lights.capacity", MAX_POINT_LIGHTS);
-
-    for (std::size_t i = 0; i < scene.pointLights.size(); ++i)
-    {
-        const auto &light = scene.pointLights[i];
-        const std::string prefix =
-            "point_light." + std::to_string(i) + ".";
-
-        writeVec3(prefix + "position", light.position);
-        writeVec3(prefix + "color_input", light.color);
-        write(prefix + "intensity_input", light.intensity);
-        write(prefix + "range_input", light.range);
-        write(prefix + "enabled", light.enabled);
-    }
-
-    // 物体变换与材质参数。
-    // 这里记录的是场景对象总数，不是实际 draw call 数。
-    write("objects.count", scene.objects.size());
-
-    for (std::size_t i = 0; i < scene.objects.size(); ++i)
-    {
-        const auto &object = scene.objects[i];
-        const std::string prefix =
-            "object." + std::to_string(i) + ".";
-
-        write(prefix + "name", std::quoted(object.name));
-        write(prefix + "source",
-              static_cast<std::uint32_t>(object.source));
-        write(prefix + "source_path",
-              std::quoted(object.sourcePath));
-        writeMatrix(prefix + "model", object.modelMatrix());
-        write(prefix + "auto_rotate", object.autoRotate);
-
-        if (!object.material)
-        {
-            continue;
-        }
-
-        const auto &material = *object.material;
-
-        write(prefix + "material", std::quoted(material.name));
-        write(prefix + "alpha_mode",
-              static_cast<std::uint32_t>(material.alphaMode));
-        write(prefix + "alpha_cutoff", material.alphaCutoff);
-        write(prefix + "double_sided", material.doubleSided);
-        writeVec4(prefix + "base_color",
-                  material.baseColorFactor);
-        write(prefix + "metallic", material.metallicFactor);
-        write(prefix + "roughness", material.roughnessFactor);
-        write(prefix + "ao_strength", material.occlusionStrength);
-        write(prefix + "normal_scale", material.normalScale);
-        writeVec3(prefix + "emissive", material.emissiveFactor);
-    }
-
-    return out.str();
 }

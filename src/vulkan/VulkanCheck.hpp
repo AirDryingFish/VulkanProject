@@ -5,8 +5,7 @@
 #include <stdexcept>
 #include <string>
 
-inline const char* vkResultToString(
-    VkResult result)
+inline const char* vkResultToString(VkResult result)
 {
     switch (result)
     {
@@ -88,30 +87,11 @@ inline void checkVkResult(VkResult result, const char* expression, const char* f
         return;
     }
 
-    throw std::runtime_error(
-        std::string("Vulkan call failed: ") +
-        expression +
-        " returned " +
-        vkResultToString(result) +
-        " (" +
-        std::to_string(
-            static_cast<int>(result)) +
-        ") at " +
-        file +
-        ":" +
-        std::to_string(line));
+    throw std::runtime_error(std::string("Vulkan call failed: ") + expression + " returned " +
+                             vkResultToString(result) + " (" + std::to_string(static_cast<int>(result)) + ") at " +
+                             file + ":" + std::to_string(line));
 }
 
-#define VK_CHECK(expression)                     \
-    checkVkResult(                               \
-        (expression),                            \
-        #expression,                             \
-        __FILE__,                                \
-        __LINE__)
+#define VK_CHECK(expression) checkVkResult((expression), #expression, __FILE__, __LINE__)
 
-#define VK_CHECK_RESULT(result, operation)        \
-    checkVkResult(                               \
-        (result),                                \
-        (operation),                             \
-        __FILE__,                                \
-        __LINE__)
+#define VK_CHECK_RESULT(result, operation) checkVkResult((result), (operation), __FILE__, __LINE__)

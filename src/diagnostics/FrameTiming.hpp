@@ -2,7 +2,7 @@
 
 #include "render/RenderSettings.hpp"
 #include "vulkan/VulkanHeaders.hpp"
-#include "render/ShadowFrameSummary.hpp"
+#include "render/shadow/ShadowFrameSummary.hpp"
 
 #include <glm/glm.hpp>
 #include <array>
@@ -26,30 +26,18 @@ enum class GpuPass : std::uint32_t
 inline constexpr std::uint32_t gpuPassCount = static_cast<std::uint32_t>(GpuPass::Count);
 inline constexpr std::uint32_t gpuTimestampQueryCount = gpuPassCount * 2;
 
-inline constexpr std::array<const char *, gpuPassCount> gpuPassNames{
-    "Shadow",
-    "Scene (Forward)",
-    "Post + UI",
-    "Geometry",
-    "LightCull",
-    "Lighting",
-    "Frame GPU"};
+inline constexpr std::array<const char*, gpuPassCount> gpuPassNames{
+    "Shadow", "Scene (Forward)", "Post + UI", "Geometry", "LightCull", "Lighting", "Frame GPU"};
 
-inline constexpr std::array<const char *, gpuPassCount> gpuPassCsvColumns{
-    "shadow_ms",
-    "scene_ms",
-    "post_ui_ms",
-    "geometry_ms",
-    "light_cull_ms",
-    "lighting_ms",
-    "frame_gpu_ms"};
+inline constexpr std::array<const char*, gpuPassCount> gpuPassCsvColumns{
+    "shadow_ms", "scene_ms", "post_ui_ms", "geometry_ms", "light_cull_ms", "lighting_ms", "frame_gpu_ms"};
 
 inline constexpr std::uint32_t gpuPassBit(GpuPass pass) noexcept
 {
     return std::uint32_t{1} << static_cast<std::uint32_t>(pass);
 }
 
-// -- GPU 计时 --
+// GPU 查询结果
 enum class GpuTimingState
 {
     Unavailable, // 设备不支持
@@ -117,20 +105,16 @@ struct FrameTimingConfig
     float exposureEv = 0.0f;
     ToneMapper toneMapper = ToneMapper::Reinhard;
 
-
     DebugView debugView = DebugView::Lit;
     float debugDepthNear = 0.1f;
     float debugDepthFar = 50.0f;
 };
 
 // 根据当前渲染配置，生成 “本帧预计会执行哪些 GPU 计时区间” 的位 mask
-inline std::uint32_t expectedGpuPassMask(const FrameTimingConfig &config) noexcept
+inline std::uint32_t expectedGpuPassMask(const FrameTimingConfig& config) noexcept
 {
     // Shadow 即使关闭阴影，也仍然执行清空。
-    std::uint32_t mask =
-        gpuPassBit(GpuPass::Shadow) |
-        gpuPassBit(GpuPass::PostAndUi) |
-        gpuPassBit(GpuPass::FrameGpu);
+    std::uint32_t mask = gpuPassBit(GpuPass::Shadow) | gpuPassBit(GpuPass::PostAndUi) | gpuPassBit(GpuPass::FrameGpu);
 
     if (config.gBufferGeometry)
     {
@@ -166,7 +150,6 @@ struct GpuTimingSnapshot
     FrameTimingConfig config{};
     std::array<GpuPassTiming, gpuPassCount> passes{};
 };
-// ----
 
 // 统计实际提交的 scene/shadow mesh 绘制量，不代表通过裁剪或最终可见的三角形。
 struct DrawStatistics
@@ -203,7 +186,7 @@ struct CpuFrameTimingSnapshot
     double recordMs = 0.0;
 };
 
-// -- 渲染目标开销估算 --
+// 渲染目标开销估算
 struct RenderTargetPayloadEstimate
 {
     bool available = false;
@@ -217,6 +200,3 @@ struct RenderTargetPayloadEstimate
     std::uint64_t deferredHdrBytes = 0;
     std::uint64_t totalBytes = 0;
 };
-// ----
-
-

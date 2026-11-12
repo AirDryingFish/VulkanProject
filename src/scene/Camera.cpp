@@ -9,11 +9,11 @@
 
 namespace
 {
-    bool finite(const glm::vec3& value)
-    {
-        return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
-    }
+bool finite(const glm::vec3& value)
+{
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
+} // namespace
 
 Camera::Camera()
 {
@@ -44,10 +44,14 @@ void Camera::rotate(float yawDeltaDegrees, float pitchDeltaDegrees)
 
     const float yawRadians = glm::radians(yaw);
     const float pitchRadians = glm::radians(pitch);
-    front = glm::normalize(glm::vec3(
-        std::cos(pitchRadians) * std::cos(yawRadians),
-        std::cos(pitchRadians) * std::sin(yawRadians),
-        std::sin(pitchRadians)));
+    front = glm::normalize(glm::vec3(std::cos(pitchRadians) * std::cos(yawRadians),
+                                     std::cos(pitchRadians) * std::sin(yawRadians), std::sin(pitchRadians)));
+}
+
+void Camera::pan(float horizontalPixels, float verticalPixels, float speed)
+{
+    position -= right() * horizontalPixels * speed;
+    position -= viewUp() * verticalPixels * speed;
 }
 
 glm::vec3 Camera::right() const
@@ -65,12 +69,6 @@ glm::vec3 Camera::viewUp() const
     return glm::normalize(glm::cross(right(), front));
 }
 
-void Camera::pan(float horizontalPixels, float verticalPixels, float speed)
-{
-    position -= right() * horizontalPixels * speed;
-    position -= viewUp() * verticalPixels * speed;
-}
-
 glm::mat4 Camera::view() const
 {
     return glm::lookAtRH(position, position + front, viewUp());
@@ -78,11 +76,11 @@ glm::mat4 Camera::view() const
 
 glm::mat4 Camera::projection(float aspectRatio) const
 {
-    if (!std::isfinite(aspectRatio) || aspectRatio <= 0.0f ||
-        !std::isfinite(nearPlane) || nearPlane <= 0.0f ||
-        !std::isfinite(farPlane) || farPlane <= nearPlane ||
-        !std::isfinite(fieldOfViewDegrees) || fieldOfViewDegrees <= 0.0f || fieldOfViewDegrees >= 180.0f)
-        throw std::invalid_argument("Camera requires a positive aspect ratio and valid perspective planes and field of view");
+    if (!std::isfinite(aspectRatio) || aspectRatio <= 0.0f || !std::isfinite(nearPlane) || nearPlane <= 0.0f ||
+        !std::isfinite(farPlane) || farPlane <= nearPlane || !std::isfinite(fieldOfViewDegrees) ||
+        fieldOfViewDegrees <= 0.0f || fieldOfViewDegrees >= 180.0f)
+        throw std::invalid_argument(
+            "Camera requires a positive aspect ratio and valid perspective planes and field of view");
 
     // RH_ZO 显式规定右手视图（前方为 -Z）和近/远面映射到深度 0/1，避免依赖 GLM 全局宏。
     glm::mat4 result = glm::perspectiveRH_ZO(glm::radians(fieldOfViewDegrees), aspectRatio, nearPlane, farPlane);

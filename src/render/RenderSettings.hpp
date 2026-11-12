@@ -56,11 +56,10 @@ enum class GBufferView : std::uint32_t
     BaseColor = 2,
     metallic = 3,
     Roughness = 4,
-    AmbientOcclusion= 5,
+    AmbientOcclusion = 5,
     Emissive = 6,
     LinearDepth = 7
 };
-
 
 struct DisplaySettings
 {
@@ -91,7 +90,6 @@ struct ShadowSettings
     bool pcfEnabled = false;
     bool showDepth = false;
     int previewLayer = 0;
-
 
     float constantBias = 1.25f;
     float slopeBias = 1.75f;

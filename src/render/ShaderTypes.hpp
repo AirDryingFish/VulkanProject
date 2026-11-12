@@ -1,7 +1,7 @@
 #pragma once
 
 #include "scene/Lighting.hpp"
-#include "render/ShadowCascades.hpp"
+#include "render/shadow/ShadowCascades.hpp"
 
 #include <cstddef>
 #include <array>
@@ -41,7 +41,7 @@ struct alignas(16) UniformBufferObject
     alignas(16) glm::vec4 renderParams;
 
     alignas(16) glm::vec4 directionalDirectionEnabled{}; // xyz: 归一化传播方向 w: enabled
-    alignas(16) glm::vec4 directionalColorIntensity{}; // xyz: 光的颜色 w: 强度
+    alignas(16) glm::vec4 directionalColorIntensity{};   // xyz: 光的颜色 w: 强度
 
     // 世界坐标 -> 光源裁剪空间，供阴影深度生成、比较以及覆盖范围调试共同使用。
     alignas(16) glm::mat4 lightViewProjection{1.0f};
@@ -79,34 +79,24 @@ struct alignas(16) UniformBufferObject
     // 各级向下一级混合的起点，末级等于 far
     alignas(16) glm::vec4 cascadeBlendStarts{};
 };
+
 static_assert(offsetof(UniformBufferObject, proj) == 64);
 static_assert(offsetof(UniformBufferObject, cameraPosition) == 128);
 static_assert(offsetof(UniformBufferObject, ambientLight) == 144);
 static_assert(offsetof(UniformBufferObject, lightCounts) == 160);
 static_assert(offsetof(UniformBufferObject, renderParams) == 176);
 
-static_assert(
-    offsetof(UniformBufferObject, directionalDirectionEnabled) == 192);
-static_assert(
-    offsetof(UniformBufferObject, directionalColorIntensity) == 208);
-static_assert(
-    offsetof(UniformBufferObject, lightViewProjection) == 224);
-static_assert(
-    offsetof(UniformBufferObject, shadowParams) == 288);
-static_assert(
-    offsetof(UniformBufferObject, shadowFlags) == 304);
-static_assert(
-    offsetof(UniformBufferObject, cascadeLightViewProjection) == 320);
-static_assert(
-    offsetof(UniformBufferObject, cascadeSplits) == 576);
-static_assert(
-    offsetof(UniformBufferObject, cascadeTexelWorldSize) == 592);
-static_assert(
-    offsetof(UniformBufferObject, cascadeReceiverBias) == 608);
-static_assert(
-    offsetof(UniformBufferObject, cascadeInfo) == 624);
-static_assert(
-    offsetof(UniformBufferObject, cascadeBlendStarts) == 640);
+static_assert(offsetof(UniformBufferObject, directionalDirectionEnabled) == 192);
+static_assert(offsetof(UniformBufferObject, directionalColorIntensity) == 208);
+static_assert(offsetof(UniformBufferObject, lightViewProjection) == 224);
+static_assert(offsetof(UniformBufferObject, shadowParams) == 288);
+static_assert(offsetof(UniformBufferObject, shadowFlags) == 304);
+static_assert(offsetof(UniformBufferObject, cascadeLightViewProjection) == 320);
+static_assert(offsetof(UniformBufferObject, cascadeSplits) == 576);
+static_assert(offsetof(UniformBufferObject, cascadeTexelWorldSize) == 592);
+static_assert(offsetof(UniformBufferObject, cascadeReceiverBias) == 608);
+static_assert(offsetof(UniformBufferObject, cascadeInfo) == 624);
+static_assert(offsetof(UniformBufferObject, cascadeBlendStarts) == 640);
 
 static_assert(sizeof(UniformBufferObject) == 656);
 
@@ -119,17 +109,14 @@ struct alignas(16) DeferredFrameUniforms
     // tileSize, maxLightPerTile, cullingMode, debugMode
     alignas(16) glm::uvec4 tileParams{16u, 128u, 0u, 0u};
 };
-static_assert(
-    offsetof(DeferredFrameUniforms, inverseViewProjection) == 0);
 
-static_assert(
-    offsetof(DeferredFrameUniforms, inverseProjection) == 64);
+static_assert(offsetof(DeferredFrameUniforms, inverseViewProjection) == 0);
 
-static_assert(
-    offsetof(DeferredFrameUniforms, extentAndTiles) == 128);
+static_assert(offsetof(DeferredFrameUniforms, inverseProjection) == 64);
 
-static_assert(
-    offsetof(DeferredFrameUniforms, tileParams) == 144);
+static_assert(offsetof(DeferredFrameUniforms, extentAndTiles) == 128);
+
+static_assert(offsetof(DeferredFrameUniforms, tileParams) == 144);
 
 static_assert(alignof(DeferredFrameUniforms) == 16);
 static_assert(sizeof(DeferredFrameUniforms) == 160);
@@ -145,12 +132,7 @@ struct alignas(16) DrawPushConstants
     // y: roughness
     // z: occlusion strength
     // w: normal scale
-    alignas(16) glm::vec4 materialFactors{
-        1.0f,
-        1.0f,
-        1.0f,
-        1.0f
-    };
+    alignas(16) glm::vec4 materialFactors{1.0f, 1.0f, 1.0f, 1.0f};
 
     // rgb: emissive factor
     // w: alphaCutoff
@@ -160,9 +142,7 @@ struct alignas(16) DrawPushConstants
     // y: 当前 Mesh 是否有有效 vertex tangent
     // z: 0 = OPAQUE, 1 = MASK
     // w: shadow draw 使用 cascade index；scene draw 保持 0
-    alignas(16) glm::uvec4 textureInfo{
-        0u, 0u, 0u, 0u
-    };
+    alignas(16) glm::uvec4 textureInfo{0u, 0u, 0u, 0u};
 };
 
 // 后处理只需要少量显示参数，不需要模型数据
@@ -175,6 +155,7 @@ struct alignas(16) PostPushConstants
     // z: DebugView；w: 阴影预览层。
     glm::ivec4 modes{0};
 };
+
 static_assert(offsetof(PostPushConstants, params) == 0);
 static_assert(offsetof(PostPushConstants, modes) == 16);
 static_assert(sizeof(PostPushConstants) == 32);
@@ -186,7 +167,6 @@ static_assert(offsetof(DrawPushConstants, emissiveFactor) == 96);
 static_assert(offsetof(DrawPushConstants, textureInfo) == 112);
 static_assert(sizeof(DrawPushConstants) == 128);
 static_assert(sizeof(DrawPushConstants) <= 128);
-
 
 struct alignas(16) GBufferPreviewPushConstants
 {
@@ -201,7 +181,7 @@ struct alignas(16) GBufferPreviewPushConstants
     // z/w: reserved
     glm::ivec4 modes{0};
 };
+
 static_assert(offsetof(GBufferPreviewPushConstants, params) == 0);
 static_assert(offsetof(GBufferPreviewPushConstants, modes) == 16);
 static_assert(sizeof(GBufferPreviewPushConstants) == 32);
-

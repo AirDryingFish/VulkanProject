@@ -3,8 +3,9 @@
 #include "core/FrameConfig.hpp"
 #include "diagnostics/FrameTiming.hpp"
 #include "render/RenderTypes.hpp"
-#include "vulkan/VulkanResources.hpp"
-#include "render/ShadowCascades.hpp"
+#include "vulkan/resources/VulkanResources.hpp"
+#include "vulkan/upload/UploadContext.hpp"
+#include "render/shadow/ShadowCascades.hpp"
 
 #include <array>
 #include <cstdint>
@@ -15,14 +16,7 @@
 class VulkanContext;
 class Swapchain;
 
-struct BufferUploadRequest
-{
-    const void* data = nullptr;
-    VkDeviceSize size = 0;
-    VkBufferUsageFlags destinationUsage = 0;
-    const char* debugName = nullptr;
-};
-
+// 组织帧槽、pass 与提交；上传命令资源由独立 UploadContext 管理。
 class Renderer
 {
 private:
@@ -89,10 +83,8 @@ private:
         // 一帧在 GPU 上执行时，属于这帧自己的全部运行时资源
         VkQueryPool timestampQueryPool = VK_NULL_HANDLE;
         bool timestampQueriesPending = false; // 是否有已经成功提交但未读回的时间戳结果
-        // ----
         // 本次录制中，哪些 pass 已经写入开始和结束时间戳
         // 第 0 位：shadow。第 1 位：scene。第 2 位：postAndUi
-        // ----
         std::uint32_t recordedGpuPassMask = 0;
         // 录制与提交分开保存：录完命令不代表 vkQueueSubmit 已经成功。
         FrameTimingConfig recordedTimingConfig{};
@@ -107,13 +99,6 @@ private:
 
         // 持有被移出场景的 buffer，等此槽的 fence 完成后再真正析构。
         std::vector<GpuBuffer> retiredBuffers;
-    };
-
-    struct UploadContext
-    {
-        VkCommandPool commandPool = VK_NULL_HANDLE;
-        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-        VkFence fence = VK_NULL_HANDLE;
     };
 
     struct GraphicsPipelineConfig
@@ -138,8 +123,8 @@ private:
         VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
     };
 
-    VulkanContext *context_ = nullptr;
-    Swapchain *swapchain_ = nullptr;
+    VulkanContext* context_ = nullptr;
+    Swapchain* swapchain_ = nullptr;
 
     // -- 主绘制 pipeline --
     VkDescriptorSetLayout frameDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -150,18 +135,15 @@ private:
     VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
     VkPipeline graphicsDoubleSidedPipeline_ = VK_NULL_HANDLE;
     VkPipeline skyboxPipeline_ = VK_NULL_HANDLE;
-    // ----
 
     // -- Renderer 全局成员 --
     std::array<FrameContext, MAX_FRAMES_IN_FLIGHT> frames_{};
-    // Renderer共用的设备能力信息
     // 计时资源是否可用
     bool gpuTimingSupported_ = false;
     // 时间戳有效位数，以后处理计数器回绕时使用
     std::uint32_t timestampValidBits_ = 0;
     // 一个时间戳 tick 对应多少纳秒 ns，以后换算成 ms 时使用
     double timestampPeriodNs_ = 0.0;
-    // ----
 
     // -- HDR render pass --
     // Scene pass: 场景 -> HDR 图片
@@ -172,15 +154,11 @@ private:
     VkRenderPass sceneRenderPass_ = VK_NULL_HANDLE;
     // Present pass: 采样 HDR 图片 -> tone mapping -> 交换链图片
     VkRenderPass presentRenderPass_ = VK_NULL_HANDLE;
-    // -- end --
 
     // -- G-buffer: 每个飞行帧槽独立，全部为 1x --
-    static constexpr std::array<VkFormat, 4> gBufferColorFormats_{
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        VK_FORMAT_R16G16B16A16_SFLOAT
-    };
+    static constexpr std::array<VkFormat, 4> gBufferColorFormats_{VK_FORMAT_R16G16B16A16_SFLOAT,
+                                                                  VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM,
+                                                                  VK_FORMAT_R16G16B16A16_SFLOAT};
     static constexpr VkFormat gBufferDepthFormat_ = VK_FORMAT_D32_SFLOAT;
 
     std::array<GBufferTarget, MAX_FRAMES_IN_FLIGHT> gBufferTargets_{};
@@ -196,8 +174,6 @@ private:
     VkPipelineLayout gBufferPreviewLayout_ = VK_NULL_HANDLE;
     VkPipeline gBufferPreviewPipeline_ = VK_NULL_HANDLE;
 
-
-
     std::array<DeferredTarget, MAX_FRAMES_IN_FLIGHT> deferredTargets_{};
     VkDescriptorSetLayout deferredSetLayout_ = VK_NULL_HANDLE;
     VkDescriptorPool deferredPool_ = VK_NULL_HANDLE;
@@ -211,7 +187,6 @@ private:
     bool tiledConfigurationSupported_ = false;
     std::string tiledUnavailableReason_;
 
-
     // -- 后处理 Descriptor set --
     GpuSampler postSampler_{};
     VkDescriptorSetLayout postDescriptorSetLayout_ = VK_NULL_HANDLE;
@@ -220,7 +195,6 @@ private:
 
     VkPipelineLayout postPipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline tonemapPipeline_ = VK_NULL_HANDLE;
-    // -- end --
 
     // -- shadow map 绘制 --
     std::array<ShadowTarget, MAX_FRAMES_IN_FLIGHT> shadowTargets_{};
@@ -235,21 +209,14 @@ private:
     GpuSampler shadowPreviewSampler_; // 读取原始深度，用于调试预览
 
     VkPipeline shadowPreviewPipeline_ = VK_NULL_HANDLE;
-    void createShadowPreviewPipeline();
-    void recordShadowPreview(const FrameToken& token, const RenderFrameData& data);
-    // -- end --
 
     // -- gpu timing--
     std::uint64_t gpuSubmissionCounter_ = 0;
     GpuTimingSnapshot latestGpuTiming_{};
 
-    void collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot);
-    // -- end --
-
     // -- cpu timing--
     RendererCpuTimingSnapshot currentCpuTiming_{}; // 当前正在构建的半成品
     RendererCpuTimingSnapshot latestCpuTiming_{};  // 最近一次成功提交的完整 Renderer 结果
-    // -- end --
 
     UploadContext uploadContext_{};
 
@@ -258,157 +225,171 @@ private:
     bool hasRecordedFrame_ = false;
     bool initialized_ = false;
 
-
-    void createTimestampQueryPools();
-    void createUploadContext();
-
-    void createDescriptorSetLayouts();
-    void createPipelineLayouts();
-
-    void createGraphicsPipeline();
-    void createSkyboxPipeline();
-
-    // -- hdr --
-    void selectHdrConfiguration(); // 选择支持的格式和采样数
-    void createHdrTargets(); // 创建图像
-
-    void recordSceneAttachmentsBegin(const FrameToken& token);
-    void recordSceneColorForPost(const FrameToken& token);
-
-    bool useDynamicRenderingForScene() const noexcept;
-
-    void beginScenePass(const FrameToken& token, const std::array<VkClearValue, 2>& clearValues);
-    void endScenePass(const FrameToken& token);
-
-    void createSceneRenderPass();
-    void createPresentRenderPass();
-    void createHdrFramebuffers();
-    void destroyHdrTargets() noexcept; // 释放图像
-    // ----
-
-    // -- G-buffer --
-    void createGBufferTargets();
-    void destroyGBufferTargets() noexcept;
-
-    void createGBufferPipelines();
-    void recordGBufferPass(const FrameToken& token, const RenderFrameData& data);
-
-    // -- G-buffer Preview --
-    void createGBufferPreviewResources();
-    void writeGBufferPreviewDescriptors();
-    void destroyGBufferPreviewResources() noexcept;
-    void recordGBufferPreview(const FrameToken& token, const RenderFrameData& data);
-
-    void createTileBuffers();
-    void createTilePipeline();
-    void recordTileLightLists(const FrameToken &token, const RenderFrameData &data);
-    void destroyTileResources() noexcept;
-
-    void createDeferredResources();
-    void destroyDeferredResources() noexcept;
-    void prepareDeferredFrame(const FrameToken &token, const RenderFrameData &data);
-    void recordDeferredLightingPass(const FrameToken& token, const RenderFrameData& data);
-
-    // -- post processing --
-    void createPostDescriptors();
-    void writePostDescriptors();
-    void destroyPostDescriptors() noexcept;
-
-    void createPostPipelineLayout();
-    void createTonemapPipeline();
-
+    // 图像布局转换
     enum class PresentImageTransition
     {
         ToColorAttachment,
         ToPresent
     };
 
-    void recordPresentImageTransition(const FrameToken& token, PresentImageTransition transition);
-    void beginPresentPass(const FrameToken& token, const VkClearValue& value);
-    void endPresentPass(const FrameToken& token);
-
-    // ----
-
-    // -- shadow --
-    void createShadowTargets();
-    void destroyShadowTargets() noexcept;
-
-    void createShadowRenderPass();
-    void createShadowPipeline();
-    void createShadowFramebuffers();
-    void recordShadowPass(const FrameToken& token, const RenderFrameData& data);
-    void recordShadowCascade(const FrameToken &token, const RenderFrameData &data, std::uint32_t cascadeIndex);
-
-    // void recordShadowCascade(const FrameToken& token, const RenderFrameData& data, std::uint32_t cascadeIndex);
-
-    bool useDynamicRenderingForShadow() const noexcept;
     enum class ShadowImageTransition
     {
         ToAttachment,
         ToSampling
     };
 
-    void recordShadowImageTransition(const FrameToken &token, ShadowImageTransition transition, std::uint32_t cascadeIndex);
+    // 帧槽资源
+    void createFrameContexts();
+    // GPU 已不再使用帧槽后，释放命令、同步和查询资源。
+    void destroyFrameContexts() noexcept;
 
-    void beginShadowPass(const FrameToken &token, const VkClearValue &clearValue, std::uint32_t cascadeIndex);
-    void endShadowPass(const FrameToken &token, std::uint32_t cascadeIndex);
+    // 管线配置
+    void createDescriptorSetLayouts();
+    void createPipelineLayouts();
+    // 按既有 layout 和附件配置创建管线，返回句柄由对应功能组释放。
+    VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig& config);
 
-    // ----
+    // HDR 与 Forward
+    // 验证设备支持的 HDR、深度格式和采样数组合，创建目标前调用。
+    void selectHdrConfiguration();
+    void createHdrTargets();
+    void createSceneRenderPass();
+    void createHdrFramebuffers();
+    void createGraphicsPipeline();
+    void createSkyboxPipeline();
 
-    VkPipeline createGraphicsPipelineFromConfig(const GraphicsPipelineConfig &config);
+    // 绘制天空盒与几何，结束后 HDR 颜色可由后处理采样。
+    void recordForwardPass(const FrameToken& token, const RenderFrameData& data,
+                           const std::array<VkClearValue, 2>& clearValues);
+    // 准备场景附件；布局转换与 legacy RenderPass 路径保持相同输出约定。
+    void recordSceneAttachmentsBegin(const FrameToken& token);
+    void beginScenePass(const FrameToken& token, const std::array<VkClearValue, 2>& clearValues);
+    void endScenePass(const FrameToken& token);
+    void recordSceneColorForPost(const FrameToken& token);
+
+    void destroyHdrTargets() noexcept;
+    bool useDynamicRenderingForScene() const noexcept;
+
+    // G-buffer 几何
+    void createGBufferTargets();
+    void createGBufferPipelines();
+    // 录制几何并将 G-buffer 转为后续预览或光照可采样的布局。
+    void recordGBufferPass(const FrameToken& token, const RenderFrameData& data);
+    void destroyGBufferTargets() noexcept;
+
+    // G-buffer 预览
+    void createGBufferPreviewResources();
+    void writeGBufferPreviewDescriptors();
+    void recordGBufferPreview(const FrameToken& token, const RenderFrameData& data);
+    void destroyGBufferPreviewResources() noexcept;
+
+    // Deferred Lighting
+    void createDeferredResources();
+    // 帧槽 fence 完成后更新该槽光照数据；光照录制前 G-buffer 须已转为可采样布局。
+    void prepareDeferredFrame(const FrameToken& token, const RenderFrameData& data);
+    void recordDeferredLightingPass(const FrameToken& token, const RenderFrameData& data);
+    void destroyDeferredResources() noexcept;
+
+    // Tiled light culling
+    void createTileBuffers();
+    void createTilePipeline();
+    // 在 Deferred Lighting 前生成当前帧 tile 灯列表，并同步 compute 写入供片元读取。
+    void recordTileLightLists(const FrameToken& token, const RenderFrameData& data);
+    void destroyTileResources() noexcept;
+
+    // Shadow 与预览
+    void createShadowTargets();
+    void createShadowRenderPass();
+    void createShadowFramebuffers();
+    void createShadowPipeline();
+    void createShadowPreviewPipeline();
+
+    // 为各级联录制深度，结束后转换为场景与预览可采样的布局。
+    void recordShadowPass(const FrameToken& token, const RenderFrameData& data);
+    void recordShadowCascade(const FrameToken& token, const RenderFrameData& data, std::uint32_t cascadeIndex);
+    void recordShadowImageTransition(const FrameToken& token, ShadowImageTransition transition,
+                                     std::uint32_t cascadeIndex);
+    void beginShadowPass(const FrameToken& token, const VkClearValue& clearValue, std::uint32_t cascadeIndex);
+    void endShadowPass(const FrameToken& token, std::uint32_t cascadeIndex);
+    void recordShadowPreview(const FrameToken& token, const RenderFrameData& data);
+
+    void destroyShadowTargets() noexcept;
+    bool useDynamicRenderingForShadow() const noexcept;
+
+    // Post 与 Present
+    void createPresentRenderPass();
+    void createPostDescriptors();
+    void createPostPipelineLayout();
+    void createTonemapPipeline();
+
+    // 重写目标图像的描述符前，调用方须保证 GPU 不再使用原描述符。
+    void writePostDescriptors();
+    // 在已开启的 Present pass 中采样实际渲染路径的 HDR 输出。
+    void recordToneMapping(const FrameToken& token, const RenderFrameData& data, bool useDeferred);
+    void recordPresentImageTransition(const FrameToken& token, PresentImageTransition transition);
+    void beginPresentPass(const FrameToken& token, const VkClearValue& value);
+    void endPresentPass(const FrameToken& token);
+    void destroyPostDescriptors() noexcept;
+
+    // GPU 计时
+    void createTimestampQueryPools();
+    // 保存本次实际路径和配置，供该次提交完成后的诊断解释。
+    void captureFrameTimingConfig(const FrameToken& token, const RenderFrameData& data, bool useDeferred);
+    // 仅在该帧槽 fence 完成后读回成功提交的时间戳，复用查询池前调用。
+    void collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot);
 
 public:
+    // 生命周期
     Renderer() noexcept = default;
     ~Renderer() noexcept;
 
-    Renderer(const Renderer &) = delete;
-    Renderer &operator=(const Renderer &) = delete;
-    Renderer(Renderer &&) = delete;
-    Renderer &operator=(Renderer &&) = delete;
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+    Renderer(Renderer&&) = delete;
+    Renderer& operator=(Renderer&&) = delete;
 
-    void initialize(VulkanContext &context, Swapchain &swapchain);
+    void initialize(VulkanContext& context, Swapchain& swapchain);
+    // 已初始化且无活动帧；调用方先等待 GPU 空闲，再按新交换链尺寸重建目标。
+    void recreateHdrTargets();
     // 调用方先保证 GPU 不再使用这些资源，并在 VulkanContext 关闭之前调用。
     void shutdown() noexcept;
 
+    // 帧录制与提交
     // 只有 beginFrame 返回 Ready 才能 record，再 end；重建/跳帧不能提交旧 token。
     BeginFrameResult beginFrame();
-    void recordFrame(const FrameToken &token, const RenderFrameData &data);
-    FrameStatus endFrame(const FrameToken &token);
-
+    void recordFrame(const FrameToken& token, const RenderFrameData& data);
+    FrameStatus endFrame(const FrameToken& token);
     void waitForAllFrames();
-    void retireBuffer(GpuBuffer &&buffer);
 
+    // 资源上传与退役
+    // 同步上传辅助：成功返回时 GPU 已完成回调录制的命令，临时 staging 才可释放。
+    void immediateSubmit(std::function<void(VkCommandBuffer)>&& function);
 
+    // 同步批量上传；返回的目标 buffer 由调用方持有，输入数据须在调用期间有效。
+    std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferUploadRequest>& requests);
+    // 接管 buffer，延迟到帧槽 fence 完成后释放；未初始化时立即释放。
+    void retireBuffer(GpuBuffer&& buffer);
+
+    // 资源与能力查询
     bool hasActiveFrame() const noexcept;
-
     bool useDynamicRenderingForPresent() const noexcept;
-
     VkRenderPass presentRenderPass() const noexcept;
     VkSampleCountFlagBits sceneSamples() const noexcept;
-
-    void recreateHdrTargets();
-
     VkDescriptorSetLayout frameDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout skyboxDescriptorSetLayout() const noexcept;
     VkDescriptorSetLayout materialDescriptorSetLayout() const noexcept;
 
-    // 同步上传辅助：成功返回时 GPU 已完成回调录制的命令，临时 staging 才可释放。
-    void immediateSubmit(std::function<void(VkCommandBuffer)> &&function);
-
-    std::vector<GpuBuffer> uploadBuffers(const std::vector<BufferUploadRequest>& requests);
-
+    // 返回指定帧槽的借用图像句柄；描述符使用期间阴影资源必须保持有效。
     VkDescriptorImageInfo shadowDescriptorInfo(std::size_t frameIndex) const;
     VkDescriptorImageInfo shadowPreviewDescriptorInfo(std::size_t frameIndex) const;
 
-    const GpuTimingSnapshot& gpuTimingSnapshot() const noexcept;
-    const RendererCpuTimingSnapshot& cpuTimingSnapshot() const noexcept;
-
-    RenderTargetPayloadEstimate renderTargetPayloadEstimate() const noexcept;
-
     bool gBufferGeometryAvailable() const noexcept;
-
     bool deferredLightingAvailable() const noexcept;
-
     bool tiledLightingAvailable() const noexcept;
     const std::string& tiledUnavailableReason() const noexcept;
+
+    // 诊断查询
+    const GpuTimingSnapshot& gpuTimingSnapshot() const noexcept;
+    const RendererCpuTimingSnapshot& cpuTimingSnapshot() const noexcept;
+    RenderTargetPayloadEstimate renderTargetPayloadEstimate() const noexcept;
 };

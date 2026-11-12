@@ -40,8 +40,8 @@ struct EditorState
 
     SceneObject* selectedSceneObject(Scene& scene) const noexcept
     {
-        return objectIndex >= 0 && objectIndex < static_cast<int>(scene.objects.size())
-            ? &scene.objects[objectIndex] : nullptr;
+        return objectIndex >= 0 && objectIndex < static_cast<int>(scene.objects.size()) ? &scene.objects[objectIndex]
+                                                                                        : nullptr;
     }
 
     void clearSelection() noexcept

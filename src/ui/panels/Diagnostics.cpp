@@ -1,0 +1,672 @@
+#include "ui/panels/EditorPanels.hpp"
+#include "render/Renderer.hpp"
+#include "vulkan/presentation/Swapchain.hpp"
+#include "vulkan/context/VulkanContext.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cstdio>
+
+#include <imgui.h>
+
+namespace
+{
+void drawDiagnosticsLive(EditorView& view);
+void drawDiagnosticsBaseline(EditorView& view);
+void drawDiagnosticsResources(EditorView& view);
+
+constexpr std::array<const char*, baselineCpuMetricCount> cpuMetricNames = {"Fence wait", "Acquire", "Update",
+                                                                            "Record",     "Submit",  "Present"};
+
+constexpr ImGuiTableFlags metricTableFlags =
+    ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp;
+
+bool beginMetricTable(const char* id, const char* valueHeader = nullptr)
+{
+    if (!ImGui::BeginTable(id, 2, metricTableFlags))
+    {
+        return false;
+    }
+
+    ImGui::TableSetupColumn("Metric", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+    ImGui::TableSetupColumn(valueHeader ? valueHeader : "Value", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+    if (valueHeader)
+    {
+        ImGui::TableHeadersRow();
+    }
+    return true;
+}
+
+// Leave the cursor in the value column so callers can choose its format.
+void metricRow(const char* label)
+{
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::TextWrapped("%s", label);
+    ImGui::TableSetColumnIndex(1);
+}
+
+const char* debugViewName(DebugView view)
+{
+    switch (view)
+    {
+    case DebugView::Lit:
+        return "Lit";
+    case DebugView::Albedo:
+        return "Albedo";
+    case DebugView::WorldNormal:
+        return "World normal";
+    case DebugView::Metallic:
+        return "Metallic";
+    case DebugView::Roughness:
+        return "Roughness";
+    case DebugView::LinearDepth:
+        return "Linear depth";
+    case DebugView::HdrLuminance:
+        return "HDR luminance";
+    case DebugView::ShadowProjection:
+        return "Shadow projection";
+    case DebugView::ShadowCascades:
+        return "Shadow cascades";
+    case DebugView::TileLightCount:
+        return "Tile light count";
+    case DebugView::TileOverflow:
+        return "Tile overflow";
+    }
+    return "Unknown";
+}
+
+const char* shadowDepthFormatName(VkFormat format)
+{
+    switch (format)
+    {
+    case VK_FORMAT_D32_SFLOAT:
+        return "D32_SFLOAT";
+    case VK_FORMAT_D16_UNORM:
+        return "D16_UNORM";
+    default:
+        return "Unknown";
+    }
+}
+
+void drawTimingConfig(const char* id, const FrameTimingConfig& config)
+{
+    if (!beginMetricTable(id))
+    {
+        return;
+    }
+
+    metricRow("Scene");
+    ImGui::TextWrapped("%s", config.sceneId.c_str());
+    metricRow("Extent");
+    ImGui::Text("%u x %u", config.extent.width, config.extent.height);
+    metricRow("Scene MSAA");
+    ImGui::Text("%ux", static_cast<unsigned int>(config.sceneSamples));
+
+    metricRow("Scene work");
+
+    ImGui::TextUnformatted(config.renderPath == RenderPath::Deferred
+                               ? "Geometry + Lighting (1x)"
+                               : (config.gBufferGeometry ? "G-buffer + Forward" : "Forward"));
+
+    metricRow("Light culling");
+
+    ImGui::TextUnformatted(config.lightCullingMode == LightCullingMode::Tiled ? "Tiled" : "None");
+
+    metricRow("G-buffer view");
+    ImGui::Text("%d", static_cast<int>(config.gBufferView));
+
+    metricRow("Shadows");
+    ImGui::TextUnformatted(config.shadowEnabled ? "Draw enabled" : "Clear only");
+
+    metricRow("Cascade blend fraction");
+    ImGui::Text("%.2f", config.shadowBlendFraction);
+
+    metricRow("Shadow mode");
+    ImGui::TextUnformatted(config.shadowMode == ShadowMode::Cascaded ? "CSM 4" : "Single");
+
+    metricRow("Shadow distance (requested)");
+    ImGui::Text("%.3f", config.shadowDistance);
+
+    metricRow("Active cascades (UBO)");
+    ImGui::Text("%u", config.shadowFrame.activeCascadeCount);
+    metricRow("Camera near / receiver far");
+    ImGui::Text("%.3f .. %.3f", config.shadowFrame.cameraNearDistance, config.shadowFrame.receiverFarDistance);
+    metricRow("Camera vertical FOV");
+    ImGui::Text("%.2f deg", config.shadowFrame.cameraFovDegrees);
+    metricRow("Shadow image extent");
+    ImGui::Text("%u x %u", config.shadowTarget.extent.width, config.shadowTarget.extent.height);
+    metricRow("Shadow depth format");
+    ImGui::TextUnformatted(shadowDepthFormatName(config.shadowTarget.format));
+    metricRow("Allocated shadow layers");
+    ImGui::Text("%u", config.shadowTarget.arrayLayers);
+
+    if (config.shadowMode == ShadowMode::Cascaded)
+    {
+        metricRow("Split lambda");
+        ImGui::Text("%.3f", config.shadowSplitLambda);
+
+        metricRow("Caster depth margin");
+        ImGui::Text("%.3f", config.shadowDepthMargin);
+
+        metricRow("CSM light near");
+        ImGui::Text("%.3f", config.shadowCsmLightNear);
+    }
+    else
+    {
+        metricRow("Single shadow center");
+        ImGui::Text("%.2f %.2f %.2f", config.shadowSingleCenter.x, config.shadowSingleCenter.y,
+                    config.shadowSingleCenter.z);
+
+        metricRow("Single half extent");
+        ImGui::Text("%.3f", config.shadowSingleHalfExtent);
+    }
+
+    metricRow("Shadow PCF 3x3");
+    ImGui::TextUnformatted(config.shadowPcfEnabled ? "On" : "Off");
+
+    metricRow("Raster constant factor");
+    ImGui::Text("%.3f", config.shadowConstantBias);
+
+    metricRow("Raster slope factor");
+    ImGui::Text("%.3f", config.shadowSlopeBias);
+
+    metricRow("Single receiver input (depth)");
+    ImGui::Text("%.6f", config.shadowReceiverBiasNormalized);
+
+    metricRow("CSM receiver input (world)");
+    ImGui::Text("%.5f", config.shadowReceiverBiasWorld);
+
+    const std::uint32_t activeCount = std::min(config.shadowFrame.activeCascadeCount, 4u);
+    for (std::uint32_t i = 0; i < activeCount; ++i)
+    {
+        char label[64];
+        std::snprintf(label, sizeof(label), "Receiver bias L%u (UBO depth)", i);
+
+        metricRow(label);
+        ImGui::Text("%.8f", config.shadowFrame.receiverBiasNormalized[static_cast<glm::length_t>(i)]);
+    }
+
+    metricRow("Depth preview");
+    ImGui::TextUnformatted(config.shadowPreview ? "On" : "Off");
+
+    metricRow("Depth preview layer (0-based)");
+    ImGui::Text("%u", config.shadowPreviewLayer);
+
+    metricRow("UI rendered");
+    ImGui::TextUnformatted(config.uiDrawn ? "Yes" : "No");
+    metricRow("Exposure EV");
+    ImGui::Text("%.2f", config.exposureEv);
+    metricRow("Tone mapper");
+    ImGui::TextWrapped("%s", config.toneMapper == ToneMapper::Reinhard ? "Reinhard" : "ACES fitted (Narkowicz)");
+    metricRow("Tone mapping bypass");
+    ImGui::TextUnformatted(config.bypassToneMapping ? "On" : "Off");
+    metricRow("Debug view");
+    ImGui::TextUnformatted(debugViewName(config.debugView));
+    metricRow("Depth display range");
+    ImGui::Text("%.3f .. %.3f", config.debugDepthNear, config.debugDepthFar);
+    ImGui::EndTable();
+}
+
+template <std::size_t Count, typename GetValue>
+void drawBaselineStatistics(const char* id, const std::array<const char*, Count>& names,
+                            const std::vector<BaselineSample>& samples, GetValue getValue,
+                            std::uint32_t enabledMask = 0xFFFFFFFFu)
+{
+    const bool compact = ImGui::GetContentRegionAvail().x < 360.0f;
+    if (!ImGui::BeginTable(id, compact ? 2 : 4, metricTableFlags))
+    {
+        return;
+    }
+
+    ImGui::TableSetupColumn("Metric", ImGuiTableColumnFlags_WidthStretch, 1.3f);
+    ImGui::TableSetupColumn(compact ? "Mean / range" : "Mean ms", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+    if (!compact)
+    {
+        ImGui::TableSetupColumn("Min ms", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+        ImGui::TableSetupColumn("Max ms", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+    }
+    ImGui::TableHeadersRow();
+
+    for (std::size_t i = 0; i < Count; ++i)
+    {
+        if ((enabledMask & (std::uint32_t{1} << i)) == 0)
+        {
+            metricRow(names[i]);
+            ImGui::TextUnformatted("Not executed");
+            continue;
+        }
+        double sum = 0.0;
+        double minimum = getValue(samples.front(), i);
+        double maximum = minimum;
+        for (const BaselineSample& sample : samples)
+        {
+            const double value = getValue(sample, i);
+            sum += value;
+            minimum = std::min(minimum, value);
+            maximum = std::max(maximum, value);
+        }
+
+        metricRow(names[i]);
+        ImGui::Text("%.3f", sum / static_cast<double>(samples.size()));
+        if (compact)
+        {
+            ImGui::TextWrapped("%.3f - %.3f", minimum, maximum);
+        }
+        else
+        {
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("%.3f", minimum);
+            ImGui::TableSetColumnIndex(3);
+            ImGui::Text("%.3f", maximum);
+        }
+    }
+    ImGui::EndTable();
+}
+} // namespace
+
+void editor_panels::drawDiagnostics(EditorView& view)
+{
+    if (!ImGui::BeginTabBar("DiagnosticsSections", ImGuiTabBarFlags_FittingPolicyScroll))
+    {
+        return;
+    }
+
+    if (ImGui::BeginTabItem("Live"))
+    {
+        if (ImGui::BeginChild("DiagnosticsLive", ImVec2(0.0f, 0.0f)))
+        {
+            drawDiagnosticsLive(view);
+        }
+        ImGui::EndChild();
+        ImGui::EndTabItem();
+    }
+    if (ImGui::BeginTabItem("Baseline"))
+    {
+        if (ImGui::BeginChild("DiagnosticsBaseline", ImVec2(0.0f, 0.0f)))
+        {
+            drawDiagnosticsBaseline(view);
+        }
+        ImGui::EndChild();
+        ImGui::EndTabItem();
+    }
+    if (ImGui::BeginTabItem("Resources"))
+    {
+        if (ImGui::BeginChild("DiagnosticsResources", ImVec2(0.0f, 0.0f)))
+        {
+            drawDiagnosticsResources(view);
+        }
+        ImGui::EndChild();
+        ImGui::EndTabItem();
+    }
+    ImGui::EndTabBar();
+}
+
+namespace
+{
+void drawDiagnosticsLive(EditorView& view)
+{
+    const CpuFrameTimingSnapshot& cpu = view.diagnostics.latestCpuTiming;
+    const GpuTimingSnapshot& gpu = view.renderer.gpuTimingSnapshot();
+
+    ImGui::SeparatorText("Current renderer");
+    if (beginMetricTable("CurrentRenderer"))
+    {
+        const float framerate = ImGui::GetIO().Framerate;
+        metricRow("FPS");
+        ImGui::Text("%.1f", framerate);
+        metricRow("Frame interval");
+        if (framerate > 0.0f)
+        {
+            ImGui::TextWrapped("%.3f ms (FPS estimate)", 1000.0f / framerate);
+        }
+        else
+        {
+            ImGui::TextUnformatted("N/A");
+        }
+        metricRow("Scene");
+        ImGui::TextWrapped("%s", scenePresetInfo(view.activeScenePreset).id);
+        metricRow("Extent");
+        ImGui::Text("%u x %u", view.swapchain.extent().width, view.swapchain.extent().height);
+        metricRow("Scene samples");
+        ImGui::Text("%ux", static_cast<unsigned int>(view.renderer.sceneSamples()));
+        metricRow("Swapchain images");
+        ImGui::Text("%zu", view.swapchain.imageCount());
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::TextWrapped("CPU shows the latest submission; GPU shows a completed submission. Their IDs may differ.");
+    ImGui::SeparatorText("GPU timing");
+    if (!gpu.supported)
+    {
+        ImGui::TextWrapped("Unavailable: the graphics queue has no timestamp support.");
+    }
+    else if (!gpu.hasSample)
+    {
+        ImGui::TextWrapped("Pending: waiting for a completed submission.");
+    }
+    else
+    {
+        ImGui::TextWrapped("Completed submission: %llu | Frame slot: %u",
+                           static_cast<unsigned long long>(gpu.submissionId), gpu.frameSlot);
+        if (beginMetricTable("LiveGpuTiming", "GPU ms / state"))
+        {
+            for (std::size_t i = 0; i < gpuPassNames.size(); ++i)
+            {
+                metricRow(gpuPassNames[i]);
+                const GpuPassTiming& timing = gpu.passes[i];
+                switch (timing.state)
+                {
+                case GpuTimingState::Ready:
+                    ImGui::Text("%.3f", timing.milliseconds);
+                    break;
+                case GpuTimingState::NotExecuted:
+                    ImGui::TextWrapped("Not executed");
+                    break;
+                case GpuTimingState::NotReady:
+                    ImGui::TextWrapped("N/A: query not ready");
+                    break;
+                case GpuTimingState::Unavailable:
+                    ImGui::TextUnformatted("Unavailable");
+                    break;
+                case GpuTimingState::Pending:
+                    ImGui::TextUnformatted("Pending");
+                    break;
+                }
+            }
+            ImGui::EndTable();
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("CPU timing");
+    if (!cpu.renderer.valid)
+    {
+        ImGui::TextWrapped("Pending: no submitted CPU sample.");
+    }
+    else
+    {
+        ImGui::TextWrapped("Latest submission: %llu | Frame slot: %u",
+                           static_cast<unsigned long long>(cpu.renderer.submissionId), cpu.renderer.frameSlot);
+        const std::array<double, baselineCpuMetricCount> milliseconds = {
+            cpu.renderer.fenceWaitMs, cpu.renderer.acquireMs, cpu.updateMs, cpu.recordMs,
+            cpu.renderer.submitMs,    cpu.renderer.presentMs};
+        if (beginMetricTable("LiveCpuTiming", "CPU ms"))
+        {
+            for (std::size_t i = 0; i < cpuMetricNames.size(); ++i)
+            {
+                metricRow(cpuMetricNames[i]);
+                ImGui::Text("%.3f", milliseconds[i]);
+            }
+            ImGui::EndTable();
+        }
+
+        ImGui::SeparatorText("Submitted geometry");
+        if (ImGui::BeginTable("LiveDrawStatistics", 3, metricTableFlags))
+        {
+            ImGui::TableSetupColumn("Mesh pass");
+            ImGui::TableSetupColumn("Draws");
+            ImGui::TableSetupColumn("Triangles");
+            ImGui::TableHeadersRow();
+            const DrawStatistics& draws = cpu.renderer.draws;
+            metricRow("Scene");
+            ImGui::Text("%llu", static_cast<unsigned long long>(draws.sceneDraws));
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("%llu", static_cast<unsigned long long>(draws.sceneTriangles));
+            metricRow("Shadow");
+            ImGui::Text("%llu", static_cast<unsigned long long>(draws.shadowDraws));
+            ImGui::TableSetColumnIndex(2);
+            ImGui::Text("%llu", static_cast<unsigned long long>(draws.shadowTriangles));
+            ImGui::EndTable();
+        }
+    }
+
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("Sample configuration"))
+    {
+        if (gpu.hasSample && ImGui::TreeNode("Completed GPU submission"))
+        {
+            drawTimingConfig("LiveGpuConfig", gpu.config);
+            ImGui::TreePop();
+        }
+        if (cpu.renderer.valid && ImGui::TreeNode("Latest CPU submission"))
+        {
+            drawTimingConfig("LiveCpuConfig", cpu.renderer.config);
+            ImGui::TreePop();
+        }
+    }
+}
+
+void drawDiagnosticsBaseline(EditorView& view)
+{
+    const bool hasAnimatedObjects = std::any_of(view.scene.objects.begin(), view.scene.objects.end(),
+                                                [](const SceneObject& object) { return object.autoRotate; });
+    const bool canStart = view.renderer.gpuTimingSnapshot().supported && view.display.debugView == DebugView::Lit &&
+                          !view.pendingScenePreset.has_value() && !hasAnimatedObjects &&
+                          !view.diagnostics.baseline.running && !view.diagnostics.startRequested;
+
+    ImGui::SeparatorText("Capture");
+    ImGui::BeginDisabled(!canStart);
+    if (ImGui::Button("Start capture"))
+    {
+        // UI 阶段还没有本帧提交 ID；先记请求，Application::drawFrame 在成功提交后启动。
+        view.diagnostics.startRequested = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!view.diagnostics.baseline.running && !view.diagnostics.startRequested);
+    if (ImGui::Button("Cancel"))
+    {
+        view.diagnostics.startRequested = false;
+        view.diagnostics.baseline.cancel("Capture cancelled by user.");
+    }
+    ImGui::EndDisabled();
+
+    if (view.diagnostics.startRequested)
+    {
+        ImGui::TextUnformatted("Starting capture...");
+    }
+    else if (view.diagnostics.baseline.running)
+    {
+        ImGui::TextUnformatted(view.diagnostics.baseline.warmupDone < BaselineCapture::warmupSubmissions
+                                   ? "Warming up..."
+                                   : "Collecting paired CPU / GPU samples...");
+    }
+    else if (!view.diagnostics.baseline.message.empty())
+    {
+        ImGui::TextWrapped("%s", view.diagnostics.baseline.message.c_str());
+    }
+    else
+    {
+        ImGui::TextUnformatted("Ready to capture.");
+    }
+
+    if (!view.renderer.gpuTimingSnapshot().supported)
+    {
+        ImGui::TextWrapped("GPU timestamps are unavailable on this device.");
+    }
+    else if (view.display.debugView != DebugView::Lit)
+    {
+        ImGui::TextWrapped("Select Lit in Display to start a baseline.");
+    }
+    else if (hasAnimatedObjects)
+    {
+        ImGui::TextWrapped("Turn off object auto-rotation to start a baseline.");
+    }
+    else if (view.pendingScenePreset.has_value())
+    {
+        ImGui::TextWrapped("Waiting for the scene change.");
+    }
+
+    char progress[64];
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+    ImGui::TextUnformatted("Warmup submissions");
+    std::snprintf(progress, sizeof(progress), "%u / %u", view.diagnostics.baseline.warmupDone,
+                  BaselineCapture::warmupSubmissions);
+    ImGui::ProgressBar(static_cast<float>(view.diagnostics.baseline.warmupDone) / BaselineCapture::warmupSubmissions,
+                       ImVec2(-1.0f, 0.0f), progress);
+    ImGui::TextUnformatted("Valid samples");
+    std::snprintf(progress, sizeof(progress), "%zu / %u", view.diagnostics.baseline.samples.size(),
+                  BaselineCapture::targetSamples);
+    ImGui::ProgressBar(static_cast<float>(view.diagnostics.baseline.samples.size()) / BaselineCapture::targetSamples,
+                       ImVec2(-1.0f, 0.0f), progress);
+    ImGui::PopStyleColor();
+    ImGui::Text("Dropped samples: %u", view.diagnostics.baseline.droppedSamples);
+
+    ImGui::Spacing();
+    // 采集状态使用 message，导出反馈使用 exportMessage，二者各自显示在对应区域。
+    ImGui::SeparatorText("Export");
+    ImGui::BeginDisabled(!view.diagnostics.baseline.complete);
+    ImGui::TextUnformatted("CSV path");
+    ImGui::SetNextItemWidth(-1.0f);
+    if (ImGui::InputText("##BaselineCsvPath", view.diagnostics.csvPath, sizeof(view.diagnostics.csvPath)))
+    {
+        view.diagnostics.baseline.exportMessage.clear();
+    }
+    if (ImGui::Button("Export CSV"))
+    {
+        // diagnostics.baseline.exportMessage = diagnostics.baseline.saveCsv(diagnostics.csvPath)
+        //     ? "CSV saved." : "CSV write failed.";
+        const bool saved = view.diagnostics.baseline.saveBundle(view.diagnostics.csvPath);
+        view.diagnostics.baseline.exportMessage =
+            saved ? "CSV and config saved" : "Export incomplete. Some files may exist; retry";
+    }
+    ImGui::EndDisabled();
+    if (!view.diagnostics.baseline.exportMessage.empty())
+    {
+        const float contentRight = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+        const float messageRight = ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x +
+                                   ImGui::CalcTextSize(view.diagnostics.baseline.exportMessage.c_str()).x;
+        if (messageRight <= contentRight)
+        {
+            ImGui::SameLine();
+        }
+        ImGui::TextWrapped("%s", view.diagnostics.baseline.exportMessage.c_str());
+    }
+    if (!view.diagnostics.baseline.complete)
+    {
+        ImGui::TextWrapped("Export becomes available when the capture is complete.");
+    }
+
+    if (view.diagnostics.baseline.complete && !view.diagnostics.baseline.samples.empty())
+    {
+        ImGui::Spacing();
+        ImGui::SeparatorText("GPU statistics (ms)");
+        drawBaselineStatistics(
+            "BaselineGpuStatistics", gpuPassNames, view.diagnostics.baseline.samples,
+            [](const BaselineSample& sample, std::size_t i) { return sample.milliseconds[i]; },
+            expectedGpuPassMask(view.diagnostics.baseline.config));
+        ImGui::SeparatorText("CPU statistics (ms)");
+        drawBaselineStatistics("BaselineCpuStatistics", cpuMetricNames, view.diagnostics.baseline.samples,
+                               [](const BaselineSample& sample, std::size_t i) { return sample.cpu.milliseconds[i]; });
+    }
+
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("Capture details"))
+    {
+        ImGui::TextWrapped("Keep the camera, lighting, materials and UI fixed while capturing. Editing these is not "
+                           "automatically blocked.");
+        if (view.diagnostics.baseline.firstSubmissionId != 0)
+        {
+            ImGui::TextWrapped("First warmup submission: %llu",
+                               static_cast<unsigned long long>(view.diagnostics.baseline.firstSubmissionId));
+            ImGui::TextWrapped("Configuration saved at capture start:");
+            drawTimingConfig("BaselineConfig", view.diagnostics.baseline.config);
+        }
+    }
+}
+
+void drawDiagnosticsResources(EditorView& view)
+{
+    ImGui::SeparatorText("Current scene");
+    if (beginMetricTable("CurrentResources"))
+    {
+        metricRow("Scene");
+        ImGui::TextWrapped("%s", scenePresetInfo(view.activeScenePreset).id);
+        metricRow("Objects");
+        ImGui::Text("%zu", view.scene.objects.size());
+        metricRow("Point lights");
+        ImGui::Text("%zu / %u", view.scene.pointLights.size(), MAX_POINT_LIGHTS);
+        metricRow("Materials");
+        ImGui::Text("%zu", view.materialLibrary.size());
+        metricRow("Texture entries");
+        ImGui::Text("%zu", view.textureLibrary.size());
+        metricRow("Material slots");
+        ImGui::Text("%u / %u", static_cast<unsigned int>(view.allocatedMaterialSetCount),
+                    static_cast<unsigned int>(view.maxMaterialCount));
+        metricRow("Shadow resolution");
+        ImGui::Text("%u x %u", directionalShadowResolution, directionalShadowResolution);
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Render target payload");
+    const RenderTargetPayloadEstimate targets = view.renderer.renderTargetPayloadEstimate();
+    if (!targets.available)
+    {
+        ImGui::TextUnformatted("Unavailable");
+    }
+    else if (!targets.complete)
+    {
+        ImGui::TextWrapped("N/A: unsupported image format or shape.");
+    }
+    else if (beginMetricTable("RenderTargetPayload", "MiB"))
+    {
+        const auto showBytes = [](const char* label, std::uint64_t bytes)
+        {
+            metricRow(label);
+            ImGui::Text("%.2f", static_cast<double>(bytes) / (1024.0 * 1024.0));
+        };
+        showBytes("HDR color", targets.hdrColorBytes);
+        showBytes("MSAA color", targets.msaaColorBytes);
+        showBytes("Scene depth", targets.sceneDepthBytes);
+        showBytes("Shadow depth", targets.shadowDepthBytes);
+        showBytes("G-buffer", targets.gbufferBytes);
+        showBytes("Deferred HDR", targets.deferredHdrBytes);
+        showBytes("Total", targets.totalBytes);
+        ImGui::EndTable();
+    }
+    ImGui::TextWrapped(
+        "Nominal pixel data across all live frame slots. Actual memory allocations may include padding.");
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("VMA memory snapshot");
+    if (ImGui::Button("Refresh VMA statistics") && view.context.allocator() != nullptr)
+    {
+        vmaCalculateStatistics(view.context.allocator(), &view.diagnostics.cachedVmaStatistics);
+        view.diagnostics.vmaStatisticsSceneId = scenePresetInfo(view.activeScenePreset).id;
+        view.diagnostics.hasVmaStatistics = true;
+    }
+
+    if (view.diagnostics.hasVmaStatistics)
+    {
+        ImGui::TextWrapped("Snapshot scene: %s", view.diagnostics.vmaStatisticsSceneId.c_str());
+        if (view.diagnostics.vmaStatisticsSceneId != scenePresetInfo(view.activeScenePreset).id)
+        {
+            ImGui::TextWrapped("The scene has changed since this snapshot. Refresh to update it.");
+        }
+        if (beginMetricTable("VmaStatistics"))
+        {
+            const VmaStatistics& stats = view.diagnostics.cachedVmaStatistics.total.statistics;
+            constexpr double bytesPerMiB = 1024.0 * 1024.0;
+            metricRow("Allocation MiB");
+            ImGui::Text("%.2f", static_cast<double>(stats.allocationBytes) / bytesPerMiB);
+            metricRow("Block MiB");
+            ImGui::Text("%.2f", static_cast<double>(stats.blockBytes) / bytesPerMiB);
+            metricRow("Allocations");
+            ImGui::Text("%u", stats.allocationCount);
+            metricRow("Blocks");
+            ImGui::Text("%u", stats.blockCount);
+            ImGui::EndTable();
+        }
+        ImGui::TextWrapped(
+            "VMA allocation statistics are collected on request; they do not measure GPU memory residency.");
+    }
+    else
+    {
+        ImGui::TextWrapped("No snapshot collected. Refresh to inspect allocated memory and backing blocks.");
+    }
+}
+
+} // namespace

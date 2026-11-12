@@ -13,7 +13,7 @@
 inline constexpr uint32_t WIDTH = 1920;
 inline constexpr uint32_t HEIGHT = 1080;
 
-inline std::string assetPath(const std::filesystem::path &relativePath)
+inline std::string assetPath(const std::filesystem::path& relativePath)
 {
     return (std::filesystem::path(VULKAN_PROJECT_ASSET_DIR) / relativePath).lexically_normal().string();
 }
@@ -27,43 +27,40 @@ inline const std::string PBR_AO_PATH = assetPath("textures/pbr/rustediron2_ao.pn
 inline const std::string SKYBOX_HDR_PATH = assetPath("textures/pbr/highway_bridge_sunset_4k.hdr");
 
 inline const std::array<std::string, 6> SKYBOX_FACE_PATHS = {
-    assetPath("textures/skybox/right.jpg"),
-    assetPath("textures/skybox/left.jpg"),
-    assetPath("textures/skybox/top.jpg"),
-    assetPath("textures/skybox/bottom.jpg"),
-    assetPath("textures/skybox/front.jpg"),
-    assetPath("textures/skybox/back.jpg"),
+    assetPath("textures/skybox/right.jpg"), assetPath("textures/skybox/left.jpg"),
+    assetPath("textures/skybox/top.jpg"),   assetPath("textures/skybox/bottom.jpg"),
+    assetPath("textures/skybox/front.jpg"), assetPath("textures/skybox/back.jpg"),
 };
 
-inline const std::string MAIN_VERTEX_SHADER_PATH = assetPath("shaders/vert.spv");
-inline const std::string MAIN_FRAGMENT_SHADER_PATH = assetPath("shaders/frag.spv");
-inline const std::string SKYBOX_VERTEX_SHADER_PATH = assetPath("shaders/skybox.vert.spv");
-inline const std::string SKYBOX_FRAGMENT_SHADER_PATH = assetPath("shaders/skybox.frag.spv");
-inline const std::string IRRADIANCE_VERTEX_SHADER_PATH = assetPath("shaders/irradiance.vert.spv");
-inline const std::string IRRADIANCE_FRAGMENT_SHADER_PATH = assetPath("shaders/irradiance.frag.spv");
-inline const std::string PREFILTER_VERTEX_SHADER_PATH = assetPath("shaders/prefilter.vert.spv");
-inline const std::string PREFILTER_FRAGMENT_SHADER_PATH = assetPath("shaders/prefilter.frag.spv");
-inline const std::string BRDF_LUT_VERTEX_SHADER_PATH = assetPath("shaders/brdf_lut.vert.spv");
-inline const std::string BRDF_LUT_FRAGMENT_SHADER_PATH = assetPath("shaders/brdf_lut.frag.spv");
-inline const std::string SHADOW_VERTEX_SHADER_PATH = assetPath("shaders/shadow.vert.spv");
-inline const std::string SHADOW_FRAGMENT_SHADER_PATH = assetPath("shaders/shadow.frag.spv");
-inline const std::string SHADOW_DEBUG_VERTEX_SHADER_PATH = assetPath("shaders/shadow_debug.vert.spv");
-inline const std::string SHADOW_DEBUG_FRAGMENT_SHADER_PATH = assetPath("shaders/shadow_debug.frag.spv");
-inline const std::string FULLSCREEN_VERTEX_SHADER_PATH = assetPath("shaders/fullscreen.vert.spv");
-inline const std::string TONEMAP_FRAGMENT_SHADER_PATH = assetPath("shaders/tonemap.frag.spv");
-inline const std::string GBUFFER_FRAGMENT_SHADER_PATH = assetPath("shaders/gbuffer.frag.spv");
-inline const std::string GBUFFER_PREVIEW_FRAGMENT_SHADER_PATH = assetPath("shaders/gbuffer_preview.frag.spv");
-inline const std::string DEFERRED_LIGHTING_FRAGMENT_SHADER_PATH = assetPath("shaders/deferred_lighting.frag.spv");
-inline const std::string TILE_LIGHTS_COMPUTE_SHADER_PATH = assetPath("shaders/tile_lights.comp.spv");
+inline const std::string MAIN_VERTEX_SHADER_PATH = assetPath("shaders/shared/mesh.vert.spv");
+inline const std::string MAIN_FRAGMENT_SHADER_PATH = assetPath("shaders/forward/forward.frag.spv");
+inline const std::string SKYBOX_VERTEX_SHADER_PATH = assetPath("shaders/environment/skybox.vert.spv");
+inline const std::string SKYBOX_FRAGMENT_SHADER_PATH = assetPath("shaders/environment/skybox.frag.spv");
+inline const std::string IRRADIANCE_VERTEX_SHADER_PATH = assetPath("shaders/environment/ibl/irradiance.vert.spv");
+inline const std::string IRRADIANCE_FRAGMENT_SHADER_PATH = assetPath("shaders/environment/ibl/irradiance.frag.spv");
+inline const std::string PREFILTER_VERTEX_SHADER_PATH = assetPath("shaders/environment/ibl/prefilter.vert.spv");
+inline const std::string PREFILTER_FRAGMENT_SHADER_PATH = assetPath("shaders/environment/ibl/prefilter.frag.spv");
+inline const std::string BRDF_LUT_VERTEX_SHADER_PATH = assetPath("shaders/environment/ibl/brdf_lut.vert.spv");
+inline const std::string BRDF_LUT_FRAGMENT_SHADER_PATH = assetPath("shaders/environment/ibl/brdf_lut.frag.spv");
+inline const std::string SHADOW_VERTEX_SHADER_PATH = assetPath("shaders/shadow/shadow.vert.spv");
+inline const std::string SHADOW_FRAGMENT_SHADER_PATH = assetPath("shaders/shadow/shadow.frag.spv");
+inline const std::string SHADOW_DEBUG_VERTEX_SHADER_PATH = assetPath("shaders/shadow/shadow_debug.vert.spv");
+inline const std::string SHADOW_DEBUG_FRAGMENT_SHADER_PATH = assetPath("shaders/shadow/shadow_debug.frag.spv");
+inline const std::string FULLSCREEN_VERTEX_SHADER_PATH = assetPath("shaders/shared/fullscreen.vert.spv");
+inline const std::string TONEMAP_FRAGMENT_SHADER_PATH = assetPath("shaders/post/tonemap.frag.spv");
+inline const std::string GBUFFER_FRAGMENT_SHADER_PATH = assetPath("shaders/deferred/gbuffer.frag.spv");
+inline const std::string GBUFFER_PREVIEW_FRAGMENT_SHADER_PATH = assetPath("shaders/deferred/gbuffer_preview.frag.spv");
+inline const std::string DEFERRED_LIGHTING_FRAGMENT_SHADER_PATH =
+    assetPath("shaders/deferred/deferred_lighting.frag.spv");
+inline const std::string TILE_LIGHTS_COMPUTE_SHADER_PATH = assetPath("shaders/deferred/tile_lights.comp.spv");
 
-inline const std::vector<const char *> validationLayers = {
-    "VK_LAYER_KHRONOS_validation"};
+inline const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
-inline const std::vector<const char *> deviceExtensions = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+inline const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME
 #if VULKAN_PROJECT_PLATFORM_MACOS
-    // Required by devices exposed through MoltenVK.
-    , "VK_KHR_portability_subset"
+                                                          // Required by devices exposed through MoltenVK.
+                                                          ,
+                                                          "VK_KHR_portability_subset"
 #endif
 };
 

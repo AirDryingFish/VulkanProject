@@ -8,38 +8,18 @@ if errorlevel 1 (
 )
 
 set "SHADER_DIR=%~dp0..\assets\shaders"
-pushd "%SHADER_DIR%"
 
-call :compile shader.vert vert.spv || goto :failed
-call :compile shader.frag frag.spv || goto :failed
-call :compile gbuffer.frag gbuffer.frag.spv || goto :failed
-call :compile deferred_lighting.frag deferred_lighting.frag.spv || goto :failed
-call :compile tile_lights.comp tile_lights.comp.spv || goto :failed
-call :compile gbuffer_preview.frag gbuffer_preview.frag.spv || goto :failed
-call :compile skybox.vert skybox.vert.spv || goto :failed
-call :compile skybox.frag skybox.frag.spv || goto :failed
-call :compile irradiance.vert irradiance.vert.spv || goto :failed
-call :compile irradiance.frag irradiance.frag.spv || goto :failed
-call :compile prefilter.vert prefilter.vert.spv || goto :failed
-call :compile prefilter.frag prefilter.frag.spv || goto :failed
-call :compile brdf_lut.vert brdf_lut.vert.spv || goto :failed
-call :compile brdf_lut.frag brdf_lut.frag.spv || goto :failed
-call :compile shadow.vert shadow.vert.spv || goto :failed
-call :compile shadow.frag shadow.frag.spv || goto :failed
-call :compile shadow_debug.vert shadow_debug.vert.spv || goto :failed
-call :compile shadow_debug.frag shadow_debug.frag.spv || goto :failed
-call :compile fullscreen.vert fullscreen.vert.spv || goto :failed
-call :compile tonemap.frag tonemap.frag.spv || goto :failed
+for /r "%SHADER_DIR%" %%F in (*.vert *.frag *.comp) do (
+    call :compile "%%~fF" || goto :failed
+)
 
-popd
 echo Shader compilation complete.
 exit /b 0
 
 :compile
-glslc --target-env=vulkan1.0 -I "%SHADER_DIR%" "%~1" -o "%~2"
+glslc --target-env=vulkan1.0 -I "%SHADER_DIR%" "%~1" -o "%~1.spv"
 exit /b %errorlevel%
 
 :failed
-popd
 echo Shader compilation failed.
 exit /b 1

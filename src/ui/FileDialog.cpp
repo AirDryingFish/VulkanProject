@@ -9,8 +9,7 @@ namespace
 std::runtime_error dialogError()
 {
     const char* error = NFD_GetError();
-    return std::runtime_error(std::string("File dialog: ") +
-                              (error ? error : "unknown error"));
+    return std::runtime_error(std::string("File dialog: ") + (error ? error : "unknown error"));
 }
 
 struct DialogSession
@@ -20,11 +19,16 @@ struct DialogSession
         if (NFD_Init() != NFD_OKAY)
             throw dialogError();
     }
-    ~DialogSession() { NFD_Quit(); }
+
+    ~DialogSession()
+    {
+        NFD_Quit();
+    }
+
     DialogSession(const DialogSession&) = delete;
     DialogSession& operator=(const DialogSession&) = delete;
 };
-}
+} // namespace
 
 std::optional<std::string> FileDialog::openGltf()
 {
@@ -37,7 +41,6 @@ std::optional<std::string> FileDialog::openGltf()
     if (result != NFD_OKAY)
         throw dialogError();
 
-    const std::unique_ptr<nfdu8char_t, decltype(&NFD_FreePathU8)>
-        path(rawPath, &NFD_FreePathU8);
+    const std::unique_ptr<nfdu8char_t, decltype(&NFD_FreePathU8)> path(rawPath, &NFD_FreePathU8);
     return std::string(path.get());
 }

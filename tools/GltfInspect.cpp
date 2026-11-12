@@ -1,4 +1,4 @@
-#include "assets/GltfLoader.hpp"
+#include "assets/gltf/GltfLoader.hpp"
 
 #include <cstddef>
 #include <exception>
@@ -10,10 +10,7 @@ namespace
 {
 void printVec3(const glm::vec3& value)
 {
-    std::cout << "(" <<
-        value.x << ", " <<
-        value.y << ", " <<
-        value.z << ")";
+    std::cout << "(" << value.x << ", " << value.y << ", " << value.z << ")";
 }
 
 const char* yesNo(bool value)
@@ -21,7 +18,7 @@ const char* yesNo(bool value)
     return value ? "yes" : "no";
 }
 
-}
+} // namespace
 
 int main(int argc, char** argv)
 {
@@ -59,33 +56,26 @@ int main(int argc, char** argv)
         for (std::size_t imageIndex = 0; imageIndex < imported.images.size(); ++imageIndex)
         {
             const DecodedImageData& image = imported.images[imageIndex];
-            std:: cout << "image[" << imageIndex << "] name=\"" << image.name << "\" size=" <<
-                        image.width << "x" << image.height << " rgba8-bytes=" << image.rgba8.size() << "\n";
+            std::cout << "image[" << imageIndex << "] name=\"" << image.name << "\" size=" << image.width << "x"
+                      << image.height << " rgba8-bytes=" << image.rgba8.size() << "\n";
         }
 
         for (std::size_t materialIndex = 0; materialIndex < imported.materials.size(); ++materialIndex)
         {
-            const GltfMaterialData &material = imported.materials[materialIndex];
+            const GltfMaterialData& material = imported.materials[materialIndex];
 
             std::cout << "material[" << materialIndex << "]" << " name=\"" << material.name << "\"\n";
 
-            std::cout
-                << "  base color: ("
-                << material.baseColorFactor.r << ", "
-                << material.baseColorFactor.g << ", "
-                << material.baseColorFactor.b << ", "
-                << material.baseColorFactor.a << ")\n";
+            std::cout << "  base color: (" << material.baseColorFactor.r << ", " << material.baseColorFactor.g << ", "
+                      << material.baseColorFactor.b << ", " << material.baseColorFactor.a << ")\n";
 
-            std::cout
-                << "  metallic: " << material.metallicFactor << '\n'
-                << "  roughness: " << material.roughnessFactor << '\n'
-                << "  base color texture: ";
+            std::cout << "  metallic: " << material.metallicFactor << '\n'
+                      << "  roughness: " << material.roughnessFactor << '\n'
+                      << "  base color texture: ";
 
             if (material.baseColorTexture)
             {
-                std::cout
-                    << material.baseColorTexture->textureIndex
-                    << " uv=" << material.baseColorTexture->texCoord;
+                std::cout << material.baseColorTexture->textureIndex << " uv=" << material.baseColorTexture->texCoord;
             }
             else
             {
@@ -153,7 +143,8 @@ int main(int argc, char** argv)
                 const std::size_t decodedPrimitiveIndex = mesh.primitiveIndices[primitiveIndex];
                 const GltfPrimitiveData& primitive = imported.primitives.at(decodedPrimitiveIndex);
                 // primitive有几套uv坐标。第一套可能给 base color / normal map 用，第二套可能给 lightmap、AO 或其他纹理使用。
-                const unsigned int uvSetCount = static_cast<unsigned int>(primitive.hasTexcoord0) + static_cast<unsigned int>(primitive.hasTexcoord1);
+                const unsigned int uvSetCount = static_cast<unsigned int>(primitive.hasTexcoord0) +
+                                                static_cast<unsigned int>(primitive.hasTexcoord1);
                 std::cout << "mesh " << meshIndex << " primitive " << primitiveIndex << "\n";
                 std::cout << "  vertices: " << primitive.vertices.size() << "\n";
                 std::cout << "  indices: " << primitive.indices.size() << "\n";
@@ -172,10 +163,9 @@ int main(int argc, char** argv)
         }
         return 0;
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
         std::cerr << "import failed: " << e.what() << '\n';
         return 1;
     }
-
 }

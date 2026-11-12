@@ -7,8 +7,6 @@
 class Camera
 {
 public:
-    Camera();
-
     // front 是单位视线方向，up 是世界向上参考；倾斜视角的屏幕向上由 viewUp() 计算。
     glm::vec3 position{2.0f, 2.0f, 2.0f};
     glm::vec3 front{};
@@ -25,11 +23,15 @@ public:
     float panSpeed = 0.01f;
     float mouseSensitivity = 0.12f;
 
+    // 创建与姿态更新
+    Camera();
+
     // 改变朝向时用这两个方法同步 front 与 yaw/pitch，避免输入接管时角度不一致。
     void lookAt(const glm::vec3& eye, const glm::vec3& target);
     void rotate(float yawDeltaDegrees, float pitchDeltaDegrees);
     void pan(float horizontalPixels, float verticalPixels, float speed);
 
+    // 视图与投影查询
     glm::vec3 right() const;
     glm::vec3 viewUp() const;
     glm::mat4 view() const;

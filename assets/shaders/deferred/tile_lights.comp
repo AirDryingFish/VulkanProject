@@ -1,0 +1,260 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#define TILE_LIST_COMPUTE_WRITE
+#include "shared/tile_layout.glsl"
+
+// 一个工作组，有 16*16*1=256 个线程
+layout(
+    local_size_x = 16,
+    local_size_y = 16,
+    local_size_z = 1
+) in;
+
+layout(set = 1, binding = 0) uniform sampler2D gNormal;
+layout(set = 1, binding = 4) uniform sampler2D gDepth;
+
+struct PointLight
+{
+    vec4 position;
+    vec4 color;
+    vec4 params;
+};
+
+//
+layout(std140, set = 0, binding = 0) uniform TileFrameUniforms
+{
+    mat4 view;
+    mat4 proj;
+
+    vec4 cameraPosition;
+    vec4 ambientLight;
+
+    ivec4 lightCounts;
+} frame;
+
+
+layout(std430, set = 0, binding = 6) readonly buffer PointLightBuffer
+{
+    PointLight pointLights[];
+} lightBuffer;
+
+
+shared vec4 tilePlanes[4];
+// 一个工作组所有线程共用的计数器
+shared uint candidateCount;
+shared uint minDepthBits;
+shared uint maxDepthBits;
+shared uint validPixelCount;
+
+const uint POSITIVE_INFINITY_BITS = 0x7f800000u;
+
+// 平面方程： dot(plane.xyz, position) + plane.w = 0
+// 将法线归一化后，plane.w 为点到平面的实际垂直距离
+vec4 unitPlane(vec4 plane)
+{
+    return plane / length(plane.xyz);
+}
+
+// 由当前 tile 的像素边界建立 四个 view sapce 侧平面
+void buildTilePlanes(uvec2 tile)
+{
+    uvec2 extent = deferredFrame.extentAndTiles.xy;
+
+    // 使用像素边界而不是像素中心
+    // (xmin, ymin)
+    uvec2 pixelMin = tile * TILE_SIZE;
+    // (xmax, ymax)
+    uvec2 pixelMax = min(pixelMin + uvec2(TILE_SIZE), extent);
+
+    vec2 ndcMin = vec2(pixelMin) / vec2(extent) * 2.0 - 1.0;
+    vec2 ndcMax = vec2(pixelMax) / vec2(extent) * 2.0 - 1.0;
+
+    // GLSL 矩阵通过 matrix[col][row] 访问
+    // 需要取投影矩阵的行
+    vec4 rowX = vec4(
+        frame.proj[0][0],
+        frame.proj[1][0],
+        frame.proj[2][0],
+        frame.proj[3][0]);
+
+    vec4 rowY = vec4(
+        frame.proj[0][1],
+        frame.proj[1][1],
+        frame.proj[2][1],
+        frame.proj[3][1]);
+
+    vec4 rowW = vec4(
+        frame.proj[0][3],
+        frame.proj[1][3],
+        frame.proj[2][3],
+        frame.proj[3][3]);
+
+    // 平面朝向 tile 内部，内部点的有符号距离 >= 0。
+    tilePlanes[0] = unitPlane(rowX - ndcMin.x * rowW);
+    tilePlanes[1] = unitPlane(ndcMax.x * rowW - rowX);
+    tilePlanes[2] = unitPlane(rowY - ndcMin.y * rowW);
+    tilePlanes[3] = unitPlane(ndcMax.y * rowW - rowY);
+
+}
+
+// 深度剔除
+// 读取一个像素的深度，将它还原为相机前方的实际深度，再汇总到整个 tile 的最近和最远深度中
+void accumulateDepth(uvec2 pixel)
+{
+    ivec2 texel = ivec2(pixel);
+
+    // alpha 为 0 的背景不参与深度统计
+    if (texelFetch(gNormal, texel, 0).a < 0.5)
+    {
+        return;
+    }
+
+    atomicAdd(validPixelCount, 1u);
+
+    vec2 ndc = (vec2(pixel) + 0.5) / vec2(deferredFrame.extentAndTiles.xy) * 2.0 - 1.0;
+    float depth = texelFetch(gDepth, texel, 0).r;
+
+    vec4 viewH = deferredFrame.inverseProjection * vec4(ndc, depth, 1.0);
+    float viewDepth = -viewH.z / viewH.w;
+    if (viewDepth > 0.0 && !isnan(viewDepth) && !isinf(viewDepth))
+    {
+        float padding = 1e-3 * max(1.0, viewDepth);
+        float nearDepth = max(viewDepth - padding, 0.0);
+        float farDepth = viewDepth + padding;
+
+        atomicMin(minDepthBits, floatBitsToUint(nearDepth));
+        atomicMax(maxDepthBits, floatBitsToUint(farDepth));
+    }
+    else
+    {
+        // 异常时放宽条件
+        atomicMin(minDepthBits, 0u);
+        atomicMax(maxDepthBits, POSITIVE_INFINITY_BITS);
+    }
+}
+
+// 判断灯的影响球 是否可能与当前 tile 相交
+bool intersectsTile(vec3 centerView, float radius)
+{
+    float epsilon = 1e-4 * max(1.0, max(length(centerView), radius));
+
+    float paddedRadius = radius + epsilon;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        float distanceToPlane = dot(tilePlanes[i].xyz, centerView) + tilePlanes[i].w;
+        // distanceToPlane 为 负数的时候，代表球心在平面外侧
+        if (distanceToPlane < -paddedRadius)
+        {
+            return false;
+        }
+    }
+
+    float minDepth = uintBitsToFloat(minDepthBits);
+    float maxDepth = uintBitsToFloat(maxDepthBits);
+
+    float centerDepth = -centerView.z;
+    if (centerDepth + paddedRadius < minDepth || centerDepth - paddedRadius > maxDepth)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void main()
+{
+    // lane 是当前线程在组内的一堆编号，范围 0~255
+    uint lane = gl_LocalInvocationIndex;
+
+    uvec2 tile = gl_WorkGroupID.xy;
+    uvec2 grid = deferredFrame.extentAndTiles.zw;
+    uvec2 extent = deferredFrame.extentAndTiles.xy;
+
+    uint tileId = tile.y * grid.x + tile.x;
+
+    bool validTile = all(greaterThan(extent, uvec2(0u))) &&
+                     all(lessThan(tile, grid)) &&
+                     tileId < uint(tileHeaders.headers.length()) &&
+                     tileId < uint(tileIndices.indices.length()) / TILE_LIGHT_CAPACITY;
+
+
+    if (lane == 0u)
+    {
+        candidateCount = 0u;
+        minDepthBits = POSITIVE_INFINITY_BITS;
+        maxDepthBits = 0u;
+        validPixelCount = 0u;
+        if (validTile)
+        {
+            buildTilePlanes(tile);
+        }
+    }
+
+    // 第二次：整个 tile 的深度归约完成。
+    barrier();
+
+    // 把当前线程在整个 dispatch 中的二维全局编号，当成它负责的像素坐标
+    uvec2 pixel = gl_GlobalInvocationID.xy;
+
+    if (validTile && all(lessThan(pixel, extent)))
+    {
+        accumulateDepth(pixel);
+    }
+
+    barrier();
+
+    uint offset = validTile ? tileId * TILE_LIGHT_CAPACITY : 0u;
+    uint lightCount = uint(clamp(frame.lightCounts.x, 0, lightBuffer.pointLights.length()));
+
+    // version 1: 所有 enabled 灯都进入每个 tile。 256 个线程分摊灯光遍历
+    if (validTile && validPixelCount > 0u)
+    {
+        // 每个线程从自己的编号 lane 开始，每次跳过 256 个灯
+        // lane           遍历的 index
+        // 0             0、256、512、768
+        // 1             1、257、513、769
+        // ...
+        // 255           255、511、767、1023
+        for (uint lightIndex = lane; lightIndex < lightCount; lightIndex += 256u)
+        {
+            PointLight light = lightBuffer.pointLights[lightIndex];
+            // 跳过没有启用的灯光
+            if (light.params.y < 0.5)
+            {
+                continue;
+            }
+
+            vec3 centerView = (frame.view * vec4(light.position.xyz, 1.0)).xyz;
+            // 与 lighting 的有效影响半径一致
+            float radius = max(light.params.x, 0.0001);
+            if (!intersectsTile(centerView, radius))
+            {
+                continue;
+            }
+
+            // 一个 group 内，一个线程领取一个 slot
+            uint slot = atomicAdd(candidateCount, 1u);
+            if (slot < TILE_LIGHT_CAPACITY)
+            {
+                tileIndices.indices[offset + slot] = lightIndex;
+            }
+        }
+    }
+
+    // 所有线程都必须到这里才能往下执行
+    barrier();
+
+    // 第 0 lane 负责写这组 group 的 header 信息
+    if (lane == 0u && validTile)
+    {
+        tileHeaders.headers[tileId] =
+        uvec4(
+            min(candidateCount, TILE_LIGHT_CAPACITY),       // 实际存下的数量，最多128
+            candidateCount > TILE_LIGHT_CAPACITY ? 1u : 0u, // 是否溢出
+            0u,
+            0u
+        );
+    }
+}

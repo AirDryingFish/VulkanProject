@@ -9,32 +9,15 @@ if ! command -v glslc >/dev/null 2>&1; then
     exit 1
 fi
 
-compile() {
-    glslc --target-env=vulkan1.0 \
-        -I "$SHADER_DIR" \
-        "$SHADER_DIR/$1" \
-        -o "$SHADER_DIR/$2"
-}
-
-compile shader.vert vert.spv
-compile shader.frag frag.spv
-compile gbuffer.frag gbuffer.frag.spv
-compile deferred_lighting.frag deferred_lighting.frag.spv
-compile tile_lights.comp tile_lights.comp.spv
-compile gbuffer_preview.frag gbuffer_preview.frag.spv
-compile skybox.vert skybox.vert.spv
-compile skybox.frag skybox.frag.spv
-compile irradiance.vert irradiance.vert.spv
-compile irradiance.frag irradiance.frag.spv
-compile prefilter.vert prefilter.vert.spv
-compile prefilter.frag prefilter.frag.spv
-compile brdf_lut.vert brdf_lut.vert.spv
-compile brdf_lut.frag brdf_lut.frag.spv
-compile shadow.vert shadow.vert.spv
-compile shadow.frag shadow.frag.spv
-compile shadow_debug.vert shadow_debug.vert.spv
-compile shadow_debug.frag shadow_debug.frag.spv
-compile fullscreen.vert fullscreen.vert.spv
-compile tonemap.frag tonemap.frag.spv
+# 输出始终与源文件相邻；共享 include 从 shader 根目录解析。
+find "$SHADER_DIR" -type f \
+    \( -name '*.vert' -o -name '*.frag' -o -name '*.comp' \) \
+    -exec sh -eu -c '
+        shader_dir=$1
+        shift
+        for shader in "$@"; do
+            glslc --target-env=vulkan1.0 -I "$shader_dir" "$shader" -o "$shader.spv"
+        done
+    ' sh "$SHADER_DIR" {} +
 
 echo "Shader compilation complete."

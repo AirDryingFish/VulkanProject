@@ -69,11 +69,21 @@ find_package(fastgltf CONFIG REQUIRED)
 find_package(nfd CONFIG REQUIRED)
 
 add_library(gltf_import STATIC
-    src/assets/GltfLoader.cpp
-    src/assets/GltfImportTypes.hpp
-    src/assets/GltfLoader.hpp
-    src/assets/ImageDecode.hpp
-    src/assets/ImageDecode.cpp
+    src/assets/mesh/MeshBuilder.hpp
+    src/assets/mesh/MeshBuilder.cpp
+    src/assets/ImportResult.hpp
+    src/assets/gltf/GltfLoader.cpp
+    src/assets/gltf/GltfImages.cpp
+    src/assets/gltf/GltfMaterials.cpp
+    src/assets/gltf/GltfGeometry.cpp
+    src/assets/gltf/GltfImportInternal.hpp
+    src/assets/image/ImageData.hpp
+    src/assets/image/SkyboxImage.hpp
+    src/assets/image/SkyboxImage.cpp
+    src/assets/gltf/GltfImportTypes.hpp
+    src/assets/gltf/GltfLoader.hpp
+    src/assets/image/ImageDecode.hpp
+    src/assets/image/ImageDecode.cpp
 )
 
 target_include_directories(gltf_import PUBLIC
@@ -87,7 +97,17 @@ target_link_libraries(gltf_import
         glm::glm
     PRIVATE
         fastgltf::fastgltf
+        tinyobjloader::tinyobjloader
 )
+
+target_compile_definitions(gltf_import PUBLIC GLM_ENABLE_EXPERIMENTAL)
+
+add_library(frame_diagnostics STATIC
+    src/diagnostics/BaselineCapture.cpp
+    src/diagnostics/BaselineExport.cpp
+)
+target_include_directories(frame_diagnostics PUBLIC src)
+target_link_libraries(frame_diagnostics PUBLIC glm::glm Vulkan::Vulkan)
 
 add_executable(gltf_inspect
     tools/GltfInspect.cpp
@@ -103,17 +123,23 @@ add_executable(vulkan
     # Application orchestration and resource initialization
     src/app/Application.hpp
     src/app/Application.cpp
-    src/app/CameraController.hpp
-    src/app/CameraController.cpp
-    src/app/Picking.cpp
-    src/app/Buffers.cpp
-    src/app/Descriptors.cpp
-    src/app/ImageResources.cpp
-    src/app/Model.cpp
-    src/app/ScenePresets.cpp
+    src/app/EditorBridge.cpp
+    src/app/input/CameraController.hpp
+    src/app/input/CameraController.cpp
+    src/app/input/Picking.cpp
+    src/app/resources/FrameResources.cpp
+    src/app/resources/Descriptors.cpp
+    src/app/resources/MaterialDescriptors.cpp
+    src/app/resources/MaterialResources.cpp
+    src/app/resources/ImageResources.cpp
+    src/app/scene/Model.cpp
+    src/app/scene/ScenePresets.cpp
 
     # Scene data and preset registry
     src/scene/Mesh.hpp
+    src/scene/MeshData.hpp
+    src/scene/ScenePicking.hpp
+    src/scene/ScenePicking.cpp
     src/scene/Material.hpp
     src/scene/SceneTypes.hpp
     src/scene/Scene.hpp
@@ -127,45 +153,80 @@ add_executable(vulkan
     # Frame recording and render passes
     src/render/Renderer.hpp
     src/render/Renderer.cpp
+    src/render/frame/GpuTiming.cpp
+    src/render/frame/FrameSubmission.cpp
+    src/render/forward/ForwardRendering.cpp
+    src/render/post/PresentPass.cpp
+    src/render/deferred/GBufferPreview.cpp
+    src/render/resources/RenderTargetDiagnostics.cpp
+    src/render/frame/SceneUniforms.hpp
+    src/render/frame/SceneUniforms.cpp
+    src/render/pipeline/VertexInput.hpp
+    src/render/pipeline/VertexInput.cpp
+    src/render/resources/MeshUpload.hpp
+    src/render/resources/MeshUpload.cpp
+    src/render/resources/TextureUpload.hpp
+    src/render/resources/TextureUpload.cpp
+    src/render/frame/SceneFrameBuilder.hpp
+    src/render/frame/SceneFrameBuilder.cpp
     src/render/RenderTypes.hpp
     src/render/RenderSettings.hpp
     src/render/ShaderTypes.hpp
-    src/render/Environment.hpp
-    src/render/Environment.cpp
-    src/render/EnvironmentIBL.cpp
-    src/render/EnvironmentSkybox.cpp
-    src/render/GraphicsPipeline.cpp
-    src/render/ShadowMapping.cpp
-    src/render/ShadowCascades.hpp
-    src/render/ShadowCascades.cpp
-    src/render/ShadowFrameSummary.hpp
-    src/render/PostProcessing.cpp
+    src/render/environment/Environment.hpp
+    src/render/environment/Environment.cpp
+    src/render/environment/EnvironmentIBL.cpp
+    src/render/environment/EnvironmentSkybox.cpp
+    src/render/pipeline/GraphicsPipeline.cpp
+    src/render/shadow/ShadowMapping.cpp
+    src/render/shadow/ShadowCascades.hpp
+    src/render/shadow/ShadowCascades.cpp
+    src/render/shadow/ShadowFrameSummary.hpp
+    src/render/post/PostProcessing.cpp
 
     # Vulkan backend and resource lifetime
-    src/vulkan/VulkanContext.hpp
-    src/vulkan/VulkanContext.cpp
+    src/vulkan/context/VulkanContext.hpp
+    src/vulkan/context/VulkanContext.cpp
+    src/vulkan/context/VulkanInstance.cpp
+    src/vulkan/context/VulkanDevice.cpp
+    src/vulkan/resources/VulkanResourceFactory.cpp
+    src/vulkan/upload/UploadContext.hpp
+    src/vulkan/upload/UploadContext.cpp
+    src/vulkan/context/detail/ApiVersion.hpp
     src/vulkan/VulkanHeaders.hpp
     src/vulkan/VulkanTypes.hpp
-    src/vulkan/VulkanResources.hpp
-    src/vulkan/VulkanResources.cpp
+    src/vulkan/resources/VulkanResources.hpp
+    src/vulkan/resources/VulkanResources.cpp
     src/vulkan/VulkanCheck.hpp
-    src/vulkan/Swapchain.hpp
-    src/vulkan/Swapchain.cpp
-    src/vulkan/UploadCommands.hpp
-    src/vulkan/UploadCommands.cpp
-    src/vulkan/DebugUtils.hpp
-    src/vulkan/DebugUtils.cpp
-    src/vulkan/VmaImplementation.cpp
+    src/vulkan/presentation/Swapchain.hpp
+    src/vulkan/presentation/Swapchain.cpp
+    src/vulkan/upload/UploadCommands.hpp
+    src/vulkan/upload/UploadCommands.cpp
+    src/vulkan/debug/DebugUtils.hpp
+    src/vulkan/debug/DebugUtils.cpp
+    src/vulkan/resources/VmaImplementation.cpp
 
     # Editor and diagnostics UI
+    src/ui/EditorUI.hpp
     src/ui/EditorUI.cpp
-    src/ui/Diagnostics.cpp
+    src/ui/panels/EditorPanels.hpp
+    src/ui/panels/ScenePanel.cpp
+    src/ui/panels/InspectorPanel.cpp
+    src/ui/panels/LightingPanel.cpp
+    src/ui/panels/ShadowPanel.cpp
+    src/ui/panels/CameraPanel.cpp
+    src/ui/panels/DisplayPanel.cpp
+    src/ui/viewport/ViewportOverlays.cpp
+    src/ui/backend/ImGuiBackend.hpp
+    src/ui/backend/ImGuiBackend.cpp
+    src/ui/panels/Diagnostics.cpp
     src/ui/EditorState.hpp
     src/ui/FileDialog.hpp
     src/ui/FileDialog.cpp
 
     # Timing and baseline capture
     src/diagnostics/BaselineCapture.hpp
+    src/diagnostics/BaselineContext.hpp
+    src/diagnostics/BaselineContext.cpp
     src/diagnostics/FrameTiming.hpp
     src/diagnostics/DiagnosticsState.hpp
     src/diagnostics/CpuTiming.hpp
@@ -178,11 +239,11 @@ add_executable(vulkan
     src/core/FileUtils.cpp
 
     # Deferred rendering
-    src/render/DeferredMath.hpp
-    src/render/DeferredMath.cpp
-    src/render/DeferredRendering.cpp
-    src/render/DeferredLighting.cpp
-    src/render/TiledLighting.cpp
+    src/render/deferred/DeferredMath.hpp
+    src/render/deferred/DeferredMath.cpp
+    src/render/deferred/DeferredRendering.cpp
+    src/render/deferred/DeferredLighting.cpp
+    src/render/deferred/TiledLighting.cpp
 
     src/scene/ManyLights.hpp
     src/scene/ManyLights.cpp
@@ -204,6 +265,7 @@ target_compile_definitions(vulkan PRIVATE
 target_link_libraries(vulkan PRIVATE
     nfd::nfd
     gltf_import
+    frame_diagnostics
     Vulkan::Vulkan
     glfw
     glm::glm
@@ -240,12 +302,12 @@ if(BUILD_TESTING)
 
     add_executable(baseline_capture_tests tests/BaselineCaptureTests.cpp)
     target_include_directories(baseline_capture_tests PRIVATE src)
-    target_link_libraries(baseline_capture_tests PRIVATE glm::glm Vulkan::Vulkan)
+    target_link_libraries(baseline_capture_tests PRIVATE frame_diagnostics)
     add_test(NAME baseline_capture_tests COMMAND baseline_capture_tests)
 
     add_executable(shadow_cascade_math_tests
         tests/ShadowCascadeMathTests.cpp
-        src/render/ShadowCascades.cpp
+        src/render/shadow/ShadowCascades.cpp
         src/scene/Camera.cpp
     )
 
