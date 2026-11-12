@@ -8,9 +8,6 @@
 
 namespace
 {
-constexpr std::array<const char*, gpuPassCount> gpuPassNames = {
-    "Shadow", "Scene", "Post + UI"};
-
 constexpr std::array<const char*, baselineCpuMetricCount> cpuMetricNames = {
     "Fence wait", "Acquire", "Update", "Record", "Submit", "Present"};
 
@@ -93,6 +90,13 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     metricRow("Scene work");
 
     ImGui::TextUnformatted(config.renderPath == RenderPath::Deferred ? "Geometry + Lighting (1x)" : (config.gBufferGeometry ? "G-buffer + Forward" : "Forward"));
+
+    metricRow("Light culling");
+
+    ImGui::TextUnformatted(
+        config.lightCullingMode == LightCullingMode::Tiled
+            ? "Tiled"
+            : "None");
 
     metricRow("G-buffer view");
     ImGui::Text("%d", static_cast<int>(config.gBufferView));
@@ -195,11 +199,13 @@ void drawTimingConfig(const char* id, const FrameTimingConfig& config)
     ImGui::EndTable();
 }
 
-template<std::size_t Count, typename GetValue>
-void drawBaselineStatistics(const char* id,
-                            const std::array<const char*, Count>& names,
-                            const std::vector<BaselineSample>& samples,
-                            GetValue getValue)
+template <std::size_t Count, typename GetValue>
+void drawBaselineStatistics(
+    const char *id,
+    const std::array<const char *, Count> &names,
+    const std::vector<BaselineSample> &samples,
+    GetValue getValue,
+    std::uint32_t enabledMask = 0xFFFFFFFFu)
 {
     const bool compact = ImGui::GetContentRegionAvail().x < 360.0f;
     if (!ImGui::BeginTable(id, compact ? 2 : 4, metricTableFlags))
@@ -219,6 +225,12 @@ void drawBaselineStatistics(const char* id,
 
     for (std::size_t i = 0; i < Count; ++i)
     {
+        if ((enabledMask & (std::uint32_t{1} << i)) == 0)
+        {
+            metricRow(names[i]);
+            ImGui::TextUnformatted("Not executed");
+            continue;
+        }
         double sum = 0.0;
         double minimum = getValue(samples.front(), i);
         double maximum = minimum;
@@ -533,8 +545,15 @@ void Application::drawDiagnosticsBaseline()
     {
         ImGui::Spacing();
         ImGui::SeparatorText("GPU statistics (ms)");
-        drawBaselineStatistics("BaselineGpuStatistics", gpuPassNames, diagnostics.baseline.samples,
-            [](const BaselineSample& sample, std::size_t i) { return sample.milliseconds[i]; });
+        drawBaselineStatistics(
+            "BaselineGpuStatistics",
+            gpuPassNames,
+            diagnostics.baseline.samples,
+            [](const BaselineSample &sample, std::size_t i)
+            {
+                return sample.milliseconds[i];
+            },
+            expectedGpuPassMask(diagnostics.baseline.config));
         ImGui::SeparatorText("CPU statistics (ms)");
         drawBaselineStatistics("BaselineCpuStatistics", cpuMetricNames, diagnostics.baseline.samples,
             [](const BaselineSample& sample, std::size_t i) { return sample.cpu.milliseconds[i]; });

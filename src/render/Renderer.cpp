@@ -910,11 +910,11 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         frame.recordedGpuPassMask |= (1u << passIndex);
     };
 
-    // -- 开启 shadow pass --
+    beginGpuPass(GpuPass::FrameGpu);
+
     beginGpuPass(GpuPass::Shadow);
     recordShadowPass(token, data);
     endGpuPass(GpuPass::Shadow);
-    // ----
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{
@@ -939,19 +939,35 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
     scissor.extent = swapchain_->extent();
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
 
-    beginGpuPass(GpuPass::Scene);
+    if (useDeferred)
+    {
+        prepareDeferredFrame(token, data);
+    }
+
     if (frame.recordedTimingConfig.gBufferGeometry)
     {
+        beginGpuPass(GpuPass::Geometry);
         recordGBufferPass(token, data);
+        endGpuPass(GpuPass::Geometry);
     }
 
     if (useDeferred)
     {
+        if (frame.recordedTimingConfig.lightCullingMode ==
+            LightCullingMode::Tiled)
+        {
+            beginGpuPass(GpuPass::LightCull);
+            recordTileLightLists(token, data);
+            endGpuPass(GpuPass::LightCull);
+        }
+
+        beginGpuPass(GpuPass::Lighting);
         recordDeferredLightingPass(token, data);
+        endGpuPass(GpuPass::Lighting);
     }
     else
     {
-
+        beginGpuPass(GpuPass::Scene);
         beginScenePass(token, clearValues);
 
         // -- 绘制 skybox (表面数据视图不绘制) --
@@ -1047,8 +1063,9 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
         // -- 结束 HDR scene pass --
         // hdrColor 的最终布局及输出依赖由 sceneRenderPass_ 处理
         endScenePass(token);
+        endGpuPass(GpuPass::Scene);
     }
-    endGpuPass(GpuPass::Scene);
+
 
     VkClearValue presentClear{};
     presentClear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -1122,6 +1139,8 @@ void Renderer::recordFrame(const FrameToken &token, const RenderFrameData &data)
 
     endPresentPass(token);
     endGpuPass(GpuPass::PostAndUi);
+
+    endGpuPass(GpuPass::FrameGpu);
     // ----
 
     VK_CHECK(vkEndCommandBuffer(token.commandBuffer));

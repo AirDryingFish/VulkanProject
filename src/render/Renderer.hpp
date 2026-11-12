@@ -306,6 +306,7 @@ private:
 
     void createDeferredResources();
     void destroyDeferredResources() noexcept;
+    void prepareDeferredFrame(const FrameToken &token, const RenderFrameData &data);
     void recordDeferredLightingPass(const FrameToken& token, const RenderFrameData& data);
 
     // -- post processing --

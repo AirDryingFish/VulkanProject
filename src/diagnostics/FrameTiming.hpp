@@ -9,18 +9,45 @@
 #include <cstdint>
 #include <string>
 
-// -- GPU计时：定义要测量的三个区间 --
 enum class GpuPass : std::uint32_t
 {
     Shadow = 0,
-    Scene,
-    PostAndUi,
-    Count
+    Scene = 1,
+    PostAndUi = 2,
+
+    Geometry = 3,
+    LightCull = 4,
+    Lighting = 5,
+    FrameGpu = 6,
+
+    Count = 7
 };
+
 inline constexpr std::uint32_t gpuPassCount = static_cast<std::uint32_t>(GpuPass::Count);
-// 每个区间需要记录开始、结束两个时间戳，因此一个 pool 需要六个位置
 inline constexpr std::uint32_t gpuTimestampQueryCount = gpuPassCount * 2;
-// ----
+
+inline constexpr std::array<const char *, gpuPassCount> gpuPassNames{
+    "Shadow",
+    "Scene (Forward)",
+    "Post + UI",
+    "Geometry",
+    "LightCull",
+    "Lighting",
+    "Frame GPU"};
+
+inline constexpr std::array<const char *, gpuPassCount> gpuPassCsvColumns{
+    "shadow_ms",
+    "scene_ms",
+    "post_ui_ms",
+    "geometry_ms",
+    "light_cull_ms",
+    "lighting_ms",
+    "frame_gpu_ms"};
+
+inline constexpr std::uint32_t gpuPassBit(GpuPass pass) noexcept
+{
+    return std::uint32_t{1} << static_cast<std::uint32_t>(pass);
+}
 
 // -- GPU 计时 --
 enum class GpuTimingState
@@ -95,6 +122,37 @@ struct FrameTimingConfig
     float debugDepthNear = 0.1f;
     float debugDepthFar = 50.0f;
 };
+
+// 根据当前渲染配置，生成 “本帧预计会执行哪些 GPU 计时区间” 的位 mask
+inline std::uint32_t expectedGpuPassMask(const FrameTimingConfig &config) noexcept
+{
+    // Shadow 即使关闭阴影，也仍然执行清空。
+    std::uint32_t mask =
+        gpuPassBit(GpuPass::Shadow) |
+        gpuPassBit(GpuPass::PostAndUi) |
+        gpuPassBit(GpuPass::FrameGpu);
+
+    if (config.gBufferGeometry)
+    {
+        mask |= gpuPassBit(GpuPass::Geometry);
+    }
+
+    if (config.renderPath == RenderPath::Forward)
+    {
+        mask |= gpuPassBit(GpuPass::Scene);
+    }
+    else
+    {
+        mask |= gpuPassBit(GpuPass::Lighting);
+
+        if (config.lightCullingMode == LightCullingMode::Tiled)
+        {
+            mask |= gpuPassBit(GpuPass::LightCull);
+        }
+    }
+
+    return mask;
+}
 
 struct GpuTimingSnapshot
 {

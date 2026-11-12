@@ -34,6 +34,7 @@ struct BaselineSample
     std::uint64_t submissionId = 0;
     // 使用哪个帧资源槽
     std::uint32_t frameSlot = 0;
+    std::uint32_t gpuPassMask = 0;
     // 每个 gpu pass 的耗时
     std::array<double, gpuPassCount> milliseconds{};
     BaselineCpuSample cpu{};
@@ -100,6 +101,7 @@ struct BaselineCapture
                config.extent.height == other.extent.height &&
                config.sceneSamples == other.sceneSamples &&
                config.renderPath == other.renderPath &&
+               config.lightCullingMode == other.lightCullingMode &&
                config.gBufferGeometry == other.gBufferGeometry &&
                config.gBufferView == other.gBufferView &&
                config.shadowEnabled == other.shadowEnabled &&
@@ -209,9 +211,24 @@ struct BaselineCapture
 
         // 六项 CPU 指标和三个 GPU pass 全部有效才接收整行。
         // NotReady/NotExecuted 不用 0 代替；真实的 0ms 则允许保留。
+        const std::uint32_t expectedMask = expectedGpuPassMask(config);
+
         for (std::uint32_t i = 0; i < gpuPassCount; ++i)
         {
-            const GpuPassTiming& timing = gpu.passes[i];
+            const std::uint32_t bit = std::uint32_t{1} << i;
+            const GpuPassTiming &timing = gpu.passes[i];
+
+            if ((expectedMask & bit) == 0)
+            {
+                if (timing.state != GpuTimingState::NotExecuted)
+                {
+                    ++droppedSamples;
+                    return;
+                }
+
+                continue;
+            }
+
             if (timing.state != GpuTimingState::Ready ||
                 !std::isfinite(timing.milliseconds) ||
                 timing.milliseconds < 0.0)
@@ -219,6 +236,8 @@ struct BaselineCapture
                 ++droppedSamples;
                 return;
             }
+
+            sample.gpuPassMask |= bit;
             sample.milliseconds[i] = timing.milliseconds;
         }
 
@@ -230,53 +249,66 @@ struct BaselineCapture
             message = "Capture complete.";
         }
     }
-
-    bool saveCsv(const char* path) const
+    bool saveCsv(const char *path) const
     {
-        if (!complete)
+        if (!complete || samples.empty() ||
+            path == nullptr || path[0] == '\0')
         {
             return false;
         }
 
         std::ofstream file(path);
-
         if (!file)
         {
             return false;
         }
 
-        // 固定小数点格式，避免系统 locale 使用逗号后破坏 CSV 列结构。
         file.imbue(std::locale::classic());
         file << std::setprecision(9);
-        file
-            << "submission_id,frame_slot,shadow_ms,scene_ms,post_ui_ms,"
-               "cpu_submission_id,"
-               "cpu_wait_ms,cpu_acquire_ms,cpu_update_ms,"
-               "cpu_record_ms,cpu_submit_ms,cpu_present_ms,"
-               "scene_draws,scene_triangles,"
-               "shadow_draws,shadow_triangles\n";
-        for (const BaselineSample& sample : samples)
+
+        file << "submission_id,frame_slot";
+
+        for (const char *column : gpuPassCsvColumns)
         {
-            file
-                << sample.submissionId << ','
-                << sample.frameSlot << ','
-                << sample.milliseconds[0] << ','
-                << sample.milliseconds[1] << ','
-                << sample.milliseconds[2] << ','
-                << sample.cpu.submissionId;
+            file << ',' << column;
+        }
+
+        file << ",cpu_submission_id,"
+                "cpu_wait_ms,cpu_acquire_ms,cpu_update_ms,"
+                "cpu_record_ms,cpu_submit_ms,cpu_present_ms,"
+                "scene_draws,scene_triangles,"
+                "shadow_draws,shadow_triangles\n";
+
+        for (const BaselineSample &sample : samples)
+        {
+            file << sample.submissionId << ',' << sample.frameSlot;
+
+            for (std::uint32_t i = 0; i < gpuPassCount; ++i)
+            {
+                // 即使没执行，也必须保留这一列。
+                file << ',';
+
+                if ((sample.gpuPassMask &
+                     (std::uint32_t{1} << i)) != 0)
+                {
+                    file << sample.milliseconds[i];
+                }
+            }
+
+            file << ',' << sample.cpu.submissionId;
 
             for (double milliseconds : sample.cpu.milliseconds)
             {
                 file << ',' << milliseconds;
             }
 
-            const DrawStatistics& draws = sample.cpu.draws;
-            file
-                << ',' << draws.sceneDraws
-                << ',' << draws.sceneTriangles
-                << ',' << draws.shadowDraws
-                << ',' << draws.shadowTriangles
-                << '\n';
+            const DrawStatistics &draws = sample.cpu.draws;
+
+            file << ',' << draws.sceneDraws
+                 << ',' << draws.sceneTriangles
+                 << ',' << draws.shadowDraws
+                 << ',' << draws.shadowTriangles
+                 << '\n';
         }
 
         file.flush();
@@ -329,7 +361,7 @@ struct BaselineCapture
         };
 
         // 采集身份和样本数量。
-        write("schema_version", 2);
+        write("schema_version", 3);
         write("warmup_first_submission_id", firstSubmissionId);
         write("first_measured_submission_id",
               samples.front().submissionId);
@@ -348,6 +380,22 @@ struct BaselineCapture
               static_cast<std::uint32_t>(config.sceneSamples));
 
         write("render_path", config.renderPath == RenderPath::Deferred ? "Deferred" : "Forward");
+        write(
+            "light_culling_mode",
+            config.lightCullingMode == LightCullingMode::Tiled
+                ? "Tiled"
+                : "None");
+
+        write(
+            "light_culling_mode_value",
+            static_cast<std::uint32_t>(config.lightCullingMode));
+
+        write("gpu_pass_mask", expectedGpuPassMask(config));
+
+        write(
+            "gpu_frame_scope",
+            "Shadow through PostAndUi, including barriers; "
+            "excludes CPU waits and present");
         write("gbuffer_geometry", config.gBufferGeometry);
         write("gbuffer_samples", config.gBufferGeometry ? 1 : 0);
         write("gbuffer_view", static_cast<std::int32_t>(config.gBufferView));

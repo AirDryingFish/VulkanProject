@@ -270,6 +270,26 @@ void Renderer::createDeferredResources()
     createTilePipeline();
 }
 
+void Renderer::prepareDeferredFrame(
+    const FrameToken &token,
+    const RenderFrameData &data)
+{
+    DeferredTarget &target = deferredTargets_.at(token.frameIndex);
+
+    const auto mode = frames_.at(token.frameIndex).recordedTimingConfig.lightCullingMode;
+
+    DeferredFrameUniforms uniforms = data.deferredUniforms;
+
+    uniforms.tileParams = glm::uvec4{
+        deferred::tileSize,
+        deferred::maxLightsPerTile,
+        static_cast<std::uint32_t>(mode),
+        0u};
+
+    std::memcpy(target.mapped, &uniforms, sizeof(uniforms));
+    VK_CHECK(target.uniforms.flush(0, sizeof(uniforms)));
+}
+
 void Renderer::recordDeferredLightingPass(
     const FrameToken &token,
     const RenderFrameData &data)
@@ -278,18 +298,6 @@ void Renderer::recordDeferredLightingPass(
     const VkExtent2D extent = swapchain_->extent();
     const auto &functions = context_->deviceFunctions();
 
-
-    const auto mode = frames_.at(token.frameIndex).recordedTimingConfig.lightCullingMode;
-    DeferredFrameUniforms uniforms = data.deferredUniforms;
-    uniforms.tileParams = glm::uvec4(deferred::tileSize, deferred::maxLightsPerTile, static_cast<std::uint32_t>(mode), 0u);
-
-    // beginFrame has already waited for this frame slot's fence.
-    std::memcpy(target.mapped, &uniforms, sizeof(uniforms));
-    VK_CHECK(target.uniforms.flush(0, sizeof(uniforms)));
-    if (mode == LightCullingMode::Tiled)
-    {
-        recordTileLightLists(token, data);
-    }
 
     const auto transition = [&](bool toAttachment)
     {
