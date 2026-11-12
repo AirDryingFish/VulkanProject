@@ -94,7 +94,7 @@ void Renderer::createDeferredResources()
             bindings[i].descriptorType = i < 5 ? VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : (i == 5 ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
             bindings[i].descriptorCount = 1;
             bindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            if (i >= 5)
+            if (i == 0 || i ==4 || i >= 5)
             {
                 bindings[i].stageFlags |= VK_SHADER_STAGE_COMPUTE_BIT;
             }

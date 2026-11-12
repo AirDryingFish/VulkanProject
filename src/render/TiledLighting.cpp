@@ -51,11 +51,13 @@ void Renderer::createTileBuffers()
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(context_->physicalDevice(), &properties);
     const auto& limits = properties.limits;
+    constexpr std::uint32_t requiredShadredBytes = 4u * 16u + 16u;
+
     if (limits.maxComputeWorkGroupSize[0] < deferred::tileSize ||
         limits.maxComputeWorkGroupSize[1] < deferred::tileSize ||
         limits.maxComputeWorkGroupSize[2] < 1 ||
         limits.maxComputeWorkGroupInvocations < deferred::tileSize * deferred::tileSize ||
-        limits.maxComputeSharedMemorySize < sizeof(std::uint32_t))
+        limits.maxComputeSharedMemorySize < requiredShadredBytes)
     {
         reject("The device cannot run a 16 x 16 compute workgroup");
     }

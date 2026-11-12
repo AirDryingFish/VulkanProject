@@ -952,7 +952,7 @@ void Application::drawImGui()
 
                 const char *cullingNames[] = {
                     "None (all lights)",
-                    "Tiled lists (all lights)"};
+                    "Tiled (frustum + depth)"};
 
                 int cullingMode = static_cast<int>(display.lightCullingMode);
 
@@ -987,9 +987,8 @@ void Application::drawImGui()
                     else
                     {
                         ImGui::TextWrapped(
-                            "All lights enter every tile. "
-                            "More than 128 lights uses the full light loop. "
-                            "Spatial culling is not enabled yet.");
+                            "Each tile uses its frustum and surface depth range. "
+                            "Overflow tiles use the full light loop.");
                     }
                 }
 

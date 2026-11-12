@@ -242,6 +242,7 @@ void Renderer::recordGBufferPass(const FrameToken &token, const RenderFrameData 
 
     const auto& functions = context_->deviceFunctions();
     const VkExtent2D extent = swapchain_->extent();
+    const bool computeCanSample = tiledLightingAvailable();
 
     // 用来给 5 张 gbuffer 图片统一记录 同步barrier，让它们在“附件写入”和“shader 采样读取”两种用途之间切换
     const auto transition = [&](bool toAttachment)
@@ -280,6 +281,12 @@ void Renderer::recordGBufferPass(const FrameToken &token, const RenderFrameData 
                 :
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+            VkPipelineStageFlags2 sampledStages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+            if (computeCanSample && (i == 0 || depth))
+            {
+                sampledStages |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+            }
+
             auto& barrier = barriers[i];
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -299,7 +306,7 @@ void Renderer::recordGBufferPass(const FrameToken &token, const RenderFrameData 
 
                 if (target.sampledLayout)
                 {
-                    barrier.srcStageMask = stages | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+                    barrier.srcStageMask = stages | sampledStages;
                     barrier.srcAccessMask = writes | VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
                 }
                 barrier.dstStageMask = stages;
@@ -317,7 +324,7 @@ void Renderer::recordGBufferPass(const FrameToken &token, const RenderFrameData 
                 barrier.newLayout = sampledLayout;
                 barrier.srcStageMask = stages;
                 barrier.srcAccessMask = writes;
-                barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+                barrier.dstStageMask = sampledStages;
                 barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
             }
         }
