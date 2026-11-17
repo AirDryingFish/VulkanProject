@@ -82,12 +82,23 @@ void editor_panels::drawDisplay(EditorView& view)
 
         ImGui::BeginDisabled(!canBuildGBuffer || !buildGBuffer);
 
-        const char* gBufferViews[] = {"Rendered output", "World normal",      "Base color", "Metallic",
-                                      "Roughness",       "Ambient occlusion", "Emissive",   "Linear depth"};
+        const char* gBufferViews[] = {"Rendered output",   "World normal", "Base color",   "Metallic",      "Roughness",
+                                      "Ambient occlusion", "Emissive",     "Linear depth", "Motion vectors"};
+
+        const bool motionAvailable = deferredSelected && view.renderer.temporalMotionAvailable();
+
+        if (!motionAvailable && view.display.gBufferView == GBufferView::Motion)
+        {
+            view.display.gBufferView = GBufferView::Off;
+            view.diagnostics.baseline.cancel("Capture cancelled: Motion preview unavailable.");
+            view.diagnostics.startRequested = false;
+        }
+
+        const int bufferViewCount = motionAvailable ? IM_ARRAYSIZE(gBufferViews) : IM_ARRAYSIZE(gBufferViews) - 1;
 
         int selectedBufferView = static_cast<int>(view.display.gBufferView);
 
-        if (ImGui::Combo("G-buffer attachment", &selectedBufferView, gBufferViews, IM_ARRAYSIZE(gBufferViews)))
+        if (ImGui::Combo("G-buffer attachment", &selectedBufferView, gBufferViews, bufferViewCount))
         {
             view.display.gBufferView = static_cast<GBufferView>(selectedBufferView);
 

@@ -307,6 +307,10 @@ void Application::loadScenePreset(ScenePreset preset)
     editor.sceneStatusMessage.clear();
     editor.scenePresetError.clear();
     activeScenePreset = editor.selectedScenePreset = preset;
+
+
+    renderer.invalidateTransformHistory();
+
     lastFrameTime = static_cast<float>(glfwGetTime());
     std::cout << "Scene preset: " << scenePresetInfo(preset).id << " | objects: " << scene.objects.size()
               << " | material sets: " << allocatedMaterialSetCount << '\n';

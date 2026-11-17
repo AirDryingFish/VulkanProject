@@ -76,6 +76,8 @@ void Renderer::initialize(VulkanContext& context, Swapchain& swapchain)
         createTonemapPipeline();
         createGBufferPreviewResources();
         createDeferredResources();
+        createTemporalGeometryResources();
+        createTemporalMotionResources();
 
         std::cout << "Present path: " << (useDynamicRenderingForPresent() ? "Dynamic Rendering" : "RenderPass") << "\n";
         std::cout << "Scene path: " << (useDynamicRenderingForScene() ? "Dynamic Rendering" : "RenderPass")
@@ -92,12 +94,22 @@ void Renderer::initialize(VulkanContext& context, Swapchain& swapchain)
 
 void Renderer::shutdown() noexcept
 {
+
+    invalidateTransformHistory();
+    for (FrameContext& frame : frames_)
+    {
+        frame.pendingTransforms = {};
+    }
+
     if (context_ != nullptr)
     {
+
         const VkDevice device = context_->device();
 
         if (device != VK_NULL_HANDLE)
         {
+            destroyTemporalMotionResources();
+            destroyTemporalGeometryResources();
             destroyDeferredResources();
             destroyGBufferPreviewResources();
 
@@ -228,6 +240,11 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer)>&& function)
         throw std::logic_error("Renderer upload context is not initialized");
     }
     uploadContext_.immediateSubmit(std::move(function));
+}
+
+void Renderer::invalidateTransformHistory() noexcept
+{
+    transformHistory_.invalidate();
 }
 
 std::vector<GpuBuffer> Renderer::uploadBuffers(const std::vector<BufferUploadRequest>& requests)

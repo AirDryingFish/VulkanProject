@@ -58,7 +58,8 @@ enum class GBufferView : std::uint32_t
     Roughness = 4,
     AmbientOcclusion = 5,
     Emissive = 6,
-    LinearDepth = 7
+    LinearDepth = 7,
+    Motion = 8
 };
 
 struct DisplaySettings

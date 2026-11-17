@@ -6,6 +6,7 @@
 #include "vulkan/resources/VulkanResources.hpp"
 #include "vulkan/upload/UploadContext.hpp"
 #include "render/shadow/ShadowCascades.hpp"
+#include "render/temporal/TransformHistory.hpp"
 
 #include <array>
 #include <cstdint>
@@ -72,6 +73,11 @@ private:
         std::array<VkFramebuffer, shadowCascadeCount> framebuffers{};
     };
 
+    struct TemporalHistoryTarget
+    {
+        
+    };
+
     // 帧槽按 CPU 提交顺序循环复用；其索引与 acquire 返回的交换链图像索引独立。
     struct FrameContext
     {
@@ -99,6 +105,27 @@ private:
 
         // 持有被移出场景的 buffer，等此槽的 fence 完成后再真正析构。
         std::vector<GpuBuffer> retiredBuffers;
+
+        FrameTransformSnapshot pendingTransforms{};
+    };
+
+    // 一个飞行帧自己的上传资源
+    struct TemporalGeometryFrame
+    {
+        GpuBuffer uniforms;
+        void* uniformsMapped = nullptr;
+
+        GpuBuffer objects;
+        void* objectsMapped = nullptr;
+        // 当前 frame.objects buffer 里最多能容纳多少条 TemporalObjectData
+        std::size_t objectCapacity = 0;
+
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        bool prepared = false;
+
+        GpuImage motion;
+        GpuImage surfaceKey;
+        bool motionSampledLayout = false;
     };
 
     struct GraphicsPipelineConfig
@@ -217,6 +244,23 @@ private:
     // -- cpu timing--
     RendererCpuTimingSnapshot currentCpuTiming_{}; // 当前正在构建的半成品
     RendererCpuTimingSnapshot latestCpuTiming_{};  // 最近一次成功提交的完整 Renderer 结果
+
+    // -- TAA --
+    TransformHistory transformHistory_{};
+    std::array<TemporalGeometryFrame, MAX_FRAMES_IN_FLIGHT> temporalGeometryFrames_{};
+    VkDescriptorSetLayout temporalGeometrySetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorPool temporalGeometryPool_ = VK_NULL_HANDLE;
+    VkPipelineLayout temporalGeometryPipelineLayout_ = VK_NULL_HANDLE;
+    std::size_t temporalObjectLimit_ = 0;
+    std::string temporalDataUnavailableReason_;
+
+    static constexpr VkFormat temporalMotionFormat_ = VK_FORMAT_R16G16B16A16_SFLOAT;
+    static constexpr VkFormat temporalSurfaceKeyFormat_ = VK_FORMAT_R32G32B32A32_UINT;
+
+    // 用来绘制场景，并为每个可见像素生成 motion vector，以及配套的 surface key
+    VkPipeline temporalMotionPipeline_ = VK_NULL_HANDLE;
+    VkPipeline temporalMotionDoubleSidedPipeline_ = VK_NULL_HANDLE;
+    bool temporalMotionAvailable_ = false;
 
     UploadContext uploadContext_{};
 
@@ -338,6 +382,19 @@ private:
     // 仅在该帧槽 fence 完成后读回成功提交的时间戳，复用查询池前调用。
     void collectGpuTimings(FrameContext& frame, std::uint32_t frameSlot);
 
+    // Temporal Geometry 数据
+    void createTemporalGeometryResources();
+    void writeTemporalGeometryDescriptors(TemporalGeometryFrame& frame);
+
+    // beginFrame 已等待该 slot fence 后调用，读取上一次成功提交的 cpu 历史
+    void prepareTemporalGeometryFrame(const FrameToken& token, const RenderFrameData& data);
+
+    void destroyTemporalGeometryResources() noexcept;
+
+    // Motion / Surface key:
+    void createTemporalMotionResources();
+    void destroyTemporalMotionResources() noexcept;
+
 public:
     // 生命周期
     Renderer() noexcept = default;
@@ -360,6 +417,8 @@ public:
     void recordFrame(const FrameToken& token, const RenderFrameData& data);
     FrameStatus endFrame(const FrameToken& token);
     void waitForAllFrames();
+
+    void invalidateTransformHistory() noexcept;
 
     // 资源上传与退役
     // 同步上传辅助：成功返回时 GPU 已完成回调录制的命令，临时 staging 才可释放。
@@ -385,6 +444,9 @@ public:
 
     bool gBufferGeometryAvailable() const noexcept;
     bool deferredLightingAvailable() const noexcept;
+
+    bool temporalMotionAvailable() const noexcept;
+
     bool tiledLightingAvailable() const noexcept;
     const std::string& tiledUnavailableReason() const noexcept;
 

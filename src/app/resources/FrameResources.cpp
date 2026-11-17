@@ -49,13 +49,18 @@ void Application::createUniformBuffer()
 
 ShadowFrameSummary Application::updateUniformBuffer(std::uint32_t frameSlot, float deltaTime,
                                                     std::uint32_t shadowPreviewLayer, float shadowBlendFraction,
-                                                    DeferredFrameUniforms& deferredUniforms)
+                                                    DeferredFrameUniforms& deferredUniforms,
+                                                    RenderCameraData& cameraData)
 {
     // beginFrame 已等待该帧槽 fence；场景只推进一次，然后完整生成 CPU 数据再发布。
     scene.updateAnimations(deltaTime);
     const FrameSceneUniforms uniforms =
         makeSceneUniforms(scene, camera, display, shadows, swapchain.extent(), shadowPreviewLayer, shadowBlendFraction);
     deferredUniforms = uniforms.deferred;
+
+    cameraData.view = uniforms.frame.view;
+    cameraData.viewProjectionUnjittered = uniforms.frame.proj * uniforms.frame.view;
+    cameraData.jitterUv = glm::vec2(0.0f);
 
     void* lightMapped = pointLightBufferMapped.at(frameSlot);
     if (lightMapped == nullptr)

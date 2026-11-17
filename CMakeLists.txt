@@ -248,6 +248,12 @@ add_executable(vulkan
     src/scene/ManyLights.hpp
     src/scene/ManyLights.cpp
 
+    # taa
+    src/render/temporal/TransformHistory.hpp
+    src/render/temporal/TransformHistory.cpp
+    src/render/temporal/TemporalTypes.hpp
+    src/render/temporal/TemporalGeometry.cpp
+    src/render/temporal/TemporalMotion.cpp
 )
 
 target_include_directories(vulkan PRIVATE

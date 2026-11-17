@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cassert>
 
 void Application::createMaterialDescriptorSets()
 {
@@ -85,6 +86,19 @@ void Application::allocateMaterialDescriptorSets(const std::vector<MaterialHandl
         }
         throw;
     }
+
+    for (const MaterialHandle& material : materials)
+    {
+        if (material->id == invalidMaterialId)
+        {
+            assert(nextMaterialId_ != invalidMaterialId);
+
+            material->id = nextMaterialId_;
+            ++nextMaterialId_;
+
+        }
+    }
+
 }
 
 void Application::writeMaterialDescriptorSet(Material& material)

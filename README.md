@@ -24,6 +24,7 @@ macOS；macOS 通过 MoltenVK 将 Vulkan 指令映射到 Metal。
 - [Phase 2 · Stage 0.5 手敲指南：能力管理与 Vulkan 现代化](docs/todo-phase-2/stage-0-5-vulkan-modernization.md)
 - [Phase 2 · Stage 1 手敲指南：四级 CSM](docs/todo-phase-2/stage-1-cascaded-shadow-maps.md)
 - [Phase 2 · Stage 2 手敲指南：Deferred 与 Tiled 多光源剔除](docs/todo-phase-2/stage-2-deferred-tiled-lighting.md)
+- [Phase 2 · Stage 3 手敲指南：Motion Vectors、提交历史与基础 TAA](docs/todo-phase-2/stage-3-motion-history-taa.md)
 
 ## 技术栈
 

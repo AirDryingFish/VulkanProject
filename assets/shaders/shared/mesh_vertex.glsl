@@ -1,0 +1,117 @@
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec2 inTexCoord;
+layout(location = 3) in vec3 inNormal;
+layout(location = 4) in vec4 inTangent;
+layout(location = 5) in vec2 inTexCoord1;
+
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec2 fragTexCoord;
+layout(location = 2) out vec3 fragWorldPos;
+layout(location = 3) out vec3 fragNormal;
+layout(location = 4) out vec4 fragTangent;
+layout(location = 5) out vec2 fragTexCoord1;
+
+#ifdef TEMPORAL_GEOMETRY
+#include "temporal/temporal_frame.glsl"
+
+layout(location = 6) out vec4 temporalCurrentClip;
+layout(location = 7) out vec4 temporalPreviousClip;
+layout(location = 8) out float temporalPreviousDepth;
+// flat 表示这个变量在光栅化时不插值。一个三角形覆盖所有 frag，都会收到同一顶点提供的值
+layout(location = 9) flat out uvec4 temporalSurfaceKey;
+layout(location = 10) flat out uint temporalPreviousValid;
+
+struct TemporalObjectData
+{
+    mat4 previousModel;
+    uvec4 surfaceKey;
+    uvec4 flags;
+};
+
+layout(std430, set = 2, binding = 1) readonly buffer TemporalObjects
+{
+    TemporalObjectData objects[];
+} temporalObjects;
+#endif
+
+layout(std140, set = 0, binding = 0) uniform UniformBufferObject
+{
+    mat4 view;
+    mat4 proj;
+    vec4 cameraPosition;
+    vec4 ambientLight;
+    ivec4 lightCounts;
+    vec4 renderParams;
+
+    vec4 directionalDirectionEnabled;
+    vec4 directionalColorIntensity;
+
+    mat4 lightViewProjection;
+    vec4 shadowParams;
+    ivec4 shadowFlags;
+
+    mat4 cascadeLightViewProjection[4];
+    vec4 cascadeSplits;
+    vec4 cascadeTexelWorldSize;
+    vec4 cascadeReceiverBias;
+    uvec4 cascadeInfo;
+
+    vec4 cascadeBlendStarts;
+
+} ubo;
+
+layout(push_constant) uniform ModelPushConstants
+{
+    mat4 model;
+    vec4 baseColorFactor;
+    vec4 materialFactors;
+    vec4 emissiveFactor;
+    uvec4 textureInfo;
+} pushConstants;
+
+void main() {
+    vec4 worldPosition = pushConstants.model * vec4(inPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * worldPosition;
+
+#ifdef TEMPORAL_GEOMETRY
+    TemporalObjectData object = temporalObjects.objects[gl_InstanceIndex];
+
+    vec4 previousWorldPosition = object.previousModel * vec4(inPosition, 1.0);
+    temporalCurrentClip = temporalFrame.currentViewProjectionUnjittered * worldPosition;
+    temporalPreviousClip = temporalFrame.previousViewProjectionUnjittered * previousWorldPosition;
+    temporalPreviousDepth = -(temporalFrame.previousView * previousWorldPosition).z;
+
+    temporalSurfaceKey = object.surfaceKey;
+    temporalPreviousValid = object.flags.x;
+
+#endif
+
+    fragColor = inColor;
+    fragTexCoord = inTexCoord;
+    fragTexCoord1 = inTexCoord1;
+    fragWorldPos = worldPosition.xyz;
+    mat3 modelLinear = mat3(pushConstants.model);
+    vec3 worldNormal = normalize(transpose(inverse(mat3(pushConstants.model))) * inNormal);
+    fragNormal = worldNormal;
+    fragTangent = vec4(0.0);
+
+    // 有 tangent from asset
+    if (pushConstants.textureInfo.y != 0u)
+    {
+        vec3 worldTangent = modelLinear * inTangent.xyz;
+        // 重新让 T 与 N 垂直
+        worldTangent -= worldNormal * dot(worldNormal, worldTangent);
+        float tangentLength = length(worldTangent);
+        if (tangentLength > 0.0001)
+        {
+            worldTangent /= tangentLength;
+            // modelSign 判断 model 变换有没有将坐标系“镜像反转”
+            float modelSign = determinant(modelLinear) < 0.0 ? -1.0 : 1.0;
+            fragTangent = vec4(worldTangent, inTangent.w * modelSign);
+        }
+
+    }
+
+}

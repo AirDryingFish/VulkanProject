@@ -5,6 +5,10 @@
 
 #include <glm/glm.hpp>
 #include <string>
+#include <cstdint>
+
+using SceneObjectId = std::uint64_t;
+inline constexpr SceneObjectId invalidSceneObjectId = 0;
 
 struct Transform
 {
@@ -15,6 +19,8 @@ struct Transform
 
 struct SceneObject
 {
+    SceneObjectId id = invalidSceneObjectId;
+
     std::string name;
     MeshSource source = MeshSource::Obj;
     std::string sourcePath;

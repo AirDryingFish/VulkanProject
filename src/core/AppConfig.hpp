@@ -54,6 +54,10 @@ inline const std::string DEFERRED_LIGHTING_FRAGMENT_SHADER_PATH =
     assetPath("shaders/deferred/deferred_lighting.frag.spv");
 inline const std::string TILE_LIGHTS_COMPUTE_SHADER_PATH = assetPath("shaders/deferred/tile_lights.comp.spv");
 
+inline const std::string TEMPORAL_GEOMETRY_VERTEX_SHADER_PATH = assetPath("shaders/temporal/geometry.vert.spv");
+
+inline const std::string TEMPORAL_GEOMETRY_FRAGMENT_SHADER_PATH = assetPath("shaders/temporal/geometry.frag.spv");
+
 inline const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
 inline const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME

@@ -2,6 +2,8 @@
 
 #include <glm/ext/matrix_transform.hpp>
 
+#include <cassert>
+#include <utility>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -17,6 +19,16 @@ glm::mat4 SceneObject::modelMatrix() const
     model = glm::rotate(model, glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
     model = glm::rotate(model, glm::radians(autoRotation), glm::vec3(0.0f, 0.0f, 1.0f));
     return glm::scale(model, transform.scale);
+}
+
+void Scene::appendObject(SceneObject object)
+{
+    assert(nextObjectId_ != invalidSceneObjectId);
+
+    object.id = nextObjectId_;
+    objects.push_back(std::move(object));
+
+    ++nextObjectId_;
 }
 
 void Scene::updateAnimations(float deltaTime)

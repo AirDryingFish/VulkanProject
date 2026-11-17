@@ -326,8 +326,9 @@ void Application::drawFrame()
     const float shadowBlendFraction = shadows.mode == ShadowMode::Cascaded ? shadows.blendFraction : 0.0f;
 
     DeferredFrameUniforms deferredUniforms{};
-    const ShadowFrameSummary shadowFrame =
-        updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer, shadowBlendFraction, deferredUniforms);
+    RenderCameraData cameraData{};
+    const ShadowFrameSummary shadowFrame = updateUniformBuffer(frame.frameIndex, deltaTime, shadowPreviewLayer,
+                                                               shadowBlendFraction, deferredUniforms, cameraData);
     processModelPicking();
     ImGui::Render();
 
@@ -336,6 +337,7 @@ void Application::drawFrame()
 
     // objects/ImGui 数据只在 recordFrame() 同步读取；底层 GPU 资源则必须活到提交完成。
     RenderFrameData renderData = buildSceneRenderData(scene, camera, display, shadows);
+    renderData.camera = cameraData;
     renderData.objects = &renderObjects;
     renderData.frameDescriptorSet = frameDescriptorSets.at(frame.frameIndex);
     renderData.skyboxDescriptorSet = skyboxDescriptorSets.at(frame.frameIndex);

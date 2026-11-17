@@ -210,6 +210,21 @@ void Renderer::recordFrame(const FrameToken& token, const RenderFrameData& data)
         throw std::logic_error("GPU timing requires vkCmdWriteTimestamp2");
     }
 
+    FrameTransformSnapshot snapshot{};
+    snapshot.view = data.camera.view;
+    snapshot.viewProjectionUnjittered = data.camera.viewProjectionUnjittered;
+    snapshot.jitterUv = data.camera.jitterUv;
+    if (data.objects != nullptr)
+    {
+        snapshot.models.reserve(data.objects->size());
+        for (const RenderObjectView& object : *data.objects)
+        {
+            snapshot.models.emplace(object.objectId, object.pushConstants.model);
+        }
+    }
+    frame.pendingTransforms = std::move(snapshot);
+    prepareTemporalGeometryFrame(token, data);
+
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -467,6 +482,7 @@ FrameStatus Renderer::endFrame(const FrameToken& token)
 
     // submit 成功才生成 ID/发布 pending；即使随后 Present 要求重建，这份 GPU 工作仍真实存在。
     const std::uint64_t submissionId = ++gpuSubmissionCounter_;
+    transformHistory_.commit(submissionId, std::move(frame.pendingTransforms));
 
     currentCpuTiming_.submissionId = submissionId;
     currentCpuTiming_.config = frame.recordedTimingConfig;

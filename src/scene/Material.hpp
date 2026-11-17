@@ -11,6 +11,9 @@
 #include <cstddef>
 #include <stdexcept>
 
+using MaterialId = std::uint64_t;
+inline constexpr MaterialId invalidMaterialId =0;
+
 struct ImageResource
 {
     std::string name;
@@ -47,6 +50,8 @@ enum class MaterialAlphaMode
 
 struct Material
 {
+    MaterialId id = invalidMaterialId;
+
     std::string name;
 
     MaterialTextureSlot baseColorTexture;

@@ -1,6 +1,8 @@
 # 阶段 2：Deferred Rendering 与 Tiled 多光源剔除手敲指南
 
 本文接续 [Phase 2 大纲](overview.md#6-阶段-2deferred-rendering-与多光源剔除) 和 [Stage 1：CSM](stage-1-cascaded-shadow-maps.md)。
+
+> 本文保留 2026-11-02 的实施规划与旧路径。2026-11-12 当前主线已具备 Deferred/Tiled 核心功能，现行代码位置与下一阶段手敲顺序见 [Stage 3 指南](stage-3-motion-history-taa.md)。
 核对日期：2026-11-02；源码基线：`289fbc5`（`Add csm diagnostics`）**加当前工作区未提交的 CSM 诊断、Buffer 属性/flush、配置归档和验收 UI 改动**，包括新增的 `ShadowFrameSummary.hpp`。只检出该 commit 不能完整复现本次核对。
 
 **结论：建议有条件进入 Stage 2。Stage 0.5 与 Stage 1 的核心实现已具备，允许开始本指南 A 组；Stage 1 的专项画质、生命周期和基线归档尚未全部收口。Stage 2 本文仍是开发计划，没有实现 Deferred 或 Tiled。**

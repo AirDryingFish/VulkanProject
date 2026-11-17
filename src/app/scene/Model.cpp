@@ -108,7 +108,7 @@ void Application::addMeshObject(MeshSource source, const std::string& path)
     object.mesh = getOrCreateMesh(source, meshPath);
     object.material = defaultMaterial;
 
-    scene.objects.push_back(std::move(object));
+    scene.appendObject(std::move(object));
 
     editor.objectIndex = static_cast<int>(scene.objects.size()) - 1;
     editor.selection = SelectionKind::Object;
@@ -371,7 +371,7 @@ GltfImportResult Application::addGltfMeshObjects(const std::string& path)
 
     for (SceneObject& object : stagedObjects)
     {
-        scene.objects.push_back(std::move(object));
+        scene.appendObject(std::move(object));
     }
     editor.objectIndex = static_cast<int>(scene.objects.size() - 1);
     editor.selection = SelectionKind::Object;

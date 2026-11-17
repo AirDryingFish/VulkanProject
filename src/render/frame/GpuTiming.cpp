@@ -81,6 +81,12 @@ void Renderer::captureFrameTimingConfig(const FrameToken& token, const RenderFra
         frame.recordedTimingConfig.gBufferGeometry && gBufferPreviewPipeline_ != VK_NULL_HANDLE ? data.gBufferView
                                                                                                 : GBufferView::Off;
 
+    if (frame.recordedTimingConfig.gBufferView == GBufferView::Motion &&
+        (!useDeferred || !temporalMotionAvailable() || !temporalGeometryFrames_[token.frameIndex].prepared))
+    {
+        frame.recordedTimingConfig.gBufferView = GBufferView::Off;
+    }
+
     frame.recordedTimingConfig.shadowEnabled = data.directionalShadowsEnabled;
     frame.recordedTimingConfig.shadowPreview = data.showShadowDepth;
     frame.recordedTimingConfig.shadowPreviewLayer = data.shadowPreviewLayer;

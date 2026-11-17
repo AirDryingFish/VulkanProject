@@ -3,6 +3,7 @@
 #include "vulkan/VulkanHeaders.hpp"
 #include "render/RenderSettings.hpp"
 #include "render/ShaderTypes.hpp"
+#include "scene/SceneTypes.hpp"
 #include "render/shadow/ShadowFrameSummary.hpp"
 #include <glm/glm.hpp>
 
@@ -20,6 +21,9 @@ struct ImDrawData;
 // 只借用 GPU 句柄；生成绘制快照不会延长底层 Mesh/Material 的生命周期。
 struct RenderObjectView
 {
+    SceneObjectId objectId = invalidSceneObjectId;
+    MaterialId materialId = invalidMaterialId;
+
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
     VkBuffer indexBuffer = VK_NULL_HANDLE;
     uint32_t indexCount = 0;
@@ -30,6 +34,17 @@ struct RenderObjectView
     bool doubleSided = false;
 };
 
+// 本帧绘制实际使用了什么相机状态
+struct RenderCameraData
+{
+    // 本帧的观察矩阵, 世界坐标 -> 相机坐标
+    glm::mat4 view{1.0f};
+    // 不含 jitter 的 projection * view
+    glm::mat4 viewProjectionUnjittered{1.0f};
+    // 本帧 jitter，以 uv 为单位
+    glm::vec2 jitterUv{0.0f};
+};
+
 // objects/ImDrawData 只在 recordFrame 中同步读取；录制期间不能使指针失效。
 // 录制完成后，句柄对应的 GPU 资源仍需保留到使用它们的提交完成。
 struct RenderFrameData
@@ -37,6 +52,8 @@ struct RenderFrameData
     const std::vector<RenderObjectView>* objects = nullptr;
     VkDescriptorSet frameDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet skyboxDescriptorSet = VK_NULL_HANDLE;
+
+    RenderCameraData camera{};
 
     ImDrawData* imguiDrawData = nullptr;
 

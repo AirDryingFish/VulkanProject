@@ -20,6 +20,8 @@ std::vector<RenderObjectView> buildRenderObjects(const Scene& scene)
         const Material& material = *object.material;
 
         RenderObjectView view{};
+        view.objectId = object.id;
+        view.materialId = material.id;
         view.vertexBuffer = mesh.vertexBuffer.get();
         view.indexBuffer = mesh.indexBuffer.get();
         view.indexCount = mesh.indexCount;

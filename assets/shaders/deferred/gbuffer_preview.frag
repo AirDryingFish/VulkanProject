@@ -13,6 +13,7 @@ layout(set = 1, binding = 1) uniform sampler2D gBaseColor;
 layout(set = 1, binding = 2) uniform sampler2D gMaterial;
 layout(set = 1, binding = 3) uniform sampler2D gEmissive;
 layout(set = 1, binding = 4) uniform sampler2D gDepth;
+layout(set = 1, binding = 5) uniform sampler2D gMotion;
 
 layout(push_constant) uniform GBufferPreviewPushConstants
 {
@@ -89,6 +90,23 @@ void main()
         float gray = clamp((viewDepth - preview.params.x) / max(preview.params.y - preview.params.x, 1e-4), 0.0, 1.0);
 
         result = vec3(gray);
+    }
+
+    else if (mode == 8)
+    {
+        vec4 motion = texelFetch(gMotion, pixel, 0);
+
+        if (motion.w < 0.5)
+        {
+            result = vec3(1.0, 0.0, 1.0);
+        }
+        else
+        {
+            // ±32 像素映射到 R/G；静止表面显示中性灰。
+            vec2 motionPixels = motion.xy * vec2(textureSize(gMotion, 0));
+            vec2 signedColor = clamp(motionPixels / 32.0, vec2(-1.0), vec2(1.0));
+            result = vec3(signedColor * 0.5 + 0.5, 0.5);
+        }
     }
 
     outColor = vec4(result, 1.0);

@@ -186,23 +186,32 @@ void Renderer::createGBufferPipelines()
 void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData& data)
 {
     GBufferTarget& target = gBufferTargets_.at(token.frameIndex);
+    auto& temporal = temporalGeometryFrames_[token.frameIndex];
+
+    const bool useTemporal = temporalMotionAvailable() && temporal.prepared;
+    const VkPipelineLayout layout = useTemporal ? temporalGeometryPipelineLayout_ : scenePipelineLayout_;
+    const VkPipeline backPipeline = useTemporal ? temporalMotionPipeline_ : gBufferPipeline_;
+    const VkPipeline doubleSidedPipeline =
+        useTemporal ? temporalMotionDoubleSidedPipeline_ : gBufferDoubleSidedPipeline_;
 
     const auto& functions = context_->deviceFunctions();
     const VkExtent2D extent = swapchain_->extent();
     const bool computeCanSample = tiledLightingAvailable();
 
-    // 用来给 5 张 gbuffer 图片统一记录 同步barrier，让它们在“附件写入”和“shader 采样读取”两种用途之间切换
+    // 屏障顺序：四张原有颜色、depth、motion、surface key。
     const auto transition = [&](bool toAttachment)
     {
-        std::array<VkImageMemoryBarrier2, 5> barriers{};
+        std::array<VkImageMemoryBarrier2, 7> barriers{};
+        const std::size_t count = useTemporal ? barriers.size() : 5;
 
-        for (std::size_t i = 0; i < barriers.size(); ++i)
+        for (std::size_t i = 0; i < count; ++i)
         {
             const bool depth = i == 4;
 
-            const GpuImage& image = depth ? target.depth : target.colors[i];
+            const GpuImage& image =
+                i < 4 ? target.colors[i] : (depth ? target.depth : (i == 5 ? temporal.motion : temporal.surfaceKey));
+            const bool wasSampled = i < 5 ? target.sampledLayout : temporal.motionSampledLayout;
 
-            // 这张图被作为附件使用的时候，GPU 在哪些管线阶段访问它
             const VkPipelineStageFlags2 stages =
                 depth ? VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
                       : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -233,17 +242,15 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
 
             if (toAttachment)
             {
-                // false -> 图片刚创建，尚未使用
-                // true -> 上一次 Geometry 后已经转换为采样读取
-                // 两种情况都要转换到 newLayout 去
-                barrier.oldLayout = target.sampledLayout ? sampledLayout : VK_IMAGE_LAYOUT_UNDEFINED;
+                barrier.oldLayout = wasSampled ? sampledLayout : VK_IMAGE_LAYOUT_UNDEFINED;
                 barrier.newLayout = attachmentLayout;
 
-                if (target.sampledLayout)
+                if (wasSampled)
                 {
                     barrier.srcStageMask = stages | sampledStages;
                     barrier.srcAccessMask = writes | VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
                 }
+
                 barrier.dstStageMask = stages;
                 barrier.dstAccessMask = writes;
 
@@ -252,7 +259,6 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
                     barrier.dstAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
                 }
             }
-
             else
             {
                 barrier.oldLayout = attachmentLayout;
@@ -266,17 +272,22 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
 
         VkDependencyInfo dependency{};
         dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        dependency.imageMemoryBarrierCount = static_cast<std::uint32_t>(barriers.size());
+        dependency.imageMemoryBarrierCount = static_cast<std::uint32_t>(count);
         dependency.pImageMemoryBarriers = barriers.data();
         functions.cmdPipelineBarrier2(token.commandBuffer, &dependency);
     };
 
     transition(true);
-    std::array<VkRenderingAttachmentInfo, 4> colors{};
-    for (std::size_t i = 0; i < colors.size(); ++i)
+
+    // 渲染附件顺序：四张原有颜色、motion、surface key；depth 单独设置。
+    std::array<VkRenderingAttachmentInfo, 6> colors{};
+    const std::size_t colorCount = useTemporal ? colors.size() : gBufferColorFormats_.size();
+
+    for (std::size_t i = 0; i < colorCount; ++i)
     {
         colors[i].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        colors[i].imageView = target.colors[i].view();
+        colors[i].imageView =
+            i < 4 ? target.colors[i].view() : (i == 4 ? temporal.motion.view() : temporal.surfaceKey.view());
         colors[i].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         colors[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colors[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -294,7 +305,7 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
     rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     rendering.renderArea.extent = extent;
     rendering.layerCount = 1;
-    rendering.colorAttachmentCount = static_cast<std::uint32_t>(colors.size());
+    rendering.colorAttachmentCount = static_cast<std::uint32_t>(colorCount);
     rendering.pColorAttachments = colors.data();
     rendering.pDepthAttachment = &depth;
 
@@ -309,16 +320,24 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
     vkCmdSetViewport(token.commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(token.commandBuffer, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, scenePipelineLayout_, 0, 1,
+    vkCmdBindDescriptorSets(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1,
                             &data.frameDescriptorSet, 0, nullptr);
+
+    if (useTemporal)
+    {
+        vkCmdBindDescriptorSets(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 2, 1,
+                                &temporal.descriptorSet, 0, nullptr);
+    }
 
     if (data.objects != nullptr)
     {
         FrameContext& frame = frames_.at(token.frameIndex);
         const VkDeviceSize offset = 0;
 
-        for (const RenderObjectView& object : *data.objects)
+        for (std::size_t objectIndex = 0; objectIndex < data.objects->size(); ++objectIndex)
         {
+            const RenderObjectView& object = (*data.objects)[objectIndex];
+
             if (object.indexCount == 0 || object.vertexBuffer == VK_NULL_HANDLE ||
                 object.indexBuffer == VK_NULL_HANDLE || object.materialDescriptorSet == VK_NULL_HANDLE)
             {
@@ -326,20 +345,19 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
             }
 
             vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              object.doubleSided ? gBufferDoubleSidedPipeline_ : gBufferPipeline_);
+                              object.doubleSided ? doubleSidedPipeline : backPipeline);
 
-            vkCmdBindDescriptorSets(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, scenePipelineLayout_, 1, 1,
+            vkCmdBindDescriptorSets(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1,
                                     &object.materialDescriptorSet, 0, nullptr);
 
-            vkCmdPushConstants(token.commandBuffer, scenePipelineLayout_,
-                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(DrawPushConstants),
-                               &object.pushConstants);
+            vkCmdPushConstants(token.commandBuffer, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                               0, sizeof(DrawPushConstants), &object.pushConstants);
 
             vkCmdBindVertexBuffers(token.commandBuffer, 0, 1, &object.vertexBuffer, &offset);
-
             vkCmdBindIndexBuffer(token.commandBuffer, object.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdDrawIndexed(token.commandBuffer, object.indexCount, 1, 0, 0, 0);
+            const std::uint32_t firstInstance = useTemporal ? static_cast<std::uint32_t>(objectIndex) : 0;
+            vkCmdDrawIndexed(token.commandBuffer, object.indexCount, 1, 0, 0, firstInstance);
 
             ++frame.recordedDraws.sceneDraws;
             frame.recordedDraws.sceneTriangles += object.indexCount / 3;
@@ -350,6 +368,11 @@ void Renderer::recordGBufferPass(const FrameToken& token, const RenderFrameData&
 
     transition(false);
     target.sampledLayout = true;
+
+    if (useTemporal)
+    {
+        temporal.motionSampledLayout = true;
+    }
 }
 
 void Renderer::destroyGBufferTargets() noexcept

@@ -3,19 +3,19 @@
 本文接续 [Phase 1 开发路线图](../todo-phase-1/overview.md)，作为后续手敲开发的大纲。
 
 原规划日期：2026-09-23；原源码基线：`98fd00f`（`Support mask material`）。
-进度核对：2026-11-02，源码基线 `289fbc5`（`Add csm diagnostics`）加工作区未提交的 CSM 诊断/采集改动。
+进度核对：2026-11-12，源码基线 `30b26ae`；当前已完成 Deferred/Tiled 主链与模块、目录整理。
 本文区分实现与运行验收；未来阶段仍是规划，不因写出指南而视为实现。
 
-> 当前类名和源码路径见 [README · 源码目录](../../README.md#源码目录)。下文的开发顺序和未勾选验收项继续保留；当前实现状态以本次核对及 Stage 2 指南为准，不能把历史清单当作代码尚不存在。
+> 当前类名和源码路径见 [README · 源码目录](../../README.md#源码目录)。下文的开发顺序和未勾选验收项继续保留；当前实现状态以本次核对及 Stage 3 指南为准，不能把历史清单当作代码尚不存在。
 
 项目目标包含引擎图形工程师求职展示：逐步积累渲染算法、GPU 数据与同步管理、性能分析和技术
 表达能力。每个重点功能应有可运行的对照、可解释的取舍和实际测量结果。
 
-当前 Stage 0 基线工具、Stage 0.5 能力管理/主帧路径现代化和 Stage 1 四级 CSM 的核心实现已有。
-Linux Debug/Release 构建与各六项测试、两配置 Shadow Playground 的 30 帧启动/退出检查通过；
-固定条件 Single/CSM 画质/性能、完整配置归档及生命周期专项验收仍开放。
-**可以有条件开始 Stage 2 A 组的 CPU 契约；在接入新 GPU 附件前补齐 Stage 1 收口检查。**
-具体依据、运行边界与待办见 [Stage 2 准入评估](stage-2-deferred-tiled-lighting.md#1-是否需要做当前是否可以开始)。
+当前 Stage 0 基线工具、Stage 0.5 能力管理、Stage 1 CSM、Stage 2 Deferred/Tiled 的核心实现已有。
+Stage 2 当前包含四 MRT + D32、完整 Deferred 光照、1024 点光 SSBO、Compute Tiled、调试热图与七个 GPU 计时区间。
+**可以进入 Stage 3：Motion Vectors、提交历史与基础 TAA。** 稳定身份、previous transforms、history 与 jitter 尚未实现；
+具体当前代码约束、目录归属和第一轮手敲步骤见 [Stage 3 指南](stage-3-motion-history-taa.md)。
+专项画质、性能归档与未执行的平台/生命周期检查继续按实际结果收口，不把短运行等同于完整验收。
 
 分阶段手敲指南：
 
@@ -23,6 +23,7 @@ Linux Debug/Release 构建与各六项测试、两配置 Shadow Playground 的 3
 - [阶段 0.5：Vulkan 能力管理与现代化](stage-0-5-vulkan-modernization.md)
 - [阶段 1：四级 Cascaded Shadow Maps](stage-1-cascaded-shadow-maps.md)
 - [阶段 2：Deferred Rendering 与 Tiled 多光源剔除](stage-2-deferred-tiled-lighting.md)
+- [阶段 3：Motion Vectors、提交历史与基础 TAA](stage-3-motion-history-taa.md)
 
 ## 1. 当前起点与 Phase 1 收尾边界
 
@@ -36,10 +37,10 @@ Linux Debug/Release 构建与各六项测试、两配置 Shadow Playground 的 3
 | HDR Scene → Post → Present → ImGui | 已接通 | Deferred 和光追继续输出线性 HDR |
 | 曝光、ACES fitted | 已有 EV、Reinhard 与 ACES fitted（Narkowicz） | 固定后续算法比较的显示条件 |
 | 材质与深度 Debug Views | 已有材质、法线、深度、HDR 亮度与光空间视图 | 后续扩展到 G-buffer、重投影和光追命中 |
-| GPU timestamp / pass 耗时 | 已有三个区间、状态、提交 ID 和延迟读回 | 保持测量契约，比较迁移/算法成本 |
-| CPU / draw / 资源 / CSV | 已有主机六区间、绘制量、VMA 与 300 行配对采集 | 固定条件归档仍待完善，CSV 本身不含完整环境设置 |
+| GPU timestamp / pass 耗时 | 已有七个区间、状态、提交 ID 和延迟读回 | 保持测量契约，比较迁移/算法成本 |
+| CPU / draw / 资源 / CSV | 已有主机六区间、绘制量、VMA、300 行配对采集与配置旁置归档 | 基线夹具需适配七区间 mask；完整条件对照按实际记录 |
 | Bloom、FXAA | 尚未完成 | Bloom 纳入 A-2 显示收尾；FXAA 选做，主要抗锯齿目标为 TAA |
-| 多光源剔除、屏幕空间效果与绘制优化 | 尚未建立本大纲中的进阶路径 | 纳入阶段 2、A-1、A-3、A-4，逐项实现与测量 |
+| 多光源剔除、屏幕空间效果与绘制优化 | Stage 2 已有全灯/Tiled、溢出回退与热图；AO/SSR/绘制优化尚未实现 | Stage 3 后按 A-1、A-3、A-4 继续，逐项实现与测量 |
 | Vulkan API / 能力管理 | 首选请求 1.3，已有版本协商/Features2；本次设备启用 Synchronization2 / Dynamic Rendering | 新增 pass 复用主帧路径约定；兼容设备与跨平台按实际验证范围声明 |
 | 光追能力 | 尚未建立 RT feature 路径 | 阶段 4 复用能力框架，补齐 BDA、加速结构、Ray Query 及依赖 |
 
@@ -316,6 +317,8 @@ Deferred 不保证所有场景更快。本阶段将一种光源剔除方案纳�
 ## 7. 阶段 3：时域数据与完整基础 TAA
 
 **目的：完成可独立演示的时域抗锯齿，同时为低采样数降噪和 ReSTIR 建立可靠的跨帧对应关系。**
+
+当前代码约束、分组与第一轮具体手敲代码见 [Stage 3 实施指南](stage-3-motion-history-taa.md)。
 
 ### 手敲顺序
 

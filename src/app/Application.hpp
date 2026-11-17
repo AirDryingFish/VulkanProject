@@ -73,7 +73,8 @@ private:
     // 逐帧资源发布：只在 beginFrame 已等待对应帧槽后写入和 flush。
     void createUniformBuffer();
     ShadowFrameSummary updateUniformBuffer(std::uint32_t frameSlot, float deltaTime, std::uint32_t shadowPreviewLayer,
-                                           float shadowBlendFraction, DeferredFrameUniforms& deferredUniforms);
+                                           float shadowBlendFraction, DeferredFrameUniforms& deferredUniforms,
+                                           RenderCameraData& cameraData);
 
     // 场景替换事务：新资源准备成功后发布，失败保留原场景。
     void loadScenePreset(ScenePreset preset);
@@ -165,6 +166,7 @@ private:
     static constexpr std::uint32_t sceneSwitchMaterialReserve = maxMaterialCount;
     static constexpr std::uint32_t materialPoolCapacity = maxMaterialCount + sceneSwitchMaterialReserve;
     std::uint32_t allocatedMaterialSetCount = 0;
+    MaterialId nextMaterialId_ = 1;
 
     // UBO 和 frame/skybox set 按飞行帧资源槽分配，不按交换链图像编号分配。
     std::vector<GpuBuffer> uniformBuffers;

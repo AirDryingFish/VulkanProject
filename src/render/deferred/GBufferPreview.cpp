@@ -36,7 +36,7 @@ void Renderer::createGBufferPreviewResources()
 
     if (gBufferPreviewSetLayout_ == VK_NULL_HANDLE)
     {
-        std::array<VkDescriptorSetLayoutBinding, 5> bindings{};
+        std::array<VkDescriptorSetLayoutBinding, 6> bindings{};
 
         for (std::uint32_t i = 0; i < bindings.size(); ++i)
         {
@@ -60,7 +60,7 @@ void Renderer::createGBufferPreviewResources()
 
         VkDescriptorPoolSize poolSize{};
         poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSize.descriptorCount = count * 5;
+        poolSize.descriptorCount = count * 6;
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -138,16 +138,17 @@ void Renderer::writeGBufferPreviewDescriptors()
         }
 
         const GBufferTarget& target = gBufferTargets_.at(slot);
-        std::array<VkDescriptorImageInfo, 5> images{};
-        std::array<VkWriteDescriptorSet, 5> writes{};
+        std::array<VkDescriptorImageInfo, 6> images{};
+        std::array<VkWriteDescriptorSet, 6> writes{};
 
         for (std::uint32_t i = 0; i < images.size(); ++i)
         {
             const bool depth = i == 4;
-            const VkImageView view = depth ? target.depth.view() : target.colors[i].view();
+            // binding 5 初始绑定 normal，避免引用尚未生成的 Motion。
+            const VkImageView view = depth ? target.depth.view() : target.colors[i == 5 ? 0 : i].view();
             if (view == VK_NULL_HANDLE)
             {
-                throw std::logic_error("G-buffer preview requires all five image views");
+                throw std::logic_error("G-buffer preview requires valid image views");
             }
 
             images[i].sampler = gBufferPreviewSampler_.get();
@@ -170,6 +171,25 @@ void Renderer::writeGBufferPreviewDescriptors()
 
 void Renderer::recordGBufferPreview(const FrameToken& token, const RenderFrameData& data)
 {
+    const auto& temporal = temporalGeometryFrames_[token.frameIndex];
+    const bool hasMotion = data.renderPath == RenderPath::Deferred && temporalMotionAvailable() && temporal.prepared;
+
+    // 当前槽 fence 已完成；只更新此槽，Forward 使用已生成的 normal 作为占位。
+    VkDescriptorImageInfo image{};
+    image.sampler = gBufferPreviewSampler_.get();
+    image.imageView = hasMotion ? temporal.motion.view() : gBufferTargets_[token.frameIndex].colors[0].view();
+    image.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = gBufferPreviewSets_[token.frameIndex];
+    write.dstBinding = 5;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &image;
+
+    vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
+
     vkCmdBindPipeline(token.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gBufferPreviewPipeline_);
 
     // set 0: 现有 frameDescriptorSet 提供本帧投影矩阵

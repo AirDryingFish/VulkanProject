@@ -193,6 +193,8 @@ void Renderer::recreateHdrTargets()
         throw std::logic_error("HDR resize requires an initialized renderer outside na activate");
     }
 
+    invalidateTransformHistory();
+
     // 调用方必须已经等待 gpu 空闲
     const VkFormat oldHdrFormat = hdrFormat_;
     const VkFormat oldDepthFormat = sceneDepthFormat_;
@@ -216,4 +218,6 @@ void Renderer::recreateHdrTargets()
     createGBufferPipelines();
     createGBufferPreviewResources();
     createDeferredResources();
+    createTemporalGeometryResources();
+    createTemporalMotionResources();
 }

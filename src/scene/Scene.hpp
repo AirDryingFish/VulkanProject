@@ -17,8 +17,14 @@ public:
     float ambientLightIntensity = 0.0f;
     float iblIntensity = 1.0f;
 
+    // 发布新对象并分配身份，其他对象的移动和删除不影响已有 id
+    void appendObject(SceneObject object);
+
     // 每次场景更新调用一次；不能在阴影/主场景等每个 pass 里重复推进动画。
     void updateAnimations(float deltaTime);
     // 合并物体的世界空间 AABB；没有有效几何或出现非有限坐标时抛异常，交给预设事务回滚。
     void bounds(glm::vec3& minimum, glm::vec3& maximum) const;
+
+private:
+    SceneObjectId nextObjectId_ = 1;
 };
